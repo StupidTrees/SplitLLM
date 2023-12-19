@@ -7,6 +7,7 @@ from sfl.simulator.dataset import FedDataset
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.simulator.strategy import FLStrategy
 from sfl.utils import FLConfig, get_best_gpu
+from peft import LoraConfig, get_peft_model
 
 
 class SFLSimulator(object):
@@ -24,14 +25,17 @@ class SFLSimulator(object):
         self.dataset = dataset
         self.config = config
         self.device = get_best_gpu() if torch.cuda.is_available() else 'cpu'
-        self.llm.to(self.device)
         self.parameter_keeper = InMemoryParameterKeeper(client_ids)
         self.llm.config_sfl(config, self.parameter_keeper)
         self.communication_overhead_uplink = {}
         self.communication_overhead_downlink = {}
         self.current_global_round = 0
+        if config.use_lora_at_trunk:
+            self._add_adapter()
 
     def simulate(self):
+        self.llm.to(self.device)
+        self.llm.train()
         # initialize server parameters
         self.parameter_keeper.store_server_params('server',
                                                   [p.detach().cpu() for nm, p in self.llm.get_trunk_params()])
@@ -52,6 +56,19 @@ class SFLSimulator(object):
             # aggregate server parameters
             self._server_step(sampled_clients)
         self.__summarize_communication()
+
+    def _add_adapter(self):
+        """
+        为Trunk部分加上LoRA适配器
+        :return:
+        """
+        lora_config = LoraConfig(target_modules=self.llm.get_trunk_adapter_module_regex())
+        self.llm = get_peft_model(self.llm, lora_config)
+        # PEFT会冻结所有模型参数，需要恢复top和bottom部分
+        for name, param in self.llm.get_top_params(trainable_only=False):
+            param.requires_grad = True
+        for name, param in self.llm.get_bottom_params(trainable_only=False):
+            param.requires_grad = True
 
     def _client_step(self, client_id: str):
         # load client parameters (bottom and top layers)

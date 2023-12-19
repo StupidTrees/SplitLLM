@@ -1,4 +1,3 @@
-import random
 from abc import ABC, abstractmethod
 
 from datasets import load_dataset, disable_progress_bar
@@ -41,9 +40,11 @@ class PIQAFedDataset(FedDataset):
             input = self.tokenizer(examples["goal"], truncation=True, padding="max_length")
             output = self.tokenizer(examples["sol1"], truncation=True, padding="max_length")
             return {'input_ids': input['input_ids'], 'input_att_mask': input['attention_mask'],
-                    'output_ids': output['input_ids'], 'output_att_mask': output['attention_mask']}
+                    'output_ids': output['input_ids'], 'output_att_mask': output['attention_mask'],
+                    "input_text": examples["goal"], "output_text": examples["sol1"]}
 
         ds = ds.map(encode)
-        ds.set_format(type="torch", columns=["input_ids", "input_att_mask", "output_ids", "output_att_mask"])
+        ds.set_format(type="torch", columns=["input_ids", "input_att_mask", "output_ids", "output_att_mask","input_text"])
         loader = DataLoader(ds, batch_size=batch_size)
+
         return loader

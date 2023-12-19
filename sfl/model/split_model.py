@@ -13,7 +13,7 @@ class SplitModel(nn.Module, ABC):
     """
 
     def __init__(self):
-        super(SplitModel, self).__init__()
+        super().__init__()
         self.param_keeper: ParameterKeeper | None = None
         self.fl_config: FLConfig | None = None
 
@@ -57,26 +57,40 @@ class SplitModel(nn.Module, ABC):
 
     def load_top_params(self, params):
         for (nm, p), p1 in zip(self.get_top_params(), params):
+            if not p.requires_grad:
+                continue
             p.data = p1.data
 
     def load_bottom_params(self, params):
         for (nm, p), p1 in zip(self.get_bottom_params(), params):
+            if not p.requires_grad:
+                continue
             p.data = p1.data
 
     def load_trunk_params(self, params):
         for (nm, p), p1 in zip(self.get_trunk_params(), params):
+            if not p.requires_grad:
+                continue
             p.data = p1.data
 
     @abstractmethod
-    def get_bottom_params(self):
+    def get_trunk_adapter_module_regex(self):
+        """
+        获得Trunk部分要加上Adapter的Module名称的正则表达式
+        :return:
+        """
         raise NotImplementedError
 
     @abstractmethod
-    def get_top_params(self):
+    def get_bottom_params(self, trainable_only=True):
         raise NotImplementedError
 
     @abstractmethod
-    def get_trunk_params(self):
+    def get_top_params(self, trainable_only=True):
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_trunk_params(self, trainable_only=True):
         raise NotImplementedError
 
     @abstractmethod

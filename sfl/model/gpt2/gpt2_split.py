@@ -18,6 +18,10 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
     GPT2带head的模型，最后一层用于文本生成
     """
 
+    def __init__(self, config):
+        super(GPT2SplitLMHeadModel, self).__init__(config)
+        self.transformer = GPT2SplitModel(config)
+
     def _store_bottom_to_trunk_fx(self, fx):
         pass
 
@@ -36,35 +40,44 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
     def get_trunk_to_bottom_grad(self):
         return self.transformer.get_trunk_to_bottom_grad()
 
+    def get_trunk_adapter_module_regex(self):
+        # Trunk部分(h.start~h.end)的proj/fc/_attn模块
+        if self.fl_config is not None:
+            reg = rf".*\.h\.({'|'.join([str(i) for i in range(self.fl_config.split_point_1, self.fl_config.split_point_2)])})\..*(.+attn|proj|fc)$"
+            return reg
+        return ""
+
     @staticmethod
     def _get_block_num(param_name: str):
         # 获得该参数所属的block的块号，不属于block则返回-1
         r = regex.findall('\.h\.[0-9]+', param_name)
         return int(r[0].split('.')[-1]) if len(r) > 0 else -1
 
-    def get_bottom_params(self):
+    def get_bottom_params(self, trainable_only=True):
         for nm, p in self.named_parameters():
+            if trainable_only and not p.requires_grad:
+                continue
             if self._get_block_num(nm) >= self.fl_config.split_point_1:
                 break
             else:
                 yield nm, p
 
-    def get_top_params(self):
+    def get_top_params(self, trainable_only=True):
         trunk = False
         for nm, p in self.named_parameters():
+            if trainable_only and not p.requires_grad:
+                continue
             if self._get_block_num(nm) >= self.fl_config.split_point_2:
                 trunk = True
             if trunk:
                 yield nm, p
 
-    def get_trunk_params(self):
+    def get_trunk_params(self, trainable_only=True):
         for nm, p in self.named_parameters():
+            if trainable_only and not p.requires_grad:
+                continue
             if self.fl_config.split_point_1 <= self._get_block_num(nm) < self.fl_config.split_point_2:
                 yield nm, p
-
-    def __init__(self, config):
-        super().__init__(config)
-        self.transformer = GPT2SplitModel(config)
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper):
         super(GPT2SplitLMHeadModel, self).config_sfl(config, param_keeper)
@@ -76,14 +89,18 @@ class GPT2SplitModel(GPT2Model, SplitModel):
     GPT2主模型，主要在FP过程中收集中间输出和梯度
     """
 
-    def get_bottom_params(self):
+    def get_bottom_params(self, trainable_only=True):
         pass
 
-    def get_top_params(self):
+    def get_top_params(self, trainable_only=True):
         pass
 
-    def get_trunk_params(self):
+    def get_trunk_params(self, trainable_only=True):
         pass
+
+    def get_trunk_adapter_module_regex(self):
+        pass
+
 
     def get_bottom_to_trunk_fx(self):
         if 'trunk_to_top' in self.intermediate_fx:
@@ -289,7 +306,7 @@ class GPT2SplitModel(GPT2Model, SplitModel):
                         hidden_states = hidden_states.to("cuda:" + str(k + 1))
 
             # SFL: store intermediate hidden states
-            if self.fl_config is not None:
+            if self.training and self.fl_config is not None:
                 if i == self.fl_config.split_point_1 - 1:  # bottom-trunk
                     hidden_states.retain_grad()
                     self._store_bottom_to_trunk_fx(hidden_states)

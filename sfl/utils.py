@@ -14,6 +14,7 @@ class FLConfig:
     client_per_round: float = 1.0
     split_point_1: int = 2
     split_point_2: int = 10
+    use_lora_at_trunk: bool = True
 
 
 def get_best_gpu():
@@ -70,6 +71,7 @@ def dirichlet_unbalance_split(num_clients, num_samples, alpha):
     client_sample_nums = (proportions * num_samples).astype(int)
     return client_sample_nums
 
+
 def lognormal_unbalance_split(num_clients, num_samples, unbalance_sgm):
     """Assign different sample number for each client using Log-Normal distribution.
 
@@ -103,7 +105,6 @@ def lognormal_unbalance_split(num_clients, num_samples, unbalance_sgm):
         client_sample_nums = (np.ones(num_clients) * num_samples_per_client).astype(int)
 
     return client_sample_nums
-
 
 
 def random_slicing(dataset, num_clients, sgm=0):
