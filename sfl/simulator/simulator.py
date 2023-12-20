@@ -6,7 +6,7 @@ from sfl.model.split_model import SplitModel
 from sfl.simulator.dataset import FedDataset
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.simulator.strategy import FLStrategy
-from sfl.utils import FLConfig, get_best_gpu
+from sfl.utils import FLConfig, get_best_gpu, tensor_bytes, size_str
 from peft import LoraConfig, get_peft_model
 
 
@@ -104,7 +104,7 @@ class SFLSimulator(object):
                 for cid in self.communication_overhead_uplink[gr]:
                     total_uplink += sum(self.communication_overhead_uplink[gr][cid].values())
                     total_downlink += sum(self.communication_overhead_downlink[gr][cid].values())
-            print(f'FL communication overhead: uplink={total_uplink}, downlink={total_downlink}')
+            print(f'FL communication overhead: uplink={size_str(total_uplink)}, downlink={size_str(total_downlink)}')
 
         elif client_id is None:
             total_uplink = 0
@@ -113,11 +113,11 @@ class SFLSimulator(object):
                 total_uplink += sum(self.communication_overhead_uplink[global_round][cid].values())
                 total_downlink += sum(self.communication_overhead_downlink[global_round][cid].values())
             print(
-                f'Global Round {global_round} communication overhead: uplink={total_uplink}, downlink={total_downlink}')
+                f'Global Round {global_round} communication overhead: uplink={size_str(total_uplink)}, downlink={size_str(total_downlink)}')
         else:
             print(
-                f'Client {client_id} communication overhead: uplink:{sum(self.communication_overhead_uplink[global_round][client_id].values())},'
-                f' downlink:{sum(self.communication_overhead_downlink[global_round][client_id].values())}')
+                f'Client {client_id} communication overhead: uplink:{size_str(sum(self.communication_overhead_uplink[global_round][client_id].values()))},'
+                f' downlink:{size_str(sum(self.communication_overhead_downlink[global_round][client_id].values()))}')
 
     def _collect_fp_result(self, client_id, local_epoch, local_step):
         """
@@ -130,11 +130,11 @@ class SFLSimulator(object):
         self.communication_overhead_uplink.setdefault(self.current_global_round, {})
         self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})
         self.communication_overhead_uplink[self.current_global_round][client_id].setdefault(local_epoch, 0)
-        self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += b2tr.numel()
+        self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += tensor_bytes(b2tr)
         self.communication_overhead_downlink.setdefault(self.current_global_round, {})
         self.communication_overhead_downlink[self.current_global_round].setdefault(client_id, {})
         self.communication_overhead_downlink[self.current_global_round][client_id].setdefault(local_epoch, 0)
-        self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tr2t.numel()
+        self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tensor_bytes(tr2t)
         # print(f'FP: bottom->trunk size={b2tr.size()}, trunk->top size={tr2t.size()}')
 
     def _collect_bp_result(self, client_id, local_epoch, local_step):
@@ -148,9 +148,9 @@ class SFLSimulator(object):
         self.communication_overhead_uplink.setdefault(self.current_global_round, {})
         self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})
         self.communication_overhead_uplink[self.current_global_round][client_id].setdefault(local_epoch, 0)
-        self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += t2tr.numel()
+        self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += tensor_bytes(t2tr)
         self.communication_overhead_downlink.setdefault(self.current_global_round, {})
         self.communication_overhead_downlink[self.current_global_round].setdefault(client_id, {})
         self.communication_overhead_downlink[self.current_global_round][client_id].setdefault(local_epoch, 0)
-        self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tr2b.numel()
+        self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tensor_bytes(tr2b)
         # print(f'BP: top->trunk size={t2tr.size()}, trunk->bottom size={tr2b.size()}')

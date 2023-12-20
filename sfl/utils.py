@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import pynvml
 import torch
+from torch import Tensor
 
 
 @dataclass
@@ -115,3 +116,18 @@ def random_slicing(dataset, num_clients, sgm=0):
             np.random.choice(all_idxs, user_samples[i], replace=False))
         all_idxs = list(set(all_idxs) - set(dict_users[i]))
     return dict_users
+
+
+def tensor_bytes(tensor: Tensor):
+    """Return the number of bytes of a tensor."""
+    return tensor.numel() * tensor.element_size()
+
+
+def size_str(k):
+    units = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
+    size = k
+    unit_index = 0
+    while size >= 1024 and unit_index < len(units) - 1:
+        size /= 1024.0
+        unit_index += 1
+    return "{:.2f} {}".format(size, units[unit_index])
