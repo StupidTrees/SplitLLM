@@ -144,14 +144,15 @@ def calc_unshift_loss(lm_logits, labels):
     return loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
 
 
-def calculate_rouge(tok, logits, labels):
+def calculate_rouge(tok, logits, labels, print_comparison=False):
     my_rouge = Rouge()
     output_texts = [tok.decode(logits.argmax(dim=-1)[i], skip_special_tokens=True) for i in
                     range(len(logits))]
     hyps_and_refs = zip(output_texts, labels)
     hyps, refs = zip(*hyps_and_refs)
-    # for h,r in zip(hyps, refs):
-    #     print(f'{r}==>{h}')
+    if print_comparison:
+        for h, r in zip(hyps, refs):
+            print(f'{r}==>{h}')
     try:
         result = my_rouge.get_scores(hyps, refs, avg=True, ignore_empty=True)  # 取一个 batch 的平均
     except:
