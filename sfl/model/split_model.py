@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 import regex
+from peft import LoraConfig, get_peft_model
 from torch import nn
 
 from sfl.simulator.param_keeper import ParameterKeeper
@@ -16,6 +17,7 @@ class SplitModel(nn.Module, ABC):
         super().__init__()
         self.param_keeper: ParameterKeeper | None = None
         self.fl_config: FLConfig | None = None
+        self.adapter_added = False
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper):
         self.fl_config = config
@@ -73,6 +75,24 @@ class SplitModel(nn.Module, ABC):
                 continue
             p.data = p1.data
 
+    def convert_to_lora_model(self, restore_top_bottom=True):
+        """
+        为Trunk部分加上LoRA适配器
+        :return:
+         """
+        if self.adapter_added:
+            return self
+        lora_config = LoraConfig(target_modules=self.get_trunk_adapter_module_regex())
+        res = get_peft_model(self, lora_config)
+        if restore_top_bottom:
+            # PEFT会冻结所有模型参数，需要恢复top和bottom部分
+            for name, param in res.get_top_params(trainable_only=False):
+                param.requires_grad = True
+            for name, param in res.get_bottom_params(trainable_only=False):
+                param.requires_grad = True
+        self.adapter_added = True
+        return res
+
     @abstractmethod
     def get_trunk_adapter_module_regex(self):
         """
@@ -109,10 +129,8 @@ class SplitModel(nn.Module, ABC):
     def get_trunk_to_bottom_grad(self):
         raise NotImplementedError
 
-    @abstractmethod
     def _store_bottom_to_trunk_fx(self, fx):
         raise NotImplementedError
 
-    @abstractmethod
     def _store_trunk_to_top_fx(self, fx):
         raise NotImplementedError

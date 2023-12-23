@@ -37,14 +37,15 @@ class PIQAFedDataset(FedDataset):
         ds = self.dataset[type].select(self.client_data_indices[client_id])
 
         def encode(examples):
-            input = self.tokenizer(examples["goal"], truncation=True, padding="max_length")
-            output = self.tokenizer(examples["sol1"], truncation=True, padding="max_length")
+            input = self.tokenizer(examples["goal"] + "Solution:" + examples["sol1"], truncation=True,
+                                   padding="max_length")
             return {'input_ids': input['input_ids'], 'input_att_mask': input['attention_mask'],
-                    'output_ids': output['input_ids'], 'output_att_mask': output['attention_mask'],
-                    "input_text": examples["goal"], "output_text": examples["sol1"]}
+                    "question_text": examples["goal"], "answer_text": examples["sol1"]}
 
         ds = ds.map(encode)
-        ds.set_format(type="torch", columns=["input_ids", "input_att_mask", "output_ids", "output_att_mask","input_text"])
+        ds.set_format(type="torch",
+                      columns=["input_ids", "input_att_mask", "question_text",
+                               "answer_text"])
         loader = DataLoader(ds, batch_size=batch_size)
 
         return loader

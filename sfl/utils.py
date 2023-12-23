@@ -16,6 +16,8 @@ class FLConfig:
     split_point_1: int = 2
     split_point_2: int = 10
     use_lora_at_trunk: bool = True
+    collect_intermediates: bool = True
+    attack_mode: str | None = None  # 'b2tr' or 'tr2b' or 'self' or None
 
 
 def get_best_gpu():
