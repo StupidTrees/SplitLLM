@@ -150,6 +150,8 @@ def calculate_rouge(tok, logits, labels):
                     range(len(logits))]
     hyps_and_refs = zip(output_texts, labels)
     hyps, refs = zip(*hyps_and_refs)
+    # for h,r in zip(hyps, refs):
+    #     print(f'{r}==>{h}')
     try:
         result = my_rouge.get_scores(hyps, refs, avg=True, ignore_empty=True)  # 取一个 batch 的平均
     except:

@@ -19,7 +19,7 @@ class SplitModel(nn.Module, ABC):
         self.fl_config: FLConfig | None = None
         self.adapter_added = False
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper):
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper|None):
         self.fl_config = config
         self.param_keeper = param_keeper
 

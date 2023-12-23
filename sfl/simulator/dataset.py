@@ -24,28 +24,30 @@ class PIQAFedDataset(FedDataset):
     PIQA数据集
     """
 
-    def __init__(self, tokenizer, client_ids: list[str]):
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
         super().__init__(client_ids)
         self.dataset = load_dataset('piqa')
         self.tokenizer = tokenizer
-        self.dataset['train'] = self.dataset['train'].select(range(330))
-        sliced = random_slicing(range(len(self.dataset['train'])), len(client_ids), sgm=0.15)
-        disable_progress_bar()
-        self.client_data_indices = {cid: sliced[i] for i, cid in enumerate(client_ids)}
+        # self.dataset['train'] = self.dataset['train'].select(range(330))
+        self.client_data_indices = {}
+        for type in ['train', 'test', 'validation']:
+            self.dataset[type] = self.dataset[type].select(range(int(len(self.dataset[type]) * shrink_frac)))
+            sliced = random_slicing(range(len(self.dataset[type])), len(client_ids), sgm=0.15)
+            disable_progress_bar()
+            self.client_data_indices[type] = {cid: sliced[i] for i, cid in enumerate(client_ids)}
 
-    def get_dataloader(self, client_id, batch_size=2, type='train'):
-        ds = self.dataset[type].select(self.client_data_indices[client_id])
+    def get_dataloader(self, client_id, batch_size=2, type='validation'):
+        ds = self.dataset[type].select(self.client_data_indices[type][client_id])
 
         def encode(examples):
-            input = self.tokenizer(examples["goal"] + "Solution:" + examples["sol1"], truncation=True,
-                                   padding="max_length")
-            return {'input_ids': input['input_ids'], 'input_att_mask': input['attention_mask'],
-                    "question_text": examples["goal"], "answer_text": examples["sol1"]}
+            text = examples["goal"] + " Solution:" + examples["sol1"]
+            input = self.tokenizer(text, padding="max_length")
+            return {'input_ids': input['input_ids'],
+                    'input_att_mask': input['attention_mask'],
+                    'input_text': text}
 
         ds = ds.map(encode)
         ds.set_format(type="torch",
-                      columns=["input_ids", "input_att_mask", "question_text",
-                               "answer_text"])
+                      columns=["input_ids", "input_att_mask", "input_text"])
         loader = DataLoader(ds, batch_size=batch_size)
-
         return loader

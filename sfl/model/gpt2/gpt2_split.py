@@ -74,7 +74,7 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
             if self.fl_config.split_point_1 <= self._get_block_num(nm) < self.fl_config.split_point_2:
                 yield nm, p
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper):
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper|None):
         super(GPT2SplitLMHeadModel, self).config_sfl(config, param_keeper)
         self.transformer.config_sfl(config, param_keeper)
 
@@ -173,12 +173,12 @@ class GPT2SplitModel(GPT2Model, SplitModel):
 
     def get_bottom_to_trunk_fx(self):
         if 'trunk_to_top' in self.intermediate_fx:
-            return self.intermediate_fx['trunk_to_top'].detach().cpu()
+            return self.intermediate_fx['bottom_to_trunk'].detach().cpu()
         return []
 
     def get_trunk_to_top_fx(self):
         if 'bottom_to_trunk' in self.intermediate_fx:
-            return self.intermediate_fx['bottom_to_trunk'].detach().cpu()
+            return self.intermediate_fx['trunk_to_top'].detach().cpu()
         return []
 
     def get_top_to_trunk_grad(self):
