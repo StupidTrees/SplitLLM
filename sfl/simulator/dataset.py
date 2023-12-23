@@ -28,8 +28,8 @@ class PIQAFedDataset(FedDataset):
         super().__init__(client_ids)
         self.dataset = load_dataset('piqa')
         self.tokenizer = tokenizer
-        self.dataset['train'] = self.dataset['train'].select(range(300))
-        sliced = random_slicing(range(300), len(client_ids), sgm=0.15)
+        self.dataset['train'] = self.dataset['train'].select(range(330))
+        sliced = random_slicing(range(len(self.dataset['train'])), len(client_ids), sgm=0.15)
         disable_progress_bar()
         self.client_data_indices = {cid: sliced[i] for i, cid in enumerate(client_ids)}
 

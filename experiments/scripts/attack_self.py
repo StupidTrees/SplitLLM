@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 sys.path.append(os.path.abspath('..'))
 from sfl.model.gpt2.gpt2_split import GPT2SplitLMHeadModel
 from rouge import Rouge
-from sfl.utils import get_best_gpu
+from sfl.utils import get_best_gpu, calc_unshift_loss
 from sfl.utils import FLConfig
 from datasets import load_dataset
 from torch.utils.data import DataLoader
@@ -111,7 +111,7 @@ with tqdm(total=epoch * len(dataloader)) as pbar:
             input_ids, labels = batch['input_ids'].to(device), batch['output_ids'].to(device)
             attention_mask = batch['input_att_mask'].to(device)
             outputs = model(input_ids=input_ids, labels=labels, attention_mask=attention_mask)
-            loss = outputs.loss
+            loss = calc_unshift_loss(outputs.logits,labels)
             pbar.set_description(f'Epoch {epc} Loss {loss.item():.5f}-Rouge_1 {rouge_1 / (step + 1):.5f}')
             loss.backward()
             if (epc * len(dataloader) + step) % 1000 == 0:

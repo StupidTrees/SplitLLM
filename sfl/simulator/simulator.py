@@ -106,13 +106,13 @@ class SFLSimulator(object):
                 f'Client {client_id} communication overhead: uplink:{size_str(sum(self.communication_overhead_uplink[global_round][client_id].values()))},'
                 f' downlink:{size_str(sum(self.communication_overhead_downlink[global_round][client_id].values()))}')
 
-    def _collect_fp_result(self, client_id, local_epoch, local_step):
+    def _collect_fp_result(self, client_id, local_epoch, local_step, batch):
         """
         在这里拿到前传的传输数据
         """
         b2tr = self.llm.get_bottom_to_trunk_fx()  # bottom-to-trunk
         tr2t = self.llm.get_trunk_to_top_fx()  # trunk-to-top
-        self.strategy.callback_fp_param(client_id, local_epoch, local_step, b2tr, tr2t)
+        self.strategy.callback_fp_param(client_id, local_epoch, local_step, b2tr, tr2t, batch)
 
         self.communication_overhead_uplink.setdefault(self.current_global_round, {})
         self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})
@@ -124,13 +124,13 @@ class SFLSimulator(object):
         self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tensor_bytes(tr2t)
         # print(f'FP: bottom->trunk size={b2tr.size()}, trunk->top size={tr2t.size()}')
 
-    def _collect_bp_result(self, client_id, local_epoch, local_step):
+    def _collect_bp_result(self, client_id, local_epoch, local_step, batch):
         """
         在这里拿到反传的中间数据
         """
         t2tr = self.llm.get_top_to_trunk_grad()  # top-to-trunk
         tr2b = self.llm.get_trunk_to_bottom_grad()  # trunk-to-bottom
-        self.strategy.callback_bp_param(client_id, local_epoch, local_step, t2tr, tr2b)
+        self.strategy.callback_bp_param(client_id, local_epoch, local_step, t2tr, tr2b, batch)
 
         self.communication_overhead_uplink.setdefault(self.current_global_round, {})
         self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})

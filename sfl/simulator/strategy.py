@@ -22,11 +22,11 @@ class FLStrategy(ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def callback_fp_param(self, client_id, local_epoch, local_step, b2tr_params, tr2t_params):
+    def callback_fp_param(self, client_id, local_epoch, local_step, b2tr_params, tr2t_params, batch):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def callback_bp_param(self, client_id, local_epoch, local_step, t2tr_params, tr2b_params):
+    def callback_bp_param(self, client_id, local_epoch, local_step, t2tr_params, tr2b_params, batch):
         raise NotImplementedError
 
     def aggregation_step(self, params: dict[str, Any]):
@@ -41,8 +41,8 @@ class FLStrategy(ABC):
             p.data /= len(params)
         return res
 
-    def fp_done(self, client_id, local_epoch, local_step):
-        self.simulator._collect_fp_result(client_id, local_epoch, local_step)
+    def fp_done(self, client_id, local_epoch, local_step,batch):
+        self.simulator._collect_fp_result(client_id, local_epoch, local_step, batch)
 
-    def bp_done(self, client_id, local_epoch, local_step):
-        self.simulator._collect_bp_result(client_id, local_epoch, local_step)
+    def bp_done(self, client_id, local_epoch, local_step, batch):
+        self.simulator._collect_bp_result(client_id, local_epoch, local_step, batch)

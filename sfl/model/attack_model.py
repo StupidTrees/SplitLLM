@@ -18,7 +18,7 @@ class GPT2AttackModel(AttackModel):
 
     def __init__(self, config: GPT2Config, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
-        self.hidden_size = 64
+        self.hidden_size = 128
         self.lstm = nn.LSTM(input_size=config.n_embd, hidden_size=self.hidden_size, batch_first=True)
         self.mlp = nn.Linear(self.hidden_size, config.vocab_size)
 

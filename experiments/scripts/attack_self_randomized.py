@@ -5,12 +5,14 @@
 import os
 import random
 import sys
+
+from torch.nn import CrossEntropyLoss
 from transformers import AutoTokenizer
 
 sys.path.append(os.path.abspath('..'))
 from sfl.model.gpt2.gpt2_split import GPT2SplitLMHeadModel
 from rouge import Rouge
-from sfl.utils import get_best_gpu
+from sfl.utils import get_best_gpu, calc_unshift_loss
 from sfl.utils import FLConfig
 from datasets import load_dataset
 from torch.utils.data import DataLoader
@@ -116,6 +118,7 @@ def shuffle_text(texts):
     return res
 
 
+
 with tqdm(total=epoch * len(dataloader)) as pbar:
     for epc in range(epoch):
         model.train(True)
@@ -128,7 +131,7 @@ with tqdm(total=epoch * len(dataloader)) as pbar:
             output_ids = input_ids.clone().to(device)
             attention_mask = batch['attention_mask'].to(device)
             outputs = model(input_ids=input_ids, labels=output_ids, attention_mask=attention_mask)
-            loss = outputs.loss
+            loss = calc_unshift_loss(outputs.logits, output_ids)
             pbar.set_description(f'Epoch {epc} Loss {loss.item():.5f}-Rouge_1 {rouge_1 / (step + 1):.5f}')
             loss.backward()
             if (epc * len(dataloader) + step) % 2000 == 0:
