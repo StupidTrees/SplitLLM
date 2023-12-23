@@ -1,3 +1,7 @@
+"""
+使用GPT2自身的后半段作为AttackModel，同时对数据集的句子进行乱序处理
+"""
+
 import os
 import random
 import sys

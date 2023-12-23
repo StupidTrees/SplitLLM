@@ -1,3 +1,6 @@
+"""
+使用GPT2自身的后半段作为AttackModel
+"""
 import os
 import sys
 from transformers import AutoTokenizer
@@ -59,11 +62,11 @@ def evaluate(epc, md, tok, test_data_loader):
             rouge_l_p += result['rouge-l']['p']
             rouge_l_r += result['rouge-l']['r']
     print('Epoch {} Test Rouge_1: {}, Rouge_2: {}, Rouge_l_f1: {}, Rouge_l_p: {}, Rouge_l_r: {}'.format(epc,
-                                                                                                   rouge_1 / dl_len,
-                                                                                                   rouge_2 / dl_len,
-                                                                                                   rouge_l_f1 / dl_len,
-                                                                                                   rouge_l_p / dl_len,
-                                                                                                   rouge_l_r / dl_len))
+                                                                                                        rouge_1 / dl_len,
+                                                                                                        rouge_2 / dl_len,
+                                                                                                        rouge_l_f1 / dl_len,
+                                                                                                        rouge_l_p / dl_len,
+                                                                                                        rouge_l_r / dl_len))
     md.save_pretrained(save_dir + '/epoch_{}_rouge_{}.pt'.format(epc, rouge_l_f1 / dl_len))
     md.train(True)
     return rouge_1 / dl_len, rouge_2 / dl_len, rouge_l_f1 / dl_len, rouge_l_p / dl_len, rouge_l_r / dl_len
@@ -128,9 +131,9 @@ with tqdm(total=epoch * len(dataloader)) as pbar:
         rouge_l_p /= len(dataloader)
         rouge_l_r /= len(dataloader)
         print('Epoch {} Training: Rouge_1: {}, Rouge_2: {}, Rouge_l_f1: {}, Rouge_l_p: {}, Rouge_l_r: {}'.format(epc,
-                                                                                                       rouge_1,
-                                                                                                       rouge_2,
-                                                                                                       rouge_l_f1,
-                                                                                                       rouge_l_p,
-                                                                                                       rouge_l_r))
+                                                                                                                 rouge_1,
+                                                                                                                 rouge_2,
+                                                                                                                 rouge_l_f1,
+                                                                                                                 rouge_l_p,
+                                                                                                                 rouge_l_r))
         evaluate(epc, model, tokenizer, dataloader_test)
