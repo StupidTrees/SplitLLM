@@ -19,7 +19,9 @@ class FLConfig:
     split_point_2: int = 10
     use_lora_at_trunk: bool = True
     collect_intermediates: bool = True
+    top_and_bottom_from_scratch: bool = False # 设置为True，Client将不采用预训练的Top和Bottom参数
     attack_mode: str | None = None  # 'b2tr' or 'tr2b' or 'self' or None
+    noise_scale: float = 0.0
 
 
 def get_best_gpu():

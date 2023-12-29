@@ -1,3 +1,4 @@
+import math
 import random
 
 import torch
@@ -32,6 +33,9 @@ class SFLSimulator(object):
         self.current_global_round = 0
         if config.use_lora_at_trunk and not self.llm.adapter_added:
             self.llm = self.llm.convert_to_lora_model()
+        if config.top_and_bottom_from_scratch:
+            self.llm.reset_params(self.llm.get_top_params())
+            self.llm.reset_params(self.llm.get_bottom_params())
 
     def simulate(self):
         self.llm.to(self.device)

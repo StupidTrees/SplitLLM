@@ -93,6 +93,9 @@ class SplitModel(nn.Module, ABC):
         self.adapter_added = True
         return res
 
+    def reset_params(self, named_params):
+        pass
+
     @abstractmethod
     def get_trunk_adapter_module_regex(self):
         """

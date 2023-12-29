@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Optional, Union, Tuple
 
 import torch
@@ -73,6 +74,23 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
                 continue
             if self.fl_config.split_point_1 <= self._get_block_num(nm) < self.fl_config.split_point_2:
                 yield nm, p
+
+    def reset_params(self, named_params):
+        for name, p in named_params:
+            if 'ln_' in name:
+                if 'bias' in name:
+                    p.data.zero_()
+                elif 'ln_' in name and 'weight' in name:
+                    p.data.fill_(1.0)
+            elif 'mlp' in name or 'wte' in name or 'wpe' in name:
+                if 'weight' in name:
+                    p.data.normal_(mean=0.0, std=self.config.initializer_range)
+                elif 'bias' in name:
+                    p.data.zero_()
+            if name == "c_proj.weight":
+                # Special Scaled Initialization --> There are 2 Layer Norms per Transformer Block
+                p.data.normal_(mean=0.0,
+                               std=(self.config.initializer_range / math.sqrt(2 * self.config.n_layer)))
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper|None):
         super(GPT2SplitLMHeadModel, self).config_sfl(config, param_keeper)
@@ -172,12 +190,12 @@ class GPT2SplitModel(GPT2Model, SplitModel):
         pass
 
     def get_bottom_to_trunk_fx(self):
-        if 'trunk_to_top' in self.intermediate_fx:
+        if 'bottom_to_trunk' in self.intermediate_fx:
             return self.intermediate_fx['bottom_to_trunk'].detach().cpu()
         return []
 
     def get_trunk_to_top_fx(self):
-        if 'bottom_to_trunk' in self.intermediate_fx:
+        if 'trunk_to_top' in self.intermediate_fx:
             return self.intermediate_fx['trunk_to_top'].detach().cpu()
         return []
 
@@ -383,6 +401,9 @@ class GPT2SplitModel(GPT2Model, SplitModel):
 
             if self.training and self.fl_config is not None and self.fl_config.collect_intermediates:
                 if i == self.fl_config.split_point_1 - 1:  # bottom-trunk
+                    if self.fl_config.noise_scale > 0:
+                        noise = torch.randn_like(hidden_states) * self.fl_config.noise_scale
+                        hidden_states = hidden_states + noise
                     hidden_states.retain_grad()
                     self._store_bottom_to_trunk_fx(hidden_states)
                 elif i == self.fl_config.split_point_2:  # trunk-top
