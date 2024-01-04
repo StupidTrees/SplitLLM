@@ -54,14 +54,14 @@ class SFLSimulator(object):
             sampled_clients = random.sample(self.client_ids, int(len(self.client_ids) * self.config.client_per_round))
             # sequentially train each client
             for client_id in sampled_clients:
-                self._client_step(client_id)
+                self._client_step(i, client_id)
                 self.__summarize_communication(i, client_id)
             self.__summarize_communication(i, client_id=None)
             # aggregate server parameters
-            self._server_step(sampled_clients)
+            self._server_step(i, sampled_clients)
         self.__summarize_communication()
 
-    def _client_step(self, client_id: str):
+    def _client_step(self, global_round, client_id: str):
         # load client parameters (bottom and top layers)
         cm = self.parameter_keeper.get_client_params(client_id)
         self.llm.load_top_params(cm[0])
@@ -71,7 +71,7 @@ class SFLSimulator(object):
         # client step
         torch.cuda.empty_cache()
         self.llm.to(self.device)
-        self.strategy.client_step(client_id, self.llm, self.dataset.get_dataloader(client_id), self.config)
+        self.strategy.client_step(global_round, client_id, self.llm, self.dataset.get_dataloader(client_id), self.config)
         # store updated client parameters
         cm = ([p.cpu() for nm, p in self.llm.get_top_params()],
               [p.cpu() for nm, p in self.llm.get_bottom_params()])
@@ -80,12 +80,12 @@ class SFLSimulator(object):
         self.parameter_keeper.store_server_params(client_id,
                                                   [p.detach().cpu() for nm, p in self.llm.get_trunk_params()])
 
-    def _server_step(self, sample_clients):
+    def _server_step(self, global_round, sample_clients):
         # aggregate server parameters
         params = {}
         for client_id in sample_clients:
             params[client_id] = self.parameter_keeper.get_server_params(client_id)
-        self.parameter_keeper.store_server_params('server', self.strategy.aggregation_step(params))
+        self.parameter_keeper.store_server_params('server', self.strategy.aggregation_step(global_round,params))
 
     def __summarize_communication(self, global_round=None, client_id=None):
         if global_round is None:

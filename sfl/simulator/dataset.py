@@ -85,7 +85,7 @@ class DialogSumFedDataset(FedDataset):
         super().__init__(client_ids, load_dataset('knkarthick/dialogsum', cache_dir=config.dataset_cache_dir), ['train','test','validation'],
                          shrink_frac)
 
-    def get_dataloader(self, client_id, batch_size=1, type='train'):
+    def get_dataloader(self, client_id, batch_size=1  , type='train'):
         ds = self.dataset[type].select(self.client_data_indices[type][client_id])
 
         def encode(examples):

@@ -1,10 +1,10 @@
 import torch
 from torch import nn
 from torch.nn import Module
-from transformers import PretrainedConfig, GPT2Config
+from transformers import PretrainedConfig, GPT2Config, PreTrainedModel
 
 
-class AttackModel(Module):
+class AttackModel(PreTrainedModel):
 
     def __init__(self, config: PretrainedConfig, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -18,7 +18,7 @@ class GPT2AttackModel(AttackModel):
 
     def __init__(self, config: GPT2Config, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
-        self.hidden_size = 128
+        self.hidden_size = 256
         self.lstm = nn.LSTM(input_size=config.n_embd, hidden_size=self.hidden_size, batch_first=True)
         self.mlp = nn.Linear(self.hidden_size, config.vocab_size)
 

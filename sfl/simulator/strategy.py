@@ -18,7 +18,7 @@ class FLStrategy(ABC):
         self.simulator = simulator
 
     @abc.abstractmethod
-    def client_step(self, client_id: str, model: SplitModel, dataloader: DataLoader, config: FLConfig):
+    def client_step(self, global_round, client_id: str, model: SplitModel, dataloader: DataLoader, config: FLConfig):
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -29,7 +29,7 @@ class FLStrategy(ABC):
     def callback_bp_param(self, client_id, local_epoch, local_step, t2tr_params, tr2b_params, batch):
         raise NotImplementedError
 
-    def aggregation_step(self, params: dict[str, Any]):
+    def aggregation_step(self, global_round, params: dict[str, Any]):
         res = None
         for k, v in params.items():
             if res is None:
