@@ -1,6 +1,5 @@
 import os
 import random
-from dataclasses import dataclass
 
 import numpy as np
 import pynvml
@@ -8,20 +7,6 @@ import torch
 from rouge import Rouge
 from torch import Tensor
 from torch.nn import CrossEntropyLoss
-
-
-@dataclass
-class FLConfig:
-    global_round: int = 0
-    client_epoch: int = 3
-    client_per_round: float = 1.0
-    split_point_1: int = 2
-    split_point_2: int = 10
-    use_lora_at_trunk: bool = True
-    collect_intermediates: bool = True
-    top_and_bottom_from_scratch: bool = False # 设置为True，Client将不采用预训练的Top和Bottom参数
-    attack_mode: str | None = None  # 'b2tr' or 'tr2b' or 'self' or None
-    noise_scale: float = 0.0
 
 
 def get_best_gpu():
@@ -115,8 +100,9 @@ def lognormal_unbalance_split(num_clients, num_samples, unbalance_sgm):
 
 
 def random_slicing(dataset, num_clients, sgm=0):
-    user_samples = lognormal_unbalance_split(num_clients, len(dataset), sgm)
     dict_users, all_idxs = {}, [i for i in range(len(dataset))]
+    if num_clients > 0:
+        user_samples = lognormal_unbalance_split(num_clients, len(dataset), sgm)
     for i in range(num_clients):
         dict_users[i] = list(
             np.random.choice(all_idxs, user_samples[i], replace=False))
@@ -162,3 +148,21 @@ def calculate_rouge(tok, logits, labels, print_comparison=False):
                   'rouge-2': {'f': 0.0, 'p': 0.0, 'r': 0.0},
                   'rouge-l': {'f': 0.0, 'p': 0.0, 'r': 0.0}}
     return result
+
+
+# 测试模型的生成文本
+def generate(text, tokenizer, md):
+    md.train(False)
+    t = tokenizer(text, return_tensors="pt", add_special_tokens=False)
+    res = md.generate(t['input_ids'].to(md.device), attention_mask=t['attention_mask'].to(md.device),
+                      max_length=100, num_beams=6, no_repeat_ngram_size=2, early_stopping=True,
+                      num_return_sequences=1, pad_token_id=tokenizer.pad_token_id)
+    return tokenizer.decode(res[0], skip_special_tokens=True)
+
+
+# 测试模型输出
+def get_output(text, tokenizer, md):
+    t = tokenizer(text, return_tensors="pt", add_special_tokens=False)
+    res = md(t['input_ids'].to(md.device), attention_mask=t['attention_mask'].to(md.device))
+    r = tokenizer.decode(res.logits.argmax(dim=-1)[-1], skip_special_tokens=True)
+    return r

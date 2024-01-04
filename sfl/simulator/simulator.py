@@ -1,4 +1,3 @@
-import math
 import random
 
 import torch
@@ -8,7 +7,6 @@ from sfl.simulator.dataset import FedDataset
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.simulator.strategy import FLStrategy
 from sfl.utils import FLConfig, get_best_gpu, tensor_bytes, size_str
-from peft import LoraConfig, get_peft_model
 
 
 class SFLSimulator(object):

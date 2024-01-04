@@ -5,7 +5,7 @@ from peft import LoraConfig, get_peft_model
 from torch import nn
 
 from sfl.simulator.param_keeper import ParameterKeeper
-from sfl.utils import FLConfig
+from sfl.config import FLConfig
 
 
 class SplitModel(nn.Module, ABC):

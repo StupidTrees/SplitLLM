@@ -10,7 +10,7 @@ from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttenti
 
 from sfl.model.split_model import SplitModel
 from sfl.simulator.param_keeper import ParameterKeeper
-from sfl.utils import FLConfig
+from sfl.config import FLConfig
 
 logger = logging.getLogger(__name__)
 
