@@ -2,11 +2,12 @@ import random
 
 import torch
 
+from sfl.config import FLConfig
 from sfl.model.split_model import SplitModel
 from sfl.simulator.dataset import FedDataset
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.simulator.strategy import FLStrategy
-from sfl.utils import FLConfig, get_best_gpu, tensor_bytes, size_str
+from sfl.utils import get_best_gpu, tensor_bytes, size_str
 
 
 class SFLSimulator(object):

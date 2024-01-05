@@ -1,20 +1,19 @@
 import argparse
 import os
 import sys
-
 import torch
 import wandb
+from torch.optim import Adam
 from tqdm import tqdm
 from transformers import AutoTokenizer
-from torch.optim import Adam
 
 sys.path.append(os.path.abspath('../..'))
 from sfl.config import AttackerConfig
+from sfl.config import FLConfig
 from sfl.model.gpt2.gpt2_split import GPT2SplitLMHeadModel
 from sfl.utils import get_best_gpu, set_random_seed
 from sfl.simulator.dataset import PIQAFedDataset, GSM8KFedDataset
 from sfl.utils import calculate_rouge
-
 from sfl.model.attack_model import LSTMAttackerConfig, LSTMAttackModel, LinearAttackModel, \
     TransformerEncoderAttackModel, TransformerAttackerConfig, TransformerDecoderAttackModel, GRUAttackModel
 from sfl.utils import calc_unshift_loss
@@ -43,9 +42,10 @@ def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
             rouge_l_r += result['rouge-l']['r']
     print(
         f'Epoch {epc} Test Rouge_1: {rouge_1 / dl_len}, Rouge_2: {rouge_2 / dl_len}, Rouge_l_f1: {rouge_l_f1 / dl_len}, Rouge_l_p: {rouge_l_p / dl_len}, Rouge_l_r: {rouge_l_r / dl_len}')
-    path = save_dir + f'/attacker/{md.config.name_or_path}/{args.dataset}/{args.attack_model}/{md.fl_config.attack_mode}-{md.fl_config.split_point_1 if md.fl_config.attack_mode == "b2tr" else md.fl_config.split_point_2}/'
-    if rouge_l_f1 / dl_len > 0.7:
-        attacker.save_pretrained(path + f'epoch_{epc}_rouge_{rouge_l_f1 / dl_len:.4f}')
+    p = os.path.join(save_dir,
+                     f'attacker/{attacker.config.target_model}/{args.dataset}/{args.attack_model}/{md.fl_config.attack_mode}-{md.fl_config.split_point_1 if md.fl_config.attack_mode == "b2tr" else md.fl_config.split_point_2}/')
+    if rouge_l_f1 / dl_len > 0.7 and (epc + 1) % 10 == 0:
+        attacker.save_pretrained(p + f'epoch_{epc}_rouge_{rouge_l_f1 / dl_len:.4f}')
     wandb.log({'epoch': epc, 'test_rouge_1': rouge_1 / dl_len, 'test_rouge_2': rouge_2 / dl_len,
                'test_rouge_l_f1': rouge_l_f1 / dl_len, 'test_rouge_l_p': rouge_l_p / dl_len,
                'test_rouge_l_r': rouge_l_r / dl_len})
@@ -59,21 +59,22 @@ def train_attacker(args):
     训练攻击模型
     :param args:
     """
-    tokenizer = AutoTokenizer.from_pretrained("gpt2-large", cache_dir=args.model_cache_dir)
-    model: GPT2SplitLMHeadModel = GPT2SplitLMHeadModel.from_pretrained("gpt2-large", cache_dir=args.model_cache_dir)
-    tokenizer.pad_token_id = model.config.eos_token_id
-    device = get_best_gpu()
-    model.to(device)
 
-    dataset = PIQAFedDataset(tokenizer, [])
-    dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type='validation')
-    dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type='test')
-    if args.dataset == 'gsm8k':
+    tokenizer = AutoTokenizer.from_pretrained(args.model_download_dir + "/gpt2-large/")
+    model: GPT2SplitLMHeadModel = GPT2SplitLMHeadModel.from_pretrained(args.model_download_dir + "/gpt2-large/")
+    tokenizer.pad_token_id = model.config.eos_token_id
+
+    if args.dataset == 'piqa':
+        dataset = PIQAFedDataset(tokenizer, [])
+        dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type='validation')
+        dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type='test')
+    elif args.dataset == 'gsm8k':
         dataset = GSM8KFedDataset(tokenizer, [])
         dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type='test')
         dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type='train', shrink_frac=0.06)
 
-    from sfl.config import FLConfig
+    device = get_best_gpu()
+    model.to(device)
     model.config_sfl(FLConfig(collect_intermediates=False,
                               split_point_1=args.split_point_1,
                               split_point_2=args.split_point_2,
@@ -108,6 +109,10 @@ def train_attacker(args):
     model.to(device)
     attack_model.to(device)
     epoch = args.epochs
+    wandb.init(project="sfl-attacker",
+               name=f"{args.attack_model}_{args.attack_mode}_{args.dataset}",
+               config=vars(args)
+               )
     evaluate(0, model, attack_model, tokenizer, dataloader_test, args.save_dir)
     with tqdm(total=epoch * len(dataloader)) as pbar:
         for epc in range(epoch):
@@ -149,11 +154,11 @@ def train_attacker(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_cache_dir', type=str, default='/root/autodl-tmp/sfl/models')
-    parser.add_argument('--model_name_or_path', type=str, default='gpt2-large')
-    parser.add_argument('--save_dir', type=str, default='/root/autodl-tmp/sfl/models/checkpoints')
+    parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
+    parser.add_argument('--model_name', type=str, default='gpt2-large')
+    parser.add_argument('--save_dir', type=str, default='/root/autodl-tmp/sfl/models/')
     parser.add_argument('--dataset', type=str, default='piqa')
-    parser.add_argument('--attack_model', type=str, default='trans-enc', help='lstm or ...')
+    parser.add_argument('--attack_model', type=str, default='gru', help='lstm or ...')
     parser.add_argument('--split_point_1', type=int, default=2, help='split point for b2tr')
     parser.add_argument('--split_point_2', type=int, default=30, help='split point for t2tr')
     parser.add_argument('--attack_mode', type=str, default='b2tr', help='b2tr or t2tr')
@@ -161,11 +166,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=6)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--seed', type=int, default=42)
+
     args = parser.parse_args()
     set_random_seed(args.seed)
-    # convert namespace to dict
-    wandb.init(project="sfl-attacker",
-               name=f"{args.attack_model}_{args.attack_mode}_{args.dataset}",
-               config=vars(args)
-               )
     train_attacker(args)

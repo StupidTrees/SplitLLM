@@ -16,7 +16,13 @@ class AttackModel(PreTrainedModel):
         if target_config:
             self.config.n_embed = target_config.n_embd
             self.config.vocab_size = target_config.vocab_size
-            self.config.target_model = target_config.name_or_path
+            name_or_path = target_config.name_or_path
+            # if it is a path, use the last dir name
+            if '/' in name_or_path:
+                if name_or_path.endswith('/'):
+                    name_or_path = name_or_path[:-1]
+                name_or_path = name_or_path.split('/')[-1]
+            self.config.target_model = name_or_path
 
     def forward(self, x):
         pass

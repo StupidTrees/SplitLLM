@@ -3,10 +3,33 @@
 ```shell
 conda env create -n sfl python=3.11
 conda activate sfl
-
 conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.7 -c pytorch -c nvidia
 pip install -r requirements.txt
 ```
+
+## 模型下载
+1. 前往`sfl/config`，修改dataset_cache_dir，model_download_dir，model_cache_dir为本地路径
+2. 运行下载脚本（以GPT2为例），可能需要代理
+```shell
+cd experiments/scripts
+python model_download.py --repo_id gpt2
+python download_model.py
+```
+
+## 攻击模型训练
+- 可直接使用 `experiments/notebook/attack.ipynb`进行简单的观察实验
+- 也可运行python脚本`experiments/scripts/train_attacker.py` 进行训练
+- 也可运行脚本 `experiments/scripts/run_train_attacker.sh` 进行超参组合的自动运行
+
+上述过程需要配置wandb，在本地环境使用
+```shell
+wandb login
+```
+来登陆自己的wandb账号，运行结果将上传至wandb可视化
+
+## SFL模拟
+训练完攻击模型吼，使用sfl_with_attacker相关的notebook/py文件/脚本，进行SFL模拟
+其中，需要配置`attack_model_path_1`和`attack_model_path_2`为训练好的针对切分点1和切分点2的攻击模型的路径。
 
 ## 实现说明
 

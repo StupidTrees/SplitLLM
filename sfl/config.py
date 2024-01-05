@@ -2,7 +2,9 @@ from dataclasses import dataclass
 
 from transformers import PretrainedConfig
 
-dataset_cache_dir = '/root/autodl-tmp/sfl/datasets'
+dataset_cache_dir = '/root/autodl-tmp/sfl/datasets/'
+model_download_dir = '/root/autodl-tmp/sfl/models/'
+model_cache_dir = '/root/autodl-tmp/sfl/cache/'
 
 
 @dataclass
@@ -28,5 +30,3 @@ class AttackerConfig(PretrainedConfig):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-

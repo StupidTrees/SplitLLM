@@ -5,8 +5,8 @@ from typing import Any
 
 from torch.utils.data import DataLoader
 
+from sfl.config import FLConfig
 from sfl.model.split_model import SplitModel
-from sfl.utils import FLConfig
 
 
 class FLStrategy(ABC):
