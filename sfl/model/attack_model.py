@@ -1,11 +1,13 @@
 import dataclasses
 
 import torch
-from torch import nn
-from torch.nn import TransformerDecoderLayer, TransformerEncoderLayer
+from torch import nn, Tensor
+from torch.nn import TransformerDecoderLayer, TransformerEncoderLayer, ModuleList
 from transformers import PretrainedConfig, PreTrainedModel
+from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
 from sfl.config import AttackerConfig
+from sfl.utils.model import sentence_score_tokens
 
 
 class AttackModel(PreTrainedModel):
@@ -14,6 +16,7 @@ class AttackModel(PreTrainedModel):
     def __init__(self, config: AttackerConfig, target_config: PretrainedConfig = None, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         if target_config:
+            self.target_config = target_config
             self.config.n_embed = target_config.n_embd
             self.config.vocab_size = target_config.vocab_size
             name_or_path = target_config.name_or_path
@@ -24,8 +27,43 @@ class AttackModel(PreTrainedModel):
                 name_or_path = name_or_path.split('/')[-1]
             self.config.target_model = name_or_path
 
-    def forward(self, x):
+    def forward(self, x) -> Tensor:
         pass
+
+    def search(self, x, base_model, beam_size=8):
+        logits = self.forward(x.to(self.device))
+        batch_size, seq_len, vocab_size = logits.shape
+        beams = [(None, [0] * batch_size)] * beam_size
+        for step in range(seq_len):
+            candidates = []
+            for sentence_batch, sent_score_batch in beams:
+                last_token_logits = logits[:, step, :]
+                topk_probs, topk_indices = torch.topk(last_token_logits, beam_size)
+                topk_probs = torch.softmax(topk_probs, dim=-1)
+                for k in range(beam_size):
+                    prob, token = topk_probs[:, k].unsqueeze(-1), topk_indices[:, k].unsqueeze(-1)  # (batch_size, 1)
+                    sents = torch.cat([sentence_batch, token],
+                                      dim=1) if sentence_batch is not None else token  # (batch_size, seq++)
+                    candidate_score = sentence_score_tokens(sents, base_model).unsqueeze(-1)  # (batch_size, 1)
+                    score = prob * 11 - candidate_score
+                    # print(prob.shape, candidate_score.shape, score.shape)
+                    candidates.append((sents, score))
+            new_list = []
+            for batch in range(batch_size):
+                # print(candidates)
+                candidates_batch = [(c[batch, :].unsqueeze(0), score[batch, :].unsqueeze(0)) for c, score in
+                                    candidates]
+                # print(candidates_batch)
+                candidates_batch = sorted(candidates_batch, key=lambda x: x[-1], reverse=True)
+                if len(new_list) == 0:
+                    new_list = candidates_batch
+                else:
+                    nl = []
+                    for (sent, score), (sent2, score2) in zip(new_list, candidates_batch):
+                        nl.append((torch.concat([sent, sent2], dim=0), torch.concat([score, score2], dim=0)))
+                    new_list = nl
+            beams = new_list[:beam_size]
+        return beams[0][0]
 
 
 @dataclasses.dataclass
@@ -104,14 +142,16 @@ class TransformerDecoderAttackModel(AttackModel):
         layer = TransformerDecoderLayer(d_model=self.config.n_embed, nhead=self.config.nhead,
                                         dim_feedforward=self.config.dim_feedforward,
                                         dropout=self.config.dropout)
-        self.decoder = nn.TransformerDecoder(layer, self.config.num_layers, norm=nn.LayerNorm(self.config.n_embed))
+        self.decoder = ModuleList([GPT2Block(self.target_config, i) for i in range(
+            self.config.num_layers)])  # nn.TransformerDecoder(layer, self.config.num_layers, norm=nn.LayerNorm(self.config.n_embed))
         self.mlp = nn.Linear(self.config.n_embed, self.config.vocab_size)
 
     def forward(self, x):
         # x[batch_size, seq_len, n_embed]
         # output [batch_size,seq_len, vocab_size]
-        hidden = self.decoder(x)
-        return self.mlp(hidden)
+        for md in self.decoder:
+            x = md(x)[0]
+        return self.mlp(x)
 
 
 class TransformerEncoderAttackModel(AttackModel):

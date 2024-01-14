@@ -4,7 +4,7 @@ from datasets import load_dataset, disable_progress_bar
 from torch.utils.data import DataLoader
 
 from sfl import config
-from sfl.utils import random_slicing
+from sfl.utils.data import random_slicing
 
 
 class FedDataset(ABC):

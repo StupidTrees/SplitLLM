@@ -1,43 +1,5 @@
-import os
-import random
-
 import numpy as np
-import pynvml
-import torch
-from rouge import Rouge
 from torch import Tensor
-from torch.nn import CrossEntropyLoss
-
-
-def get_best_gpu():
-    """Return gpu (:class:`torch.device`) with largest free memory."""
-    assert torch.cuda.is_available()
-    pynvml.nvmlInit()
-    deviceCount = pynvml.nvmlDeviceGetCount()
-
-    if "CUDA_VISIBLE_DEVICES" in os.environ.keys() is not None:
-        cuda_devices = [
-            int(device) for device in os.environ["CUDA_VISIBLE_DEVICES"].split(',')
-        ]
-    else:
-        cuda_devices = range(deviceCount)
-
-    assert max(cuda_devices) < deviceCount
-    deviceMemory = []
-    for i in cuda_devices:
-        handle = pynvml.nvmlDeviceGetHandleByIndex(i)
-        mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        deviceMemory.append(mem_info.free)
-    deviceMemory = np.array(deviceMemory, dtype=np.int64)
-    best_device_index = np.argmax(deviceMemory)
-    return torch.device("cuda:%d" % (best_device_index))
-
-
-def set_random_seed(SEED):
-    random.seed(SEED)
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    torch.cuda.manual_seed(SEED)
 
 
 def dirichlet_unbalance_split(num_clients, num_samples, alpha):
@@ -123,46 +85,3 @@ def size_str(k):
         size /= 1024.0
         unit_index += 1
     return "{:.2f} {}".format(size, units[unit_index])
-
-
-def calc_unshift_loss(lm_logits, labels):
-    labels = labels.to(lm_logits.device)
-    # do not shift
-    loss_fct = CrossEntropyLoss()
-    return loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
-
-
-def calculate_rouge(tok, logits, labels, print_comparison=False):
-    my_rouge = Rouge()
-    output_texts = [tok.decode(logits.argmax(dim=-1)[i], skip_special_tokens=True) for i in
-                    range(len(logits))]
-    hyps_and_refs = zip(output_texts, labels)
-    hyps, refs = zip(*hyps_and_refs)
-    if print_comparison:
-        for h, r in zip(hyps, refs):
-            print(f'{r}==>{h}')
-    try:
-        result = my_rouge.get_scores(hyps, refs, avg=True, ignore_empty=True)  # 取一个 batch 的平均
-    except:
-        result = {'rouge-1': {'f': 0.0, 'p': 0.0, 'r': 0.0},
-                  'rouge-2': {'f': 0.0, 'p': 0.0, 'r': 0.0},
-                  'rouge-l': {'f': 0.0, 'p': 0.0, 'r': 0.0}}
-    return result
-
-
-# 测试模型的生成文本
-def generate(text, tokenizer, md):
-    md.train(False)
-    t = tokenizer(text, return_tensors="pt", add_special_tokens=False)
-    res = md.generate(t['input_ids'].to(md.device), attention_mask=t['attention_mask'].to(md.device),
-                      max_length=100, num_beams=6, no_repeat_ngram_size=2, early_stopping=True,
-                      num_return_sequences=1, pad_token_id=tokenizer.pad_token_id)
-    return tokenizer.decode(res[0], skip_special_tokens=True)
-
-
-# 测试模型输出
-def get_output(text, tokenizer, md):
-    t = tokenizer(text, return_tensors="pt", add_special_tokens=False)
-    res = md(t['input_ids'].to(md.device), attention_mask=t['attention_mask'].to(md.device))
-    r = tokenizer.decode(res.logits.argmax(dim=-1)[-1], skip_special_tokens=True)
-    return r

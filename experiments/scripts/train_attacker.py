@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+
 import torch
 import wandb
 from torch.optim import Adam
@@ -8,15 +9,14 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 sys.path.append(os.path.abspath('../..'))
+from sfl import config
 from sfl.config import AttackerConfig
 from sfl.config import FLConfig
 from sfl.model.gpt2.gpt2_split import GPT2SplitLMHeadModel
-from sfl.utils import get_best_gpu, set_random_seed
-from sfl.simulator.dataset import PIQAFedDataset, GSM8KFedDataset
-from sfl.utils import calculate_rouge
+from sfl.utils.training import get_best_gpu, set_random_seed, calc_unshift_loss, get_dataset_class
+from sfl.utils.model import calculate_rouge
 from sfl.model.attack_model import LSTMAttackerConfig, LSTMAttackModel, LinearAttackModel, \
     TransformerEncoderAttackModel, TransformerAttackerConfig, TransformerDecoderAttackModel, GRUAttackModel
-from sfl.utils import calc_unshift_loss
 
 
 def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
@@ -43,8 +43,13 @@ def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
     print(
         f'Epoch {epc} Test Rouge_1: {rouge_1 / dl_len}, Rouge_2: {rouge_2 / dl_len}, Rouge_l_f1: {rouge_l_f1 / dl_len}, Rouge_l_p: {rouge_l_p / dl_len}, Rouge_l_r: {rouge_l_r / dl_len}')
     p = os.path.join(save_dir,
-                     f'attacker/{attacker.config.target_model}/{args.dataset}/{args.attack_model}/{md.fl_config.attack_mode}-{md.fl_config.split_point_1 if md.fl_config.attack_mode == "b2tr" else md.fl_config.split_point_2}/')
-    if rouge_l_f1 / dl_len > 0.7 and (epc + 1) % 10 == 0:
+                     f'{attacker.config.target_model}/{args.dataset}/{args.dataset_train_label}*{args.dataset_train_frac:.3f}-{args.dataset_test_label}*{args.dataset_test_frac:.3f}'
+                     f'/{args.attack_model}/{md.fl_config.attack_mode}-{md.fl_config.split_point_1 if md.fl_config.attack_mode == "b2tr" else md.fl_config.split_point_2}/')
+    attacker_prefix = 'normal/'
+    if md.fl_config.noise_mode != 'none':
+        attacker_prefix = f'{md.fl_config.noise_mode}:{md.fl_config.noise_scale}/'
+    p += attacker_prefix
+    if rouge_l_f1 / dl_len > 0.1 and (epc + 1) % 10 == 0:
         attacker.save_pretrained(p + f'epoch_{epc}_rouge_{rouge_l_f1 / dl_len:.4f}')
     wandb.log({'epoch': epc, 'test_rouge_1': rouge_1 / dl_len, 'test_rouge_2': rouge_2 / dl_len,
                'test_rouge_l_f1': rouge_l_f1 / dl_len, 'test_rouge_l_p': rouge_l_p / dl_len,
@@ -60,25 +65,23 @@ def train_attacker(args):
     :param args:
     """
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_download_dir + "/gpt2-large/")
-    model: GPT2SplitLMHeadModel = GPT2SplitLMHeadModel.from_pretrained(args.model_download_dir + "/gpt2-large/")
+    tokenizer = AutoTokenizer.from_pretrained(args.model_download_dir + f"/{args.model_name}/")
+    model: GPT2SplitLMHeadModel = GPT2SplitLMHeadModel.from_pretrained(args.model_download_dir + f"/{args.model_name}/")
     tokenizer.pad_token_id = model.config.eos_token_id
-
-    if args.dataset == 'piqa':
-        dataset = PIQAFedDataset(tokenizer, [])
-        dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type='validation')
-        dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type='test')
-    elif args.dataset == 'gsm8k':
-        dataset = GSM8KFedDataset(tokenizer, [])
-        dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type='test')
-        dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type='train', shrink_frac=0.06)
-
+    dataset_cls = get_dataset_class(args.dataset)
+    dataset = dataset_cls(tokenizer, [])
+    dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=args.dataset_train_label,
+                                                 shrink_frac=args.dataset_train_frac)
+    dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=args.dataset_test_label,
+                                                      shrink_frac=args.dataset_test_frac)
     device = get_best_gpu()
     model.to(device)
     model.config_sfl(FLConfig(collect_intermediates=False,
                               split_point_1=args.split_point_1,
                               split_point_2=args.split_point_2,
                               attack_mode=args.attack_mode,
+                              noise_mode=args.noise_mode,
+                              noise_scale=args.noise_scale,
                               ),
                      param_keeper=None)
     # freeze all parts:
@@ -109,7 +112,7 @@ def train_attacker(args):
     model.to(device)
     attack_model.to(device)
     epoch = args.epochs
-    wandb.init(project="sfl-attacker",
+    wandb.init(project="sfl-attacker-noised",
                name=f"{args.attack_model}_{args.attack_mode}_{args.dataset}",
                config=vars(args)
                )
@@ -155,17 +158,23 @@ def train_attacker(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
-    parser.add_argument('--model_name', type=str, default='gpt2-large')
-    parser.add_argument('--save_dir', type=str, default='/root/autodl-tmp/sfl/models/')
+    parser.add_argument('--model_name', type=str, default='gpt2')
+    parser.add_argument('--save_dir', type=str, default=config.attacker_path)
     parser.add_argument('--dataset', type=str, default='piqa')
+    parser.add_argument('--dataset_train_label', type=str, default='train')
+    parser.add_argument('--dataset_test_label', type=str, default='test')
+    parser.add_argument('--dataset_train_frac', type=float, default=1.0)
+    parser.add_argument('--dataset_test_frac', type=float, default=1.0)
     parser.add_argument('--attack_model', type=str, default='gru', help='lstm or ...')
     parser.add_argument('--split_point_1', type=int, default=2, help='split point for b2tr')
     parser.add_argument('--split_point_2', type=int, default=30, help='split point for t2tr')
-    parser.add_argument('--attack_mode', type=str, default='b2tr', help='b2tr or t2tr')
+    parser.add_argument('--attack_mode', type=str, default='tr2t', help='b2tr or t2tr')
     parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=6)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--noise_mode', type=str, default='dxp')
+    parser.add_argument('--noise_scale', type=float, default=3.0)
 
     args = parser.parse_args()
     set_random_seed(args.seed)

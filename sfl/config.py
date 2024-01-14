@@ -5,6 +5,7 @@ from transformers import PretrainedConfig
 dataset_cache_dir = '/root/autodl-tmp/sfl/datasets/'
 model_download_dir = '/root/autodl-tmp/sfl/models/'
 model_cache_dir = '/root/autodl-tmp/sfl/cache/'
+attacker_path = '/root/autodl-tmp/sfl/models/attacker/'
 
 
 @dataclass
@@ -18,6 +19,7 @@ class FLConfig:
     collect_intermediates: bool = True
     top_and_bottom_from_scratch: bool = False  # 设置为True，Client将不采用预训练的Top和Bottom参数
     attack_mode: str | None = None  # 'b2tr' or 'tr2b' or 'self' or None
+    noise_mode: str = 'none'
     noise_scale: float = 0.0
 
 

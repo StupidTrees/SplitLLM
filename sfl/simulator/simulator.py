@@ -7,7 +7,8 @@ from sfl.model.split_model import SplitModel
 from sfl.simulator.dataset import FedDataset
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.simulator.strategy import FLStrategy
-from sfl.utils import get_best_gpu, tensor_bytes, size_str
+from sfl.utils.data import size_str, tensor_bytes
+from sfl.utils.training import get_best_gpu
 
 
 class SFLSimulator(object):
@@ -70,7 +71,8 @@ class SFLSimulator(object):
         # client step
         torch.cuda.empty_cache()
         self.llm.to(self.device)
-        self.strategy.client_step(global_round, client_id, self.llm, self.dataset.get_dataloader(client_id), self.config)
+        self.strategy.client_step(global_round, client_id, self.llm,
+                                  self.dataset.get_dataloader(client_id, type='validation'), self.config)
         # store updated client parameters
         cm = ([p.cpu() for nm, p in self.llm.get_top_params()],
               [p.cpu() for nm, p in self.llm.get_bottom_params()])
@@ -84,7 +86,7 @@ class SFLSimulator(object):
         params = {}
         for client_id in sample_clients:
             params[client_id] = self.parameter_keeper.get_server_params(client_id)
-        self.parameter_keeper.store_server_params('server', self.strategy.aggregation_step(global_round,params))
+        self.parameter_keeper.store_server_params('server', self.strategy.aggregation_step(global_round, params))
 
     def __summarize_communication(self, global_round=None, client_id=None):
         if global_round is None:
@@ -115,7 +117,8 @@ class SFLSimulator(object):
         """
         b2tr = self.llm.get_bottom_to_trunk_fx()  # bottom-to-trunk
         tr2t = self.llm.get_trunk_to_top_fx()  # trunk-to-top
-        self.strategy.callback_fp_param(client_id, local_epoch, local_step, b2tr, tr2t, batch)
+        self.strategy.callback_fp_param(self.current_global_round, client_id, local_epoch, local_step, b2tr, tr2t,
+                                        batch)
 
         self.communication_overhead_uplink.setdefault(self.current_global_round, {})
         self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})
@@ -133,8 +136,8 @@ class SFLSimulator(object):
         """
         t2tr = self.llm.get_top_to_trunk_grad()  # top-to-trunk
         tr2b = self.llm.get_trunk_to_bottom_grad()  # trunk-to-bottom
-        self.strategy.callback_bp_param(client_id, local_epoch, local_step, t2tr, tr2b, batch)
-
+        self.strategy.callback_bp_param(self.current_global_round, client_id, local_epoch, local_step, t2tr, tr2b,
+                                        batch)
         self.communication_overhead_uplink.setdefault(self.current_global_round, {})
         self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})
         self.communication_overhead_uplink[self.current_global_round][client_id].setdefault(local_epoch, 0)

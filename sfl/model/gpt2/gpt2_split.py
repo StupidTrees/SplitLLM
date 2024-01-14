@@ -8,6 +8,7 @@ from torch.nn import CrossEntropyLoss
 from transformers import GPT2LMHeadModel, GPT2Model
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions, CausalLMOutputWithCrossAttentions
 
+from sfl.model.noise import DxPrivacy
 from sfl.model.split_model import SplitModel
 from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.config import FLConfig
@@ -92,7 +93,7 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
                 p.data.normal_(mean=0.0,
                                std=(self.config.initializer_range / math.sqrt(2 * self.config.n_layer)))
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper|None):
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None):
         super(GPT2SplitLMHeadModel, self).config_sfl(config, param_keeper)
         self.transformer.config_sfl(config, param_keeper)
 
@@ -217,7 +218,12 @@ class GPT2SplitModel(GPT2Model, SplitModel):
 
     def __init__(self, config):
         super().__init__(config)
+        self.perturber = None
         self.intermediate_fx = {}
+
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None):
+        super().config_sfl(config, param_keeper)
+        self.perturber = DxPrivacy(self.wte, self.config.vocab_size, self.fl_config.noise_scale)
 
     def forward(
             self,
@@ -310,6 +316,8 @@ class GPT2SplitModel(GPT2Model, SplitModel):
 
         if inputs_embeds is None:
             inputs_embeds = self.wte(input_ids)
+            if self.fl_config and self.fl_config.noise_mode == 'dxp':
+                inputs_embeds = self.perturber(inputs_embeds)
         position_embeds = self.wpe(position_ids)
         hidden_states = inputs_embeds + position_embeds
 
@@ -401,8 +409,11 @@ class GPT2SplitModel(GPT2Model, SplitModel):
 
             if self.training and self.fl_config is not None and self.fl_config.collect_intermediates:
                 if i == self.fl_config.split_point_1 - 1:  # bottom-trunk
-                    if self.fl_config.noise_scale > 0:
-                        noise = torch.randn_like(hidden_states) * self.fl_config.noise_scale
+                    if self.fl_config.noise_mode == 'gaussian':
+                        min = hidden_states.min()
+                        max = hidden_states.max()
+                        noise = torch.randn_like(hidden_states)
+                        noise = noise * (max - min) * self.fl_config.noise_scale
                         hidden_states = hidden_states + noise
                     hidden_states.retain_grad()
                     self._store_bottom_to_trunk_fx(hidden_states)

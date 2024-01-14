@@ -5,11 +5,12 @@ import os
 import sys
 from transformers import AutoTokenizer
 
+from sfl.config import FLConfig
+from sfl.utils.training import calc_unshift_loss, get_best_gpu
+
 sys.path.append(os.path.abspath('..'))
 from sfl.model.gpt2.gpt2_split import GPT2SplitLMHeadModel
 from rouge import Rouge
-from sfl.utils import get_best_gpu, calc_unshift_loss
-from sfl.utils import FLConfig
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
