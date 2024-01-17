@@ -26,7 +26,10 @@ class FLStrategy(ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def callback_bp_param(self, global_round, client_id, local_epoch, local_step, t2tr_params, tr2b_params, batch):
+    def callback_bp_param(self, global_round, client_id, local_epoch, local_step,
+                          b2tr_fx, tr2b_grad,
+                          tr2t_fx, t2tr_grad,
+                          batch):
         raise NotImplementedError
 
     def aggregation_step(self, global_round, params: dict[str, Any]):

@@ -8,7 +8,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer, AdamW
 
+
 sys.path.append(os.path.abspath('../..'))
+from sfl.model.mocker import GPT2TopMocker
 from sfl.utils.model import calculate_rouge
 from sfl import config
 import sfl
@@ -23,14 +25,16 @@ from sfl.utils.training import set_random_seed, get_dataset_class, get_attacker_
 # 定义Client本地学习策略
 class QAFLStrategy(FLStrategy):
 
-    def __init__(self, tokenizer, attacker1, attacker2, llm):
+    def __init__(self, tokenizer, attacker1, attacker2,  llm):
         super().__init__()
         self.attacker_rouge_b2tr = []
         self.attacker_rouge_tr2t = []
+        self.mocker_rouge_tr2t = []
         self.client_logs = {}
         self.tokenizer = tokenizer
         self.attacker1 = attacker1
         self.attacker2 = attacker2
+        self.mocker = None
         self.llm = llm
 
     def client_step(self, global_round, client_id: str, llm: SplitModel, dataloader: DataLoader, cfg: FLConfig):
@@ -55,6 +59,7 @@ class QAFLStrategy(FLStrategy):
                     pbar.update(1)
                 avg_loss /= batch_num
                 self.client_logs.setdefault(client_id, {})
+                self.client_logs[client_id][epoch] = {"loss": float(avg_loss)}
                 if len(self.attacker_rouge_b2tr) > 0:
                     avg_rouge1 = sum([r["rouge-l"]["f"] for r in self.attacker_rouge_b2tr]) / len(
                         self.attacker_rouge_b2tr)
@@ -62,10 +67,12 @@ class QAFLStrategy(FLStrategy):
                     avg_rouge2 = sum([r['rouge-l']['f'] for r in self.attacker_rouge_tr2t]) / len(
                         self.attacker_rouge_tr2t)
                     print(f'ATTACK! Trunk-Top, Client {client_id} Epoch {epoch} RougeL {avg_rouge2:.3f}')
-                    self.client_logs[client_id][epoch] = {"bottom-trunk": avg_rouge1, "trunk-top": avg_rouge2,
-                                                          "loss": float(avg_loss)}
-                else:
-                    self.client_logs[client_id][epoch] = {"loss": float(avg_loss)}
+                    self.client_logs[client_id][epoch]["bottom-trunk"] = avg_rouge1
+                    self.client_logs[client_id][epoch]["trunk-top"] = avg_rouge2
+                if len(self.mocker_rouge_tr2t) > 0:
+                    avg_rouge = sum([r['rouge-l']['f'] for r in self.mocker_rouge_tr2t]) / len(self.mocker_rouge_tr2t)
+                    print(f'MOCK! Trunk-Top, Client {client_id} Epoch {epoch} RougeL {avg_rouge:.3f}')
+                    self.client_logs[client_id][epoch]["mocker-trunk-top"] = avg_rouge
                 self.attacker_rouge_b2tr.clear()
                 self.attacker_rouge_tr2t.clear()
 
@@ -83,32 +90,44 @@ class QAFLStrategy(FLStrategy):
 
     def callback_fp_param(self, global_round, client_id, local_epoch, local_step, b2tr_params, tr2t_params, batch):
         #  这里获取某epoch、step中，前传过程的两次传输参数，b2tr(bottom-trunk), tr2t(trunk-top)
-        if client_id == '1' and local_epoch == 1 and (global_round + 1) % 5 == 0 and (local_step + 1) % 10 == 0:
-            with torch.no_grad():
-                if args.attacker_search == 'True':
-                    rouge_res_b2tr = calculate_rouge(self.tokenizer, self.attacker1.search(b2tr_params, self.llm),
-                                                     batch['input_text'],
-                                                     is_tokens=True)
-                    rouge_res_tr2t = calculate_rouge(self.tokenizer, self.attacker2.search(tr2t_params, self.llm),
-                                                     batch['input_text'],
-                                                     is_tokens=True)
-                    self.attacker_rouge_b2tr.append(rouge_res_b2tr)
-                    self.attacker_rouge_tr2t.append(rouge_res_tr2t)
-                else:
-                    rouge_res_b2tr = calculate_rouge(self.tokenizer,
-                                                     self.attacker1(b2tr_params.to(self.attacker1.device)),
-                                                     batch['input_text'])
-                    rouge_res_tr2t = calculate_rouge(self.tokenizer,
-                                                     self.attacker2(tr2t_params.to(self.attacker1.device)),
-                                                     batch['input_text'])
-                    self.attacker_rouge_b2tr.append(rouge_res_b2tr)
-                    self.attacker_rouge_tr2t.append(rouge_res_tr2t)
-                print(
-                    f'ATTACK! Bottom-trunk, Client {client_id} Epoch {local_epoch} Step {local_step} RougeL {rouge_res_b2tr["rouge-l"]["f"]:.3f}')
-
-    def callback_bp_param(self, global_round, client_id, local_epoch, local_step, t2tr_params, tr2b_params, batch):
-        #  这里获取某epoch、step中，反传过程的两次传输参数
         pass
+
+    def callback_bp_param(self, global_round, client_id, local_epoch, local_step,
+                          b2tr_fx, tr2b_grad,
+                          tr2t_fx, t2tr_grad,
+                          batch):
+        #  这里获取某epoch、step中，反传过程的两次传输参数
+        if client_id == '1' and local_epoch == 1 and (global_round) % 5 == 0:
+            if self.mocker is not None:
+                gt = self.mocker.fit(tr2t_fx.to(self.simulator.device), t2tr_grad, epochs=args.mocker_epochs,
+                                     adjust=args.mocker_adjust, beta=args.mocker_beta)
+                rouge = calculate_rouge(self.tokenizer, gt, batch['input_text'])
+                self.mocker_rouge_tr2t.append(rouge)
+                print(f'MOCK! Trunk-Top, Client {client_id} Epoch {local_epoch} Step {local_step} RougeL {rouge["rouge-l"]["f"]:.3f}')
+            if self.attacker1 is not None:
+                self.attacker1.to(self.simulator.device)
+                self.attacker2.to(self.simulator.device)
+                with torch.no_grad():
+                    if args.attacker_search == 'True':
+                        rouge_res_b2tr = calculate_rouge(self.tokenizer, self.attacker1.search(b2tr_fx, self.llm),
+                                                         batch['input_text'],
+                                                         is_tokens=True)
+                        rouge_res_tr2t = calculate_rouge(self.tokenizer, self.attacker2.search(tr2t_fx, self.llm),
+                                                         batch['input_text'],
+                                                         is_tokens=True)
+                        self.attacker_rouge_b2tr.append(rouge_res_b2tr)
+                        self.attacker_rouge_tr2t.append(rouge_res_tr2t)
+                    else:
+                        rouge_res_b2tr = calculate_rouge(self.tokenizer,
+                                                         self.attacker1(b2tr_fx.to(self.attacker1.device)),
+                                                         batch['input_text'])
+                        rouge_res_tr2t = calculate_rouge(self.tokenizer,
+                                                         self.attacker2(tr2t_fx.to(self.attacker1.device)),
+                                                         batch['input_text'])
+                        self.attacker_rouge_b2tr.append(rouge_res_b2tr)
+                        self.attacker_rouge_tr2t.append(rouge_res_tr2t)
+                    print(
+                        f'ATTACK! Bottom-trunk, Client {client_id} Epoch {local_epoch} Step {local_step} RougeL {rouge_res_b2tr["rouge-l"]["f"]:.3f}')
 
 
 # 测试模型输出
@@ -125,10 +144,12 @@ def sfl_with_attacker(args):
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = 50256
     # 加载攻击模型
-    attacker_cls = get_attacker_class(args.attack_model)
-    attacker_path_1, attacker_path_2 = extract_attacker_path(args)
-    attacker = attacker_cls.from_pretrained(attacker_path_1)
-    attacker2 = attacker_cls.from_pretrained(attacker_path_2)
+    attacker, attacker2 = None, None
+    if args.attacker_enable == 'True':
+        attacker_cls = get_attacker_class(args.attacker_model)
+        attacker_path_1, attacker_path_2 = extract_attacker_path(args)
+        attacker = attacker_cls.from_pretrained(attacker_path_1)
+        attacker2 = attacker_cls.from_pretrained(attacker_path_2)
 
     # 配置联邦学习
     client_ids = [str(i) for i in range(3)]
@@ -137,7 +158,7 @@ def sfl_with_attacker(args):
                       split_point_1=args.split_point_1,
                       split_point_2=args.split_point_2,  # [0,1 | 2,3,.... 29| 30, 31]
                       use_lora_at_trunk=args.lora_at_trunk,  # 在trunk部分使用LoRA
-                      top_and_bottom_from_scratch=args.client_from_scratch=='True',  # top和bottom都不采用预训练参数.
+                      top_and_bottom_from_scratch=args.client_from_scratch,  # top和bottom都不采用预训练参数.
                       noise_mode=args.noise_mode,
                       noise_scale=args.noise_scale,  # 噪声大小
                       )
@@ -145,7 +166,8 @@ def sfl_with_attacker(args):
     dataset_cls = get_dataset_class(args.dataset)
     fed_dataset = dataset_cls(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
 
-    simulator = SFLSimulator(client_ids=client_ids, strategy=QAFLStrategy(tokenizer, attacker, attacker2, model),
+    simulator = SFLSimulator(client_ids=client_ids,
+                             strategy=QAFLStrategy(tokenizer, attacker, attacker2, model),
                              llm=model,
                              tokenizer=tokenizer,
                              dataset=fed_dataset, config=config)
@@ -154,8 +176,13 @@ def sfl_with_attacker(args):
         name=f"{args.noise_mode}:{args.noise_scale}-prefix=ß{args.attacker_prefix}-search:{args.attacker_search}",
         config=args
     )
-    attacker.to(simulator.device)
-    attacker2.to(simulator.device)
+    # 加载TAG攻击模型
+    mocker = None
+    if args.mocker_enable == 'True':
+        # model.print_split_model()
+        mocker = GPT2TopMocker(config, model)
+        mocker.to(simulator.device)
+    simulator.strategy.mocker = mocker
     simulator.simulate()
 
 
@@ -165,12 +192,14 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', type=str, default='gpt2-large')
     parser.add_argument('--dataset', type=str, default='piqa')
     parser.add_argument('--data_shrink_frac', type=float, default=0.15, help='shrink dataset to this fraction')
-    parser.add_argument('--attack_model', type=str, default='gru', help='lstm, gru, linear')
+
     parser.add_argument('--split_point_1', type=int, default=2, help='split point for b2tr')
     parser.add_argument('--split_point_2', type=int, default=30, help='split point for t2tr')
     parser.add_argument('--lora_at_trunk', type=bool, default=True, help='use LoRA at trunk part')
     parser.add_argument('--noise_mode', type=str, default='dxp')
     parser.add_argument('--noise_scale', type=float, default=0.0)
+    parser.add_argument('--attacker_enable', type=str, default='True')
+    parser.add_argument('--attacker_model', type=str, default='gru', help='lstm, gru, linear')
     parser.add_argument('--attacker_train_label', type=str, default='train')
     parser.add_argument('--attacker_train_frac', type=float, default=1.0)
     parser.add_argument('--attacker_prefix', type=str, default='normal')
@@ -183,6 +212,10 @@ if __name__ == '__main__':
     parser.add_argument('--attack_mode', type=str, default='b2tr', help='b2tr or t2tr')
     parser.add_argument('--global_round', type=int, default=30)
     parser.add_argument('--client_from_scratch', type=str, default='False')
+    parser.add_argument('--mocker_enable', type=str, default='False')
+    parser.add_argument('--mocker_epochs', type=int, default=300)
+    parser.add_argument('--mocker_adjust', type=int, default=0)
+    parser.add_argument('--mocker_beta', type=float, default=0.5)
     parser.add_argument('--client_epoch', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--lr', type=float, default=1e-5)

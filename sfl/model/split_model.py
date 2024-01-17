@@ -93,7 +93,7 @@ class SplitModel(nn.Module, ABC):
         self.adapter_added = True
         return res
 
-    def reset_params(self, named_params):
+    def reset_params(self, named_params, reset_mode):
         pass
 
     @abstractmethod

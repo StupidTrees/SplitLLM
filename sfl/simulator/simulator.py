@@ -33,9 +33,16 @@ class SFLSimulator(object):
         self.current_global_round = 0
         if config.use_lora_at_trunk and not self.llm.adapter_added:
             self.llm = self.llm.convert_to_lora_model()
-        if config.top_and_bottom_from_scratch:
-            self.llm.reset_params(self.llm.get_top_params())
-            self.llm.reset_params(self.llm.get_bottom_params())
+        if config.top_and_bottom_from_scratch in ['True', 'Embedding']:
+            self.llm.reset_params(self.llm.get_top_params(), config.top_and_bottom_from_scratch)
+            self.llm.reset_params(self.llm.get_bottom_params(), config.top_and_bottom_from_scratch)
+        elif config.top_and_bottom_from_scratch == 'Noised':
+            for nm, param in self.llm.get_top_params():
+                scale = param.data.max() - param.data.min()
+                param.data += torch.randn_like(param.data) * scale * 0.02
+            for nm, param in self.llm.get_bottom_params():
+                scale = param.data.max() - param.data.min()
+                param.data += torch.randn_like(param.data) * scale * 0.02
 
     def simulate(self):
         self.llm.to(self.device)
@@ -134,9 +141,13 @@ class SFLSimulator(object):
         """
         在这里拿到反传的中间数据
         """
-        t2tr = self.llm.get_top_to_trunk_grad()  # top-to-trunk
-        tr2b = self.llm.get_trunk_to_bottom_grad()  # trunk-to-bottom
-        self.strategy.callback_bp_param(self.current_global_round, client_id, local_epoch, local_step, t2tr, tr2b,
+        tr2t_fx, t2tr = self.llm.get_top_to_trunk_grad()  # top-to-trunk
+        b2tr_fx, tr2b = self.llm.get_trunk_to_bottom_grad()  # trunk-to-bottom
+        # b2tr_fx = self.llm.get_bottom_to_trunk_fx()  # bottom-to-trunk
+        # tr2t_fx = self.llm.get_trunk_to_top_fx()  # trunk-to-top
+        self.strategy.callback_bp_param(self.current_global_round, client_id, local_epoch, local_step,
+                                        b2tr_fx, tr2b,
+                                        tr2t_fx, t2tr,
                                         batch)
         self.communication_overhead_uplink.setdefault(self.current_global_round, {})
         self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})

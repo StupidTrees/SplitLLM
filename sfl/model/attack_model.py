@@ -134,6 +134,27 @@ class GRUAttackModel(AttackModel):
         return self.mlp(hidden)
 
 
+class GRUGradAttackModel(AttackModel):
+    config_class = LSTMAttackerConfig
+
+    def __init__(self, config: LSTMAttackerConfig, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+        self.gru1 = nn.GRU(input_size=self.config.n_embed, hidden_size=self.config.hidden_size, batch_first=True)
+        self.gru2 = nn.GRU(input_size=self.config.n_embed, hidden_size=self.config.hidden_size, batch_first=True)
+        self.mlp = nn.Linear(self.config.hidden_size*2, self.config.vocab_size)
+
+    def forward(self, x, grad):
+        # x[batch_size, seq_len, n_embed]
+        # grad[batch_size, seq_len, n_embed]
+        # concat = torch.cat([x, grad], dim=-1)
+        # output [batch_size,seq_len, vocab_size]
+        hidden, _ = self.gru1(x)  # hidden [batch_size, seq_len, hidden]
+        hidden2, _ = self.gru2(grad) # hidden2 [batch_size, seq_len, hidden]
+        hidden = torch.dropout(hidden, p=self.config.dropout, train=self.training)
+        hidden2 = torch.dropout(hidden, p=self.config.dropout, train=self.training)
+        con = torch.cat([hidden, hidden2], dim=-1)
+        return self.mlp(con)
+
 class TransformerDecoderAttackModel(AttackModel):
     config_class = TransformerAttackerConfig
 
@@ -170,3 +191,6 @@ class TransformerEncoderAttackModel(AttackModel):
         # output [batch_size,seq_len, vocab_size]
         hidden = self.encoder(x)
         return self.mlp(hidden)
+
+
+

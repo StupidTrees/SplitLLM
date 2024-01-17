@@ -1,3 +1,4 @@
+import argparse
 import os
 import random
 
@@ -33,6 +34,8 @@ def get_attacker_class(attack_model):
 
 
 def extract_attacker_path(args):
+    if isinstance(args, dict):
+        args = argparse.Namespace(**args)
     attacker_path = args.attacker_path + f'{args.model_name}/{args.attacker_dataset}/'
     # find the first directory in  attacker_path starts with {args.attacker_train_label}*{args.attacker_trian_frac}
     for d in os.listdir(attacker_path):
@@ -86,3 +89,21 @@ def calc_unshift_loss(lm_logits, labels):
     # do not shift
     loss_fct = CrossEntropyLoss()
     return loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
+
+
+def calc_shifted_loss_logits(lm_logits, label_logits):
+    shift_logits = lm_logits[..., :-1, :].contiguous()
+    shift_labels = label_logits[..., 1:, :].contiguous()
+    # Flatten the tokens
+    loss_fct = CrossEntropyLoss()
+    # loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+    # return loss_fct(shift_logits, shift_labels)
+    return loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1, shift_labels.size(-1)))
+
+
+def calc_shifted_loss(lm_logits, labels):
+    shift_logits = lm_logits[..., :-1, :].contiguous()
+    shift_labels = labels[..., 1:].contiguous()
+    # Flatten the tokens
+    loss_fct = CrossEntropyLoss()
+    return loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))

@@ -76,8 +76,11 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
             if self.fl_config.split_point_1 <= self._get_block_num(nm) < self.fl_config.split_point_2:
                 yield nm, p
 
-    def reset_params(self, named_params):
+    def reset_params(self, named_params, reset_mode: str):
         for name, p in named_params:
+            if reset_mode == 'Embedding':
+                if 'wte' in name or 'wpe' in name:
+                    continue
             if 'ln_' in name:
                 if 'bias' in name:
                     p.data.zero_()
@@ -114,12 +117,6 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
             output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutputWithCrossAttentions]:
-        r"""
-        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Labels for language modeling. Note that the labels **are shifted** inside the model, i.e. you can set
-            `labels = input_ids` Indices are selected in `[-100, 0, ..., config.vocab_size]` All labels set to `-100`
-            are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
-        """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         transformer_outputs = self.transformer(
@@ -172,6 +169,13 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
             cross_attentions=transformer_outputs.cross_attentions,
         )
 
+    def cut_forward(self, hidden_states):
+        hidden_states = self.transformer.cut_forward(hidden_states)[0]
+        lm_logits = self.lm_head(hidden_states)
+        return CausalLMOutputWithCrossAttentions(
+            logits=lm_logits
+        )
+
 
 class GPT2SplitModel(GPT2Model, SplitModel):
     """
@@ -202,12 +206,14 @@ class GPT2SplitModel(GPT2Model, SplitModel):
 
     def get_top_to_trunk_grad(self):
         if 'trunk_to_top' in self.intermediate_fx:
-            return self.intermediate_fx['trunk_to_top'].grad.clone().detach().cpu()
+            return self.intermediate_fx['trunk_to_top'].detach().cpu(), self.intermediate_fx[
+                'trunk_to_top'].grad.clone().detach().cpu()
         return []
 
     def get_trunk_to_bottom_grad(self):
         if 'bottom_to_trunk' in self.intermediate_fx:
-            return self.intermediate_fx['bottom_to_trunk'].grad.clone().detach().cpu()
+            return self.intermediate_fx['bottom_to_trunk'].detach().cpu(), self.intermediate_fx[
+                'bottom_to_trunk'].grad.clone().detach().cpu()
         return []
 
     def _store_bottom_to_trunk_fx(self, fx):
@@ -441,4 +447,16 @@ class GPT2SplitModel(GPT2Model, SplitModel):
             hidden_states=all_hidden_states,
             attentions=all_self_attentions,
             cross_attentions=all_cross_attentions,
+        )
+
+    def cut_forward(self, hidden_states):
+        for i, block in enumerate(self.h):
+            if i < self.fl_config.split_point_2:
+                continue
+            outputs = block(
+                hidden_states)
+            hidden_states = outputs[0]
+        hidden_states = self.ln_f(hidden_states)
+        return BaseModelOutputWithPastAndCrossAttentions(
+            last_hidden_state=hidden_states
         )
