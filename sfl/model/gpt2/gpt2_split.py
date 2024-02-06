@@ -25,22 +25,23 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
         super(GPT2SplitLMHeadModel, self).__init__(config)
         self.transformer = GPT2SplitModel(config)
 
-    def get_bottom_to_trunk_fx(self):
-        return self.transformer.get_bottom_to_trunk_fx()
+    def get_top_to_trunk_grad(self, detach=True):
+        return self.transformer.get_top_to_trunk_grad(detach)
 
-    def get_trunk_to_top_fx(self):
-        return self.transformer.get_trunk_to_top_fx()
+    def get_trunk_to_bottom_grad(self, detach=True):
+        return self.transformer.get_trunk_to_bottom_grad(detach)
 
-    def get_top_to_trunk_grad(self):
-        return self.transformer.get_top_to_trunk_grad()
-
-    def get_trunk_to_bottom_grad(self):
-        return self.transformer.get_trunk_to_bottom_grad()
-
-    def get_trunk_adapter_module_regex(self):
+    def get_adapter_module_regex(self):
         # Trunk部分(h.start~h.end)的proj/fc/_attn模块
         if self.fl_config is not None:
-            reg = rf".*\.h\.({'|'.join([str(i) for i in range(self.fl_config.split_point_1, self.fl_config.split_point_2)])})\..*(.+attn|proj|fc)$"
+            blocks = []
+            if self.fl_config.use_lora_at_bottom:
+                blocks += [str(i) for i in range(self.fl_config.split_point_1)]
+            if self.fl_config.use_lora_at_trunk:
+                blocks += [str(i) for i in range(self.fl_config.split_point_1, self.fl_config.split_point_2)]
+            if self.fl_config.use_lora_at_top:
+                blocks += [str(i) for i in range(self.fl_config.split_point_2, self.config.n_layer)]
+            reg = rf".*\.h\.({'|'.join(blocks)})\..*(.+attn|proj|fc)$"
             return reg
         return ""
 
@@ -182,6 +183,9 @@ class GPT2SplitModel(GPT2Model, SplitModel):
     GPT2主模型，主要在FP过程中收集中间输出和梯度
     """
 
+    def get_adapter_module_regex(self):
+        pass
+
     def get_bottom_params(self, trainable_only=True):
         pass
 
@@ -191,29 +195,23 @@ class GPT2SplitModel(GPT2Model, SplitModel):
     def get_trunk_params(self, trainable_only=True):
         pass
 
-    def get_trunk_adapter_module_regex(self):
-        pass
-
-    def get_bottom_to_trunk_fx(self):
-        if 'bottom_to_trunk' in self.intermediate_fx:
-            return self.intermediate_fx['bottom_to_trunk'].detach().cpu()
-        return []
-
-    def get_trunk_to_top_fx(self):
+    def get_top_to_trunk_grad(self, detach=True):
         if 'trunk_to_top' in self.intermediate_fx:
-            return self.intermediate_fx['trunk_to_top'].detach().cpu()
+            if detach:
+                return self.intermediate_fx['trunk_to_top'].detach().cpu(), self.intermediate_fx[
+                    'trunk_to_top'].grad.clone().detach().cpu()
+            else:
+                return self.intermediate_fx['trunk_to_top'], self.intermediate_fx['trunk_to_top'].grad
         return []
 
-    def get_top_to_trunk_grad(self):
-        if 'trunk_to_top' in self.intermediate_fx:
-            return self.intermediate_fx['trunk_to_top'].detach().cpu(), self.intermediate_fx[
-                'trunk_to_top'].grad.clone().detach().cpu()
-        return []
-
-    def get_trunk_to_bottom_grad(self):
+    def get_trunk_to_bottom_grad(self, detach=True):
         if 'bottom_to_trunk' in self.intermediate_fx:
-            return self.intermediate_fx['bottom_to_trunk'].detach().cpu(), self.intermediate_fx[
-                'bottom_to_trunk'].grad.clone().detach().cpu()
+            if detach:
+                return self.intermediate_fx['bottom_to_trunk'].detach().cpu(), self.intermediate_fx[
+                    'bottom_to_trunk'].grad.clone().detach().cpu()
+            else:
+                return self.intermediate_fx['bottom_to_trunk'], self.intermediate_fx[
+                    'bottom_to_trunk'].grad
         return []
 
     def _store_bottom_to_trunk_fx(self, fx):

@@ -1,6 +1,8 @@
 import random
+from typing import Iterator
 
 import torch
+import wandb
 
 from sfl.config import FLConfig
 from sfl.model.split_model import SplitModel
@@ -30,9 +32,21 @@ class SFLSimulator(object):
         self.llm.config_sfl(config, self.parameter_keeper)
         self.communication_overhead_uplink = {}
         self.communication_overhead_downlink = {}
+        # Step pointer
         self.current_global_round = 0
-        if config.use_lora_at_trunk and not self.llm.adapter_added:
+        self.local_epochs = {cid: 0 for cid in self.client_ids}
+        self.local_steps = {cid: 0 for cid in self.client_ids}
+        self.global_steps = {cid: 0 for cid in self.client_ids}
+        if not self.llm.adapter_added:
             self.llm = self.llm.convert_to_lora_model()
+        # store pretrained parameters
+        self.parameter_keeper.store_other_params('pretrained', 'trunk',
+                                                 [p.detach().cpu() for nm, p in self.llm.get_trunk_params()])
+        self.parameter_keeper.store_other_params('pretrained', 'top',
+                                                 [p.detach().cpu() for nm, p in self.llm.get_top_params()])
+        self.parameter_keeper.store_other_params('pretrained', 'bottom',
+                                                 [p.detach().cpu() for nm, p in self.llm.get_bottom_params()])
+        # special initialization
         if config.top_and_bottom_from_scratch in ['True', 'Embedding']:
             self.llm.reset_params(self.llm.get_top_params(), config.top_and_bottom_from_scratch)
             self.llm.reset_params(self.llm.get_bottom_params(), config.top_and_bottom_from_scratch)
@@ -54,21 +68,102 @@ class SFLSimulator(object):
         cm = ([p.detach().cpu() for nm, p in self.llm.get_top_params()],
               [p.detach().cpu() for nm, p in self.llm.get_bottom_params()])
         self.parameter_keeper.store_client_params(None, cm)
+        loaders = {}
+        iters = {}
+        self.local_epochs = {cid: 0 for cid in self.client_ids}
+        self.local_steps = {cid: 0 for cid in self.client_ids}
+        self.global_steps = {cid: 0 for cid in self.client_ids}
+
         for i in range(self.config.global_round):
             self.current_global_round = i
             print(f'==================================Global Round {i}=================================')
             # sample clients
             sampled_clients = random.sample(self.client_ids, int(len(self.client_ids) * self.config.client_per_round))
             # sequentially train each client
-            for client_id in sampled_clients:
-                self._client_step(i, client_id)
-                self.__summarize_communication(i, client_id)
+            participation = set(sampled_clients)
+            completed = set()
+            while len(completed) < len(participation):
+                for client_id in participation:
+                    if client_id in completed:
+                        continue
+                    loaders.setdefault(client_id,
+                                       self.dataset.get_dataloader(client_id, batch_size=self.config.batch_size,
+                                                                   type=self.config.dataset_type))
+                    iters.setdefault(client_id, [iter(loaders[client_id])])
+                    itt = CircularDataLoaderIterator(iters[client_id], loaders[client_id], self.config.client_steps)
+                    self._client_step(client_id, i, self.local_epochs[client_id], itt)
+                    self.local_steps[client_id] += itt.iterated_num
+                    self.global_steps[client_id] += itt.iterated_num
+                    if itt.reached_end:
+                        self.local_epochs[client_id] += 1
+                        self.local_steps[client_id] = 0
+                        if self.local_epochs[client_id] >= self.config.client_epoch:
+                            completed.add(client_id)
+
+                    self.__summarize_communication(i, client_id)
+                # aggregate server parameters
+                self._server_step(i, sampled_clients)
             self.__summarize_communication(i, client_id=None)
-            # aggregate server parameters
             self._server_step(i, sampled_clients)
         self.__summarize_communication()
 
-    def _client_step(self, global_round, client_id: str):
+    def restored_forward(self, part: str = 'top', **kwargs):
+        outputs = None
+        if part == 'top':
+            backup_params = [p.detach().cpu() for nm, p in self.llm.get_top_params()]
+            self.llm.load_top_params(self.parameter_keeper.get_other_params('pretrained', 'top'))
+            outputs = self.llm(**kwargs)
+            self.llm.load_top_params(backup_params)
+        elif part == 'bottom':
+            backup_params = [p.detach().cpu() for nm, p in self.llm.get_bottom_params()]
+            self.llm.load_bottom_params(self.parameter_keeper.get_other_params('pretrained', 'bottom'))
+            outputs = self.llm(**kwargs)
+            self.llm.load_bottom_params(backup_params)
+        elif part == 'trunk':
+            backup_params = [p.detach().cpu() for nm, p in self.llm.get_trunk_params()]
+            self.llm.load_trunk_params(self.parameter_keeper.get_other_params('pretrained', 'trunk'))
+            outputs = self.llm(**kwargs)
+            self.llm.load_trunk_params(backup_params)
+        return outputs
+
+    def restored_run(self, func, parts=None, key: str = '', **kwargs):
+        if key not in self.parameter_keeper.other_params:
+            for part in self.parameter_keeper.other_params['pretrained']:
+                self.parameter_keeper.store_other_params(key, part,
+                                                         self.parameter_keeper.get_other_params('pretrained', part))
+        if parts is None:
+            parts = ['top', 'bottom']
+        backup_params = {}
+        for part in parts:
+            if part == 'top':
+                backup_params[part] = [p.detach().cpu() for nm, p in self.llm.get_top_params()]
+                self.llm.load_top_params(self.parameter_keeper.get_other_params(key, part))
+            elif part == 'bottom':
+                backup_params[part] = [p.detach().cpu() for nm, p in self.llm.get_bottom_params()]
+                self.llm.load_bottom_params(self.parameter_keeper.get_other_params(key, part))
+            elif part == 'trunk':
+                backup_params[part] = [p.detach().cpu() for nm, p in self.llm.get_trunk_params()]
+                self.llm.load_trunk_params(self.parameter_keeper.get_other_params(key, part))
+        func(**kwargs)
+        for part in parts:
+            updated_params = []
+            if part == 'top':
+                updated_params = [p.detach().cpu() for nm, p in self.llm.get_top_params()]
+                self.llm.load_top_params(backup_params[part])
+            elif part == 'bottom':
+                updated_params = [p.detach().cpu() for nm, p in self.llm.get_bottom_params()]
+                self.llm.load_bottom_params(backup_params[part])
+            elif part == 'trunk':
+                updated_params = [p.detach().cpu() for nm, p in self.llm.get_trunk_params()]
+                self.llm.load_trunk_params(backup_params[part])
+            self.parameter_keeper.store_other_params(key, part, updated_params)
+
+    def get_current_step(self, client_id, mini_step):
+        global_step = self.global_steps[client_id] + mini_step
+        local_step = self.local_steps[client_id] + mini_step
+        return local_step, global_step
+
+    def _client_step(self, client_id: str, global_round, local_epoch, iterator: Iterator):
         # load client parameters (bottom and top layers)
         cm = self.parameter_keeper.get_client_params(client_id)
         self.llm.load_top_params(cm[0])
@@ -77,9 +172,7 @@ class SFLSimulator(object):
         self.llm.load_trunk_params(self.parameter_keeper.get_server_params('server'))
         # client step
         torch.cuda.empty_cache()
-        self.llm.to(self.device)
-        self.strategy.client_step(global_round, client_id, self.llm,
-                                  self.dataset.get_dataloader(client_id, type='validation'), self.config)
+        self.strategy.client_step(client_id, global_round, local_epoch, self.llm, iterator, self.config)
         # store updated client parameters
         cm = ([p.cpu() for nm, p in self.llm.get_top_params()],
               [p.cpu() for nm, p in self.llm.get_bottom_params()])
@@ -93,7 +186,49 @@ class SFLSimulator(object):
         params = {}
         for client_id in sample_clients:
             params[client_id] = self.parameter_keeper.get_server_params(client_id)
+        print("SERVER:", "AGGREGATION")
         self.parameter_keeper.store_server_params('server', self.strategy.aggregation_step(global_round, params))
+
+    def _client_one_step_done(self, client_id, mini_step, batch, logs=None):
+        """
+        统计前传、反传的中间数据量
+        """
+        local_step, global_step = self.get_current_step(client_id, mini_step)
+        local_epoch = self.local_epochs[client_id]
+
+        tr2t_fx, t2tr = self.llm.get_top_to_trunk_grad()  # top-to-trunk
+        b2tr_fx, tr2b = self.llm.get_trunk_to_bottom_grad()  # trunk-to-bottom
+        self.communication_overhead_uplink.setdefault(self.current_global_round, {})
+        self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})
+        self.communication_overhead_uplink[self.current_global_round][client_id].setdefault(local_epoch, 0)
+        self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += tensor_bytes(
+            t2tr) + tensor_bytes(b2tr_fx)
+        self.communication_overhead_downlink.setdefault(self.current_global_round, {})
+        self.communication_overhead_downlink[self.current_global_round].setdefault(client_id, {})
+        self.communication_overhead_downlink[self.current_global_round][client_id].setdefault(local_epoch, 0)
+        self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tensor_bytes(
+            tr2b) + tensor_bytes(tr2t_fx)
+
+        # 进行log
+
+        if logs is None:
+            logs = {}
+        report = {'global_step': global_step, f'client{client_id}_global_round': self.current_global_round,
+                  f'client{client_id}_local_epoch': local_epoch,
+                  f'client{client_id}_local_step': local_step}
+        self.strategy.callback_intermediate_result(self.current_global_round,
+                                                   client_id,
+                                                   local_epoch,
+                                                   local_step,
+                                                   b2tr_fx, tr2b,
+                                                   tr2t_fx, t2tr,
+                                                   batch, logs)
+        if (local_step + 1) % self.config.client_evaluate_freq == 0:
+            self.strategy.client_evaluate(self.current_global_round, client_id, logs)
+        for k, v in logs.items():
+            report[f'client{client_id}_{k}'] = v
+
+        wandb.log(report)
 
     def __summarize_communication(self, global_round=None, client_id=None):
         if global_round is None:
@@ -118,43 +253,34 @@ class SFLSimulator(object):
                 f'Client {client_id} communication overhead: uplink:{size_str(sum(self.communication_overhead_uplink[global_round][client_id].values()))},'
                 f' downlink:{size_str(sum(self.communication_overhead_downlink[global_round][client_id].values()))}')
 
-    def _collect_fp_result(self, client_id, local_epoch, local_step, batch):
-        """
-        在这里拿到前传的传输数据
-        """
-        b2tr = self.llm.get_bottom_to_trunk_fx()  # bottom-to-trunk
-        tr2t = self.llm.get_trunk_to_top_fx()  # trunk-to-top
-        self.strategy.callback_fp_param(self.current_global_round, client_id, local_epoch, local_step, b2tr, tr2t,
-                                        batch)
 
-        self.communication_overhead_uplink.setdefault(self.current_global_round, {})
-        self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})
-        self.communication_overhead_uplink[self.current_global_round][client_id].setdefault(local_epoch, 0)
-        self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += tensor_bytes(b2tr)
-        self.communication_overhead_downlink.setdefault(self.current_global_round, {})
-        self.communication_overhead_downlink[self.current_global_round].setdefault(client_id, {})
-        self.communication_overhead_downlink[self.current_global_round][client_id].setdefault(local_epoch, 0)
-        self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tensor_bytes(tr2t)
-        # print(f'FP: bottom->trunk size={b2tr.size()}, trunk->top size={tr2t.size()}')
+class CircularDataLoaderIterator:
+    def __init__(self, iters, data_loader, max_step):
+        self.iters = iters
+        self.data_loader = data_loader
+        self.count = 0
+        self.max_step = max_step
+        self.reached_end = False
+        self.iterated_num = 0
 
-    def _collect_bp_result(self, client_id, local_epoch, local_step, batch):
-        """
-        在这里拿到反传的中间数据
-        """
-        tr2t_fx, t2tr = self.llm.get_top_to_trunk_grad()  # top-to-trunk
-        b2tr_fx, tr2b = self.llm.get_trunk_to_bottom_grad()  # trunk-to-bottom
-        # b2tr_fx = self.llm.get_bottom_to_trunk_fx()  # bottom-to-trunk
-        # tr2t_fx = self.llm.get_trunk_to_top_fx()  # trunk-to-top
-        self.strategy.callback_bp_param(self.current_global_round, client_id, local_epoch, local_step,
-                                        b2tr_fx, tr2b,
-                                        tr2t_fx, t2tr,
-                                        batch)
-        self.communication_overhead_uplink.setdefault(self.current_global_round, {})
-        self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})
-        self.communication_overhead_uplink[self.current_global_round][client_id].setdefault(local_epoch, 0)
-        self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += tensor_bytes(t2tr)
-        self.communication_overhead_downlink.setdefault(self.current_global_round, {})
-        self.communication_overhead_downlink[self.current_global_round].setdefault(client_id, {})
-        self.communication_overhead_downlink[self.current_global_round][client_id].setdefault(local_epoch, 0)
-        self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tensor_bytes(tr2b)
-        # print(f'BP: top->trunk size={t2tr.size()}, trunk->bottom size={tr2b.size()}')
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            batch_data = next(self.iters[0])
+            self.count += 1
+            if self.count > self.max_step:
+                self.iterated_num = self.count - 1
+                raise StopIteration
+            return batch_data
+        except StopIteration:
+            if self.count <= self.max_step:
+                self.iterated_num = self.count
+                self.reached_end = True
+                self.iters[0] = iter(self.data_loader)
+                batch_data = next(self.iters[0])
+                self.count += 1
+                return batch_data
+            else:
+                raise StopIteration

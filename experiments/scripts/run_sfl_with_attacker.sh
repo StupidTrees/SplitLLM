@@ -1,23 +1,24 @@
-seeds=(54)
+seeds=(42)
 
-datasets=('piqa')
+datasets=('wikitext')
 
 model_name='gpt2'
 
-exp_name='sfl_tag_hypersearch'
+exp_name='sfl_watt_dxp'
 
-sp1=2
-sp2=10
-global_round=50
-attacker_prefixes=('normal')
-noises=(1.0 3.0 5.0)
+sps='2-10'
+global_round=1
+noises=(5.0 20.0)
 noise_mode="dxp"
 client_from_scratch=('False')
-attacker_enable="False"
+attacker_enable="True"
+attacker_prefixes=('dxp:5.0' 'normal')
 attacker_search=('False')
-mocker_enable="True"
-mocker_adjust=(0 10 50)
-mocker_beta=(0.6 0.3 0.1)
+dlg_enable="True"
+dlg_adjust=(0)
+dlg_beta=(0.8)
+
+self_pt_enable='False'
 
 for seed in "${seeds[@]}"; do
   for dataset in "${datasets[@]}"; do
@@ -25,8 +26,8 @@ for seed in "${seeds[@]}"; do
       for search in "${attacker_search[@]}"; do
         for ap in "${attacker_prefixes[@]}"; do
           for cfs in "${client_from_scratch[@]}"; do
-            for mocker_a in "${mocker_adjust[@]}"; do
-              for mocker_b in "${mocker_beta[@]}"; do
+            for mocker_a in "${dlg_adjust[@]}"; do
+              for mocker_b in "${dlg_beta[@]}"; do
                 echo "Running sfl_with_attacker.py with seed=$seed, dataset=$dataset, attacker_search=$search, noise=$noise"
                 python sfl_with_attacker.py \
                   --noise_mode "$noise_mode" \
@@ -36,15 +37,15 @@ for seed in "${seeds[@]}"; do
                   --dataset "$dataset" \
                   --noise_scale "$noise" \
                   --exp_name "$exp_name" \
-                  --split_point_1 "$sp1" \
-                  --split_point_2 "$sp2" \
+                  --split_points "$sps" \
                   --client_from_scratch "$cfs" \
-                  --mocker_enable "$mocker_enable" \
-                  --mocker_adjust "$mocker_a" \
-                  --mocker_beta "$mocker_b"\
+                  --dlg_enable "$dlg_enable" \
+                  --dlg_adjust "$mocker_a" \
+                  --dlg_beta "$mocker_b" \
                   --attacker_enable "$attacker_enable" \
                   --attacker_prefix "$ap" \
-                  --attacker_search "$search"
+                  --attacker_search "$search" \
+                  --self_pt_enable "$self_pt_enable"
               done
             done
           done

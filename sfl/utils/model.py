@@ -45,7 +45,7 @@ def generate(text, tokenizer, md):
     md.train(False)
     t = tokenizer(text, return_tensors="pt", add_special_tokens=False)
     res = md.generate(t['input_ids'].to(md.device), attention_mask=t['attention_mask'].to(md.device),
-                      max_length=100, num_beams=6, no_repeat_ngram_size=2, early_stopping=True,
+                      max_length=512, num_beams=6, no_repeat_ngram_size=2, early_stopping=True,
                       num_return_sequences=1, pad_token_id=tokenizer.pad_token_id)
     return tokenizer.decode(res[0], skip_special_tokens=True)
 
@@ -86,7 +86,7 @@ def sentence_score(sentence, model, tokenizer):
             .cpu()
             .detach()
         )
-        scores = wordscores.sum(1)/wordscores.shape[1]
+        scores = wordscores.sum(1) / wordscores.shape[1]
         wordscoress.append(wordscores)
         scoress.append(scores)
         predss.append(preds.cpu().detach())
@@ -121,3 +121,6 @@ def sentence_score_tokens(sent, model):
     # preds = torch.cat(predss)
     model.train(True)
     return score
+
+
+

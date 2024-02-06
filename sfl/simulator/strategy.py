@@ -1,9 +1,7 @@
 import abc
 from abc import ABC
 from copy import deepcopy
-from typing import Any
-
-from torch.utils.data import DataLoader
+from typing import Any, Iterator
 
 from sfl.config import FLConfig
 from sfl.model.split_model import SplitModel
@@ -16,20 +14,22 @@ class FLStrategy(ABC):
 
     def __init__(self, simulator=None):
         self.simulator = simulator
+        self.client_logs = {}
 
     @abc.abstractmethod
-    def client_step(self, global_round, client_id: str, model: SplitModel, dataloader: DataLoader, config: FLConfig):
+    def client_step(self, client_id: str, global_round, client_epoch, model: SplitModel, iterator: Iterator,
+                    config: FLConfig):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def callback_fp_param(self, global_round, client_id, local_epoch, local_step, b2tr_params, tr2t_params, batch):
+    def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step,
+                                     b2tr_fx, tr2b_grad,
+                                     tr2t_fx, t2tr_grad,
+                                     batch, logs):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def callback_bp_param(self, global_round, client_id, local_epoch, local_step,
-                          b2tr_fx, tr2b_grad,
-                          tr2t_fx, t2tr_grad,
-                          batch):
+    def client_evaluate(self, global_round, client_id, log):
         raise NotImplementedError
 
     def aggregation_step(self, global_round, params: dict[str, Any]):
@@ -44,8 +44,5 @@ class FLStrategy(ABC):
             p.data /= len(params)
         return res
 
-    def fp_done(self, client_id, local_epoch, local_step, batch):
-        self.simulator._collect_fp_result(client_id, local_epoch, local_step, batch)
-
-    def bp_done(self, client_id, local_epoch, local_step, batch):
-        self.simulator._collect_bp_result(client_id, local_epoch, local_step, batch)
+    def step_done(self, client_id, mini_step, batch, logs=None):
+        self.simulator._client_one_step_done(client_id, mini_step, batch, logs)

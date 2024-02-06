@@ -19,7 +19,7 @@ class SplitModel(nn.Module, ABC):
         self.fl_config: FLConfig | None = None
         self.adapter_added = False
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper|None):
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None):
         self.fl_config = config
         self.param_keeper = param_keeper
 
@@ -61,35 +61,44 @@ class SplitModel(nn.Module, ABC):
         for (nm, p), p1 in zip(self.get_top_params(), params):
             if not p.requires_grad:
                 continue
-            p.data = p1.data
+            p.data = p1.data.to(self.device)
 
     def load_bottom_params(self, params):
         for (nm, p), p1 in zip(self.get_bottom_params(), params):
             if not p.requires_grad:
                 continue
-            p.data = p1.data
+            p.data = p1.data.to(self.device)
 
     def load_trunk_params(self, params):
         for (nm, p), p1 in zip(self.get_trunk_params(), params):
             if not p.requires_grad:
                 continue
-            p.data = p1.data
+            p.data = p1.data.to(self.device)
 
-    def convert_to_lora_model(self, restore_top_bottom=True):
+    def convert_to_lora_model(self, restore_rest=True):
         """
         为Trunk部分加上LoRA适配器
         :return:
          """
         if self.adapter_added:
             return self
-        lora_config = LoraConfig(target_modules=self.get_trunk_adapter_module_regex())
+        if (not self.fl_config.use_lora_at_top) and (not self.fl_config.use_lora_at_bottom) and (
+                not self.fl_config.use_lora_at_trunk):
+            return self
+
+        lora_config = LoraConfig(target_modules=self.get_adapter_module_regex())
         res = get_peft_model(self, lora_config)
-        if restore_top_bottom:
-            # PEFT会冻结所有模型参数，需要恢复top和bottom部分
-            for name, param in res.get_top_params(trainable_only=False):
-                param.requires_grad = True
-            for name, param in res.get_bottom_params(trainable_only=False):
-                param.requires_grad = True
+        if restore_rest:
+            # PEFT会冻结所有模型参数，需要恢复其他部分
+            if not self.fl_config.use_lora_at_trunk:
+                for name, param in res.get_trunk_params(trainable_only=False):
+                    param.requires_grad = True
+            if not self.fl_config.use_lora_at_top:
+                for name, param in res.get_top_params(trainable_only=False):
+                    param.requires_grad = True
+            if not self.fl_config.use_lora_at_bottom:
+                for name, param in res.get_bottom_params(trainable_only=False):
+                    param.requires_grad = True
         self.adapter_added = True
         return res
 
@@ -97,7 +106,7 @@ class SplitModel(nn.Module, ABC):
         pass
 
     @abstractmethod
-    def get_trunk_adapter_module_regex(self):
+    def get_adapter_module_regex(self):
         """
         获得Trunk部分要加上Adapter的Module名称的正则表达式
         :return:
@@ -117,19 +126,11 @@ class SplitModel(nn.Module, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_bottom_to_trunk_fx(self):
+    def get_top_to_trunk_grad(self, detach=True):
         raise NotImplementedError
 
     @abstractmethod
-    def get_trunk_to_top_fx(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_top_to_trunk_grad(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_trunk_to_bottom_grad(self):
+    def get_trunk_to_bottom_grad(self, detach=True):
         raise NotImplementedError
 
     def _store_bottom_to_trunk_fx(self, fx):

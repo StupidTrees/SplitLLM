@@ -13,7 +13,7 @@ from sfl import config
 from sfl.config import AttackerConfig
 from sfl.config import FLConfig
 from sfl.model.gpt2.gpt2_split import GPT2SplitLMHeadModel
-from sfl.utils.training import get_best_gpu, set_random_seed, calc_unshift_loss, get_dataset_class
+from sfl.utils.training import get_best_gpu, set_random_seed, calc_unshift_loss, get_dataset_class, calc_shifted_loss
 from sfl.utils.model import calculate_rouge
 from sfl.model.attack_model import LSTMAttackerConfig, LSTMAttackModel, LinearAttackModel, \
     TransformerEncoderAttackModel, TransformerAttackerConfig, TransformerDecoderAttackModel, GRUAttackModel
@@ -49,11 +49,12 @@ def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
     if md.fl_config.noise_mode != 'none':
         attacker_prefix = f'{md.fl_config.noise_mode}:{md.fl_config.noise_scale}/'
     p += attacker_prefix
-    if rouge_l_f1 / dl_len > 0.1 and (epc + 1) % 10 == 0:
+    if rouge_l_f1 / dl_len > 0.1 and (epc + 1) % 10 == 0 and args.save_checkpoint:
         attacker.save_pretrained(p + f'epoch_{epc}_rouge_{rouge_l_f1 / dl_len:.4f}')
-    wandb.log({'epoch': epc, 'test_rouge_1': rouge_1 / dl_len, 'test_rouge_2': rouge_2 / dl_len,
-               'test_rouge_l_f1': rouge_l_f1 / dl_len, 'test_rouge_l_p': rouge_l_p / dl_len,
-               'test_rouge_l_r': rouge_l_r / dl_len})
+    if args.log_to_wandb == 'True':
+        wandb.log({'epoch': epc, 'test_rouge_1': rouge_1 / dl_len, 'test_rouge_2': rouge_2 / dl_len,
+                   'test_rouge_l_f1': rouge_l_f1 / dl_len, 'test_rouge_l_p': rouge_l_p / dl_len,
+                   'test_rouge_l_r': rouge_l_r / dl_len})
     md.train(True)
     attacker.train(True)
     return rouge_1 / dl_len, rouge_2 / dl_len, rouge_l_f1 / dl_len, rouge_l_p / dl_len, rouge_l_r / dl_len
@@ -70,10 +71,17 @@ def train_attacker(args):
     tokenizer.pad_token_id = model.config.eos_token_id
     dataset_cls = get_dataset_class(args.dataset)
     dataset = dataset_cls(tokenizer, [])
-    dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=args.dataset_train_label,
-                                                 shrink_frac=args.dataset_train_frac)
-    dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=args.dataset_test_label,
-                                                      shrink_frac=args.dataset_test_frac)
+
+    if args.dataset_test_label == args.dataset_train_label:  # self-testing
+        dataloader, dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size,
+                                                                      type=args.dataset_train_label,
+                                                                      shrink_frac=args.dataset_train_frac,
+                                                                      further_test_split=0.3)
+    else:
+        dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=args.dataset_train_label,
+                                                     shrink_frac=args.dataset_train_frac)
+        dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=args.dataset_test_label,
+                                                          shrink_frac=args.dataset_test_frac)
     device = get_best_gpu()
     model.to(device)
     model.config_sfl(FLConfig(collect_intermediates=False,
@@ -112,10 +120,12 @@ def train_attacker(args):
     model.to(device)
     attack_model.to(device)
     epoch = args.epochs
-    wandb.init(project="sfl-attacker-noised",
-               name=f"{args.attack_model}_{args.attack_mode}_{args.dataset}",
-               config=vars(args)
-               )
+    if args.log_to_wandb == 'True':
+        wandb.init(project="attacker-different-sp",
+                   name=f"{args.model_name}_{args.split_point_1}",
+                   config=vars(args)
+                   )
+
     evaluate(0, model, attack_model, tokenizer, dataloader_test, args.save_dir)
     with tqdm(total=epoch * len(dataloader)) as pbar:
         for epc in range(epoch):
@@ -125,7 +135,7 @@ def train_attacker(args):
                 optimizer.zero_grad()
                 input_ids = batch['input_ids'].to(device)
                 attention_mask = batch['input_att_mask'].to(device)
-                intermediate = model(input_ids=input_ids, attention_mask=attention_mask, label=input_ids)
+                intermediate = model(input_ids=input_ids, attention_mask=attention_mask)
                 logits = attack_model(intermediate)
                 loss = calc_unshift_loss(logits, input_ids)
                 loss.backward()
@@ -150,9 +160,12 @@ def train_attacker(args):
             print(
                 f'Epoch {epc} Train Rouge_1: {rouge_1}, Rouge_2: {rouge_2}, Rouge_l_f1: {rouge_l_f1}, Rouge_l_p: {rouge_l_p}, Rouge_l_r: {rouge_l_r}')
             # 计算测试集上的ROGUE
-            evaluate(epc, model, attack_model, tokenizer, dataloader_test, args.save_dir)
-            wandb.log({'epoch': epc, 'train_rouge_1': rouge_1, 'train_rouge_2': rouge_2, 'train_rouge_l_f1': rouge_l_f1,
-                       'train_rouge_l_p': rouge_l_p, 'train_rouge_l_r': rouge_l_r})
+            if (epc + 1) % 5 == 0:
+                evaluate(epc, model, attack_model, tokenizer, dataloader_test, args.save_dir)
+            if args.log_to_wandb == 'True':
+                wandb.log(
+                    {'epoch': epc, 'train_rouge_1': rouge_1, 'train_rouge_2': rouge_2, 'train_rouge_l_f1': rouge_l_f1,
+                     'train_rouge_l_p': rouge_l_p, 'train_rouge_l_r': rouge_l_r})
 
 
 if __name__ == '__main__':
@@ -161,7 +174,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_name', type=str, default='gpt2')
     parser.add_argument('--save_dir', type=str, default=config.attacker_path)
     parser.add_argument('--dataset', type=str, default='piqa')
-    parser.add_argument('--dataset_train_label', type=str, default='train')
+    parser.add_argument('--dataset_train_label', type=str, default='test')
     parser.add_argument('--dataset_test_label', type=str, default='test')
     parser.add_argument('--dataset_train_frac', type=float, default=1.0)
     parser.add_argument('--dataset_test_frac', type=float, default=1.0)
@@ -173,9 +186,10 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=6)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--noise_mode', type=str, default='dxp')
-    parser.add_argument('--noise_scale', type=float, default=1.0)
-
+    parser.add_argument('--noise_mode', type=str, default='none')
+    parser.add_argument('--noise_scale', type=float, default=5.0)
+    parser.add_argument('--save_checkpoint', type=str, default='False')
+    parser.add_argument('--log_to_wandb', type=str, default='False')
     args = parser.parse_args()
     set_random_seed(args.seed)
     train_attacker(args)

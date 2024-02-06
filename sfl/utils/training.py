@@ -8,15 +8,32 @@ import torch
 from torch.nn import CrossEntropyLoss
 
 from sfl.model.attack_model import LSTMAttackModel, GRUAttackModel, TransformerEncoderAttackModel, LinearAttackModel
-from sfl.simulator.dataset import PIQAFedDataset, GSM8KFedDataset
+from sfl.simulator.dataset import PIQAFedDataset, GSM8KFedDataset, WikiTextFedDataset, CodeAlpacaFedDataset
+
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 def get_dataset_class(dataset_name):
     dataset_cls = PIQAFedDataset
     if dataset_name == 'piqa':
         dataset_cls = PIQAFedDataset
-    elif dataset_name:
+    elif dataset_name == 'gsm8k':
         dataset_cls = GSM8KFedDataset
+    elif dataset_name == 'wikitext':
+        dataset_cls = WikiTextFedDataset
+    elif dataset_name == 'codealpaca':
+        dataset_cls = CodeAlpacaFedDataset
+    else:
+        raise AttributeError
     return dataset_cls
 
 
@@ -33,24 +50,40 @@ def get_attacker_class(attack_model):
     return attacker_cls
 
 
-def extract_attacker_path(args):
+def extract_attacker_path(args, attacker_cls):
     if isinstance(args, dict):
         args = argparse.Namespace(**args)
     attacker_path = args.attacker_path + f'{args.model_name}/{args.attacker_dataset}/'
     # find the first directory in  attacker_path starts with {args.attacker_train_label}*{args.attacker_trian_frac}
     for d in os.listdir(attacker_path):
         if d.startswith(f'{args.attacker_train_label}*{args.attacker_train_frac:.3f}'):
-            attacker_path = os.path.join(attacker_path, d)
+            attacker_path = os.path.join(attacker_path, d) + '/'
             break
-    attacker_path += f'/{args.attack_model}'
-    attacker_path_1 = attacker_path + f'/b2tr-{args.split_point_1}/' + args.attacker_prefix
-    attacker_path_2 = attacker_path + f'/tr2t-{args.split_point_2}/' + args.attacker_prefix
-    # list all dirs under attacker_path_1
-    l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[-1]
-    attacker_path_1 = os.path.join(attacker_path_1, l)
-    l = sorted(list(os.listdir(attacker_path_2)), key=lambda x: float(x.split('_')[-1]))[-1]
-    attacker_path_2 = os.path.join(attacker_path_2, l)
-    return attacker_path_1, attacker_path_2
+    attacker_path += f'{args.attacker_model}'
+    attacker_path_1 = None
+    if args.attacker_b2tr_enable == 'True':
+        sp1 = int(args.split_points.split('-')[0])
+        if args.attacker_b2tr_sp >= 0:
+            sp1 = args.attacker_b2tr_sp
+        attacker_path_1 = attacker_path + f'/b2tr-{sp1}/' + args.attacker_prefix
+        l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[-1]
+        attacker_path_1 = os.path.join(attacker_path_1, l)
+    attacker_path_2 = None
+    if args.attacker_tr2t_enable == 'True':
+        sp2 = int(args.split_points.split('-')[1])
+        if args.attacker_tr2t_sp >= 0:
+            sp2 = args.attacker_tr2t_sp
+        attacker_path_2 = attacker_path + f'/tr2t-{sp2}/' + args.attacker_prefix
+        if not os.path.exists(attacker_path_2):
+            attacker_path_2 = attacker_path_2.replace('tr2t', 'b2tr')
+        l = sorted(list(os.listdir(attacker_path_2)), key=lambda x: float(x.split('_')[-1]))[-1]
+        attacker_path_2 = os.path.join(attacker_path_2, l)
+    attacker, attacker2 = None, None
+    if attacker_path_1:
+        attacker = attacker_cls.from_pretrained(attacker_path_1)
+    if attacker_path_2:
+        attacker2 = attacker_cls.from_pretrained(attacker_path_2)
+    return attacker, attacker2
 
 
 def get_best_gpu():
@@ -91,6 +124,13 @@ def calc_unshift_loss(lm_logits, labels):
     return loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
 
 
+def calc_unshift_loss_logits(lm_logits, labels):
+    labels = labels.to(lm_logits.device)
+    # do not shift
+    loss_fct = CrossEntropyLoss()
+    return loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1, labels.size(-1)))
+
+
 def calc_shifted_loss_logits(lm_logits, label_logits):
     shift_logits = lm_logits[..., :-1, :].contiguous()
     shift_labels = label_logits[..., 1:, :].contiguous()
@@ -107,3 +147,92 @@ def calc_shifted_loss(lm_logits, labels):
     # Flatten the tokens
     loss_fct = CrossEntropyLoss()
     return loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+
+
+def calc_circular_loss(lm_logits, labels):
+    shift_logits = lm_logits[..., :, :].contiguous()
+    shift_labels = torch.concat([labels[..., 1:], labels[..., 0:1]], dim=-1).contiguous()
+    # Flatten the tokens
+    loss_fct = CrossEntropyLoss()
+    return loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+
+
+from tqdm import tqdm
+
+
+def batched_perplexity(model, dataloader, tokenizer, stride=512):
+    device = model.device
+    max_len = model.config.n_positions
+    # encodings = tokenizer("\n\n".join(dataset["text"]), return_tensors="pt")
+    # text_len = encodings.input_ids.size(1)
+    lls = []
+    ppl_total = 0
+    batch_num = 0
+    for batch in dataloader:
+        input_ids = batch['input_ids'].to(device)
+        batch_size, text_len = input_ids.shape[:2]
+        for i in tqdm(range(0, text_len, batch_size * stride)):
+            begin_locs, end_locs, trg_lens = [], [], []
+            for j in range(batch_size):
+                j = i + j * stride
+                if j >= text_len:
+                    break
+                begin_loc = max(j + stride - max_len, 0)
+                end_loc = min(j + stride, text_len)
+                trg_len = end_loc - j  # may be different from stride on last loop
+
+                begin_locs.append(begin_loc)
+                end_locs.append(end_loc)
+                trg_lens.append(trg_len)
+
+            input_ids = [input_ids[:, b:e] for b, e in zip(begin_locs, end_locs)]
+            target_end_locs = [sen.size(-1) for sen in input_ids]
+            input_ids = [
+                torch.nn.functional.pad(sen, (0, max_len - sen.size(-1)), "constant", 0) for sen in input_ids
+            ]  # we dont need attention mask as long as these padded token is not involved in loss calculation
+            input_ids = torch.stack(input_ids, dim=1).squeeze(0).to(device)
+
+            target_ids = torch.ones_like(
+                input_ids) * -100  # -100 is the default ingore_index value in torch.nn.CrossEntropyLoss
+            for i, (b, e) in enumerate(zip(trg_lens, target_end_locs)):
+                labels = input_ids[i, -b:e].clone()
+                target_ids[i, -b:e] = labels
+
+            with torch.no_grad():
+                outputs = model(input_ids, labels=target_ids)
+                log_likelihood = outputs["loss"] * sum(trg_lens)
+
+            lls.append(log_likelihood)
+        ppl_total += torch.exp(sum(torch.stack(lls) / end_locs[-1]))
+        batch_num += 1
+    return ppl_total / batch_num
+
+
+def evaluate_perplexity(model, loader, stride=1024):
+    model.train(False)
+    max_length = model.config.n_positions
+    ppl = 0
+    len = 0
+    for batch in loader:
+        input_ids = batch['input_ids'].to(model.device)
+        seq_len = input_ids.size(1)
+        nlls = []
+        prev_end_loc = 0
+        for begin_loc in range(0, seq_len, stride):
+            end_loc = min(begin_loc + max_length, seq_len)
+            trg_len = end_loc - prev_end_loc  # may be different from stride on last loop
+            input_ids = input_ids[:, begin_loc:end_loc].to(model.device)
+            target_ids = input_ids.clone()
+            target_ids[:, :-trg_len] = -100
+            with torch.no_grad():
+                outputs = model(input_ids, labels=target_ids)
+                neg_log_likelihood = outputs.loss
+            nlls.append(neg_log_likelihood)
+            prev_end_loc = end_loc
+            if end_loc == seq_len:
+                break
+
+        ppl += torch.exp(torch.stack(nlls).mean())
+        len += 1
+    model.train(True)
+    return ppl / len

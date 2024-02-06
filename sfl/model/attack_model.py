@@ -30,7 +30,7 @@ class AttackModel(PreTrainedModel):
     def forward(self, x) -> Tensor:
         pass
 
-    def search(self, x, base_model, beam_size=8):
+    def search(self, x, base_model, beam_size=6):
         logits = self.forward(x.to(self.device))
         batch_size, seq_len, vocab_size = logits.shape
         beams = [(None, [0] * batch_size)] * beam_size
@@ -45,7 +45,7 @@ class AttackModel(PreTrainedModel):
                     sents = torch.cat([sentence_batch, token],
                                       dim=1) if sentence_batch is not None else token  # (batch_size, seq++)
                     candidate_score = sentence_score_tokens(sents, base_model).unsqueeze(-1)  # (batch_size, 1)
-                    score = prob * 11 - candidate_score
+                    score = prob * 5 - candidate_score
                     # print(prob.shape, candidate_score.shape, score.shape)
                     candidates.append((sents, score))
             new_list = []
