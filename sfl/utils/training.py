@@ -6,24 +6,58 @@ import numpy as np
 import pynvml
 import torch
 from torch.nn import CrossEntropyLoss
+from transformers import AutoTokenizer
 
+import sfl
 from sfl.model.attack_model import LSTMAttackModel, GRUAttackModel, TransformerEncoderAttackModel, LinearAttackModel
-from sfl.simulator.dataset import PIQAFedDataset, GSM8KFedDataset, WikiTextFedDataset, CodeAlpacaFedDataset
+from sfl.model.bert.bert_wrapper import BertForSequenceClassificationSplitModel
+from sfl.model.gpt2.gpt2_clsf import GPT2SplitClassificationModel
+from sfl.simulator.dataset import PIQAFedDataset, GSM8KFedDataset, WikiTextFedDataset, CodeAlpacaFedDataset, \
+    DialogSumFedDataset, IMDBFedDataset
+from sfl.model.gpt2.gpt2_split import GPT2SplitLMHeadModel
 
 
-def str2bool(v):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+def get_model_path(model_name):
+    path = ''
+    if model_name == 'gpt-2':
+        path = os.path.join(sfl.config.model_download_dir, model_name)
+    elif model_name == 'bert':
+        path = os.path.join(sfl.config.model_download_dir, "google-bert/bert-base-uncased/")
+    return path
+
+
+def get_tokenizer(model_name='gpt-2'):
+    return AutoTokenizer.from_pretrained(get_model_path(model_name))
+
+
+def get_model(model_name='gpt-2', task='lm', num_labels=2, tokenizer=None):
+    clz = GPT2SplitLMHeadModel
+    kwargs = {}
+    if model_name == 'gpt-2':
+        if task == 'lm':
+            clz = GPT2SplitLMHeadModel
+        elif task == 'clsf':
+            clz = GPT2SplitClassificationModel
+    elif model_name == 'bert':
+        clz = BertForSequenceClassificationSplitModel
+    if task == 'clsf':
+        kwargs['num_labels'] = num_labels
+    model = clz.from_pretrained(get_model_path(model_name), **kwargs)
+    if tokenizer is not None:
+        if model.config.pad_token_id is not None:
+            tokenizer.pad_token_id = model.config.pad_token_id
+        if model.config.eos_token_id is not None:
+            tokenizer.pad_token_id = model.config.eos_token_id
+    return model
+
+
+def get_model_and_tokenizer(model_name='gpt-2', task='lm', num_labels=2):
+    tokenizer = get_tokenizer(model_name)
+    model = get_model(model_name, task, num_labels, tokenizer)
+    return model, tokenizer
 
 
 def get_dataset_class(dataset_name):
-    dataset_cls = PIQAFedDataset
     if dataset_name == 'piqa':
         dataset_cls = PIQAFedDataset
     elif dataset_name == 'gsm8k':
@@ -32,6 +66,10 @@ def get_dataset_class(dataset_name):
         dataset_cls = WikiTextFedDataset
     elif dataset_name == 'codealpaca':
         dataset_cls = CodeAlpacaFedDataset
+    elif dataset_name == 'dialogsum':
+        dataset_cls = DialogSumFedDataset
+    elif dataset_name == 'imdb':
+        dataset_cls = IMDBFedDataset
     else:
         raise AttributeError
     return dataset_cls
@@ -55,13 +93,16 @@ def extract_attacker_path(args, attacker_cls):
         args = argparse.Namespace(**args)
     attacker_path = args.attacker_path + f'{args.model_name}/{args.attacker_dataset}/'
     # find the first directory in  attacker_path starts with {args.attacker_train_label}*{args.attacker_trian_frac}
+    match = False
     for d in os.listdir(attacker_path):
         if d.startswith(f'{args.attacker_train_label}*{args.attacker_train_frac:.3f}'):
             attacker_path = os.path.join(attacker_path, d) + '/'
+            match = True
             break
+    assert match
     attacker_path += f'{args.attacker_model}'
     attacker_path_1 = None
-    if args.attacker_b2tr_enable == 'True':
+    if args.attacker_b2tr_enable:
         sp1 = int(args.split_points.split('-')[0])
         if args.attacker_b2tr_sp >= 0:
             sp1 = args.attacker_b2tr_sp
@@ -69,7 +110,7 @@ def extract_attacker_path(args, attacker_cls):
         l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[-1]
         attacker_path_1 = os.path.join(attacker_path_1, l)
     attacker_path_2 = None
-    if args.attacker_tr2t_enable == 'True':
+    if args.attacker_tr2t_enable:
         sp2 = int(args.split_points.split('-')[1])
         if args.attacker_tr2t_sp >= 0:
             sp2 = args.attacker_tr2t_sp
@@ -236,3 +277,21 @@ def evaluate_perplexity(model, loader, stride=1024):
         len += 1
     model.train(True)
     return ppl / len
+
+
+def evaluate_accuracy(model, loader):
+    model.train(False)
+    acc = 0
+    itm = 0
+    for batch in loader:
+        input_ids = batch['input_ids'].to(model.device)
+        labels = batch['labels'].to(model.device)  # (batch_size, )
+        with torch.no_grad():
+            outputs = model(input_ids)
+            logits = outputs.logits.view(-1, model.num_labels)  # (, num_labels)
+            preds = torch.argmax(logits, dim=-1)
+            labels = labels.view(-1)
+            acc += (preds == labels).sum() / labels.numel()
+            itm += 1
+    model.train(True)
+    return acc / itm

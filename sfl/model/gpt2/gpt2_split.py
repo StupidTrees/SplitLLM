@@ -8,28 +8,26 @@ from torch.nn import CrossEntropyLoss
 from transformers import GPT2LMHeadModel, GPT2Model
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions, CausalLMOutputWithCrossAttentions
 
+from sfl.config import FLConfig
 from sfl.model.noise import DxPrivacy
 from sfl.model.split_model import SplitModel
 from sfl.simulator.param_keeper import ParameterKeeper
-from sfl.config import FLConfig
 
 logger = logging.getLogger(__name__)
 
 
-class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
-    """
-    GPT2带head的模型，最后一层用于文本生成
-    """
+class GPT2SplitWrapper(SplitModel):
+    def __init__(self):
+        super().__init__()
 
-    def __init__(self, config):
-        super(GPT2SplitLMHeadModel, self).__init__(config)
-        self.transformer = GPT2SplitModel(config)
+    def get_all_inter(self, detach=True):
+        return self.transformer.get_all_inter(detach)
 
-    def get_top_to_trunk_grad(self, detach=True):
-        return self.transformer.get_top_to_trunk_grad(detach)
-
-    def get_trunk_to_bottom_grad(self, detach=True):
-        return self.transformer.get_trunk_to_bottom_grad(detach)
+    @staticmethod
+    def _get_block_num(param_name: str):
+        # 获得该参数所属的block的块号，不属于block则返回-1
+        r = regex.findall('\.h\.[0-9]+', param_name)
+        return int(r[0].split('.')[-1]) if len(r) > 0 else -1
 
     def get_adapter_module_regex(self):
         # Trunk部分(h.start~h.end)的proj/fc/_attn模块
@@ -44,38 +42,6 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
             reg = rf".*\.h\.({'|'.join(blocks)})\..*(.+attn|proj|fc)$"
             return reg
         return ""
-
-    @staticmethod
-    def _get_block_num(param_name: str):
-        # 获得该参数所属的block的块号，不属于block则返回-1
-        r = regex.findall('\.h\.[0-9]+', param_name)
-        return int(r[0].split('.')[-1]) if len(r) > 0 else -1
-
-    def get_bottom_params(self, trainable_only=True):
-        for nm, p in self.named_parameters():
-            if trainable_only and not p.requires_grad:
-                continue
-            if self._get_block_num(nm) >= self.fl_config.split_point_1:
-                break
-            else:
-                yield nm, p
-
-    def get_top_params(self, trainable_only=True):
-        trunk = False
-        for nm, p in self.named_parameters():
-            if trainable_only and not p.requires_grad:
-                continue
-            if self._get_block_num(nm) >= self.fl_config.split_point_2:
-                trunk = True
-            if trunk:
-                yield nm, p
-
-    def get_trunk_params(self, trainable_only=True):
-        for nm, p in self.named_parameters():
-            if trainable_only and not p.requires_grad:
-                continue
-            if self.fl_config.split_point_1 <= self._get_block_num(nm) < self.fl_config.split_point_2:
-                yield nm, p
 
     def reset_params(self, named_params, reset_mode: str):
         for name, p in named_params:
@@ -97,9 +63,19 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
                 p.data.normal_(mean=0.0,
                                std=(self.config.initializer_range / math.sqrt(2 * self.config.n_layer)))
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None):
-        super(GPT2SplitLMHeadModel, self).config_sfl(config, param_keeper)
-        self.transformer.config_sfl(config, param_keeper)
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks=None):
+        super(GPT2SplitWrapper, self).config_sfl(config, param_keeper, b2tr_hooks)
+        self.transformer.config_sfl(config, param_keeper, b2tr_hooks)
+
+
+class GPT2SplitLMHeadModel(GPT2LMHeadModel, GPT2SplitWrapper):
+    """
+    GPT2带head的模型，最后一层用于文本生成
+    """
+
+    def __init__(self, config):
+        super(GPT2SplitLMHeadModel, self).__init__(config)
+        self.transformer = GPT2SplitModel(config)
 
     def forward(
             self,
@@ -170,13 +146,6 @@ class GPT2SplitLMHeadModel(GPT2LMHeadModel, SplitModel):
             cross_attentions=transformer_outputs.cross_attentions,
         )
 
-    def cut_forward(self, hidden_states):
-        hidden_states = self.transformer.cut_forward(hidden_states)[0]
-        lm_logits = self.lm_head(hidden_states)
-        return CausalLMOutputWithCrossAttentions(
-            logits=lm_logits
-        )
-
 
 class GPT2SplitModel(GPT2Model, SplitModel):
     """
@@ -195,38 +164,8 @@ class GPT2SplitModel(GPT2Model, SplitModel):
     def get_trunk_params(self, trainable_only=True):
         pass
 
-    def get_top_to_trunk_grad(self, detach=True):
-        if 'trunk_to_top' in self.intermediate_fx:
-            if detach:
-                return self.intermediate_fx['trunk_to_top'].detach().cpu(), self.intermediate_fx[
-                    'trunk_to_top'].grad.clone().detach().cpu()
-            else:
-                return self.intermediate_fx['trunk_to_top'], self.intermediate_fx['trunk_to_top'].grad
-        return []
-
-    def get_trunk_to_bottom_grad(self, detach=True):
-        if 'bottom_to_trunk' in self.intermediate_fx:
-            if detach:
-                return self.intermediate_fx['bottom_to_trunk'].detach().cpu(), self.intermediate_fx[
-                    'bottom_to_trunk'].grad.clone().detach().cpu()
-            else:
-                return self.intermediate_fx['bottom_to_trunk'], self.intermediate_fx[
-                    'bottom_to_trunk'].grad
-        return []
-
-    def _store_bottom_to_trunk_fx(self, fx):
-        self.intermediate_fx['bottom_to_trunk'] = fx
-
-    def _store_trunk_to_top_fx(self, fx):
-        self.intermediate_fx['trunk_to_top'] = fx
-
-    def __init__(self, config):
-        super().__init__(config)
-        self.perturber = None
-        self.intermediate_fx = {}
-
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None):
-        super().config_sfl(config, param_keeper)
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
+        super(GPT2SplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
         self.perturber = DxPrivacy(self.wte, self.config.vocab_size, self.fl_config.noise_scale)
 
     def forward(
@@ -411,6 +350,9 @@ class GPT2SplitModel(GPT2Model, SplitModel):
                 elif i == self.fl_config.split_point_2 and self.fl_config.attack_mode == 'tr2t':
                     return hidden_states
 
+            if self.fl_config is not None and self.fl_config.trigger_hook and i == self.fl_config.split_point_1 - 1:  # bottom-trunk
+                for hook in self.b2tr_hooks:
+                    hook(hidden_states)
             if self.training and self.fl_config is not None and self.fl_config.collect_intermediates:
                 if i == self.fl_config.split_point_1 - 1:  # bottom-trunk
                     if self.fl_config.noise_mode == 'gaussian':
@@ -420,10 +362,15 @@ class GPT2SplitModel(GPT2Model, SplitModel):
                         noise = noise * (max - min) * self.fl_config.noise_scale
                         hidden_states = hidden_states + noise
                     hidden_states.retain_grad()
-                    self._store_bottom_to_trunk_fx(hidden_states)
-                elif i == self.fl_config.split_point_2:  # trunk-top
+                    self._store_fx(i, hidden_states)
+                    for hook in self.b2tr_hooks:
+                        hook(hidden_states)
+                elif i == self.fl_config.split_point_2 - 1:  # trunk-top
                     hidden_states.retain_grad()
-                    self._store_trunk_to_top_fx(hidden_states)
+                    self._store_fx(i, hidden_states)
+                elif self.fl_config.collect_all_layers:
+                    hidden_states.retain_grad()
+                    self._store_fx(i, hidden_states)
 
         hidden_states = self.ln_f(hidden_states)
 
@@ -445,16 +392,4 @@ class GPT2SplitModel(GPT2Model, SplitModel):
             hidden_states=all_hidden_states,
             attentions=all_self_attentions,
             cross_attentions=all_cross_attentions,
-        )
-
-    def cut_forward(self, hidden_states):
-        for i, block in enumerate(self.h):
-            if i < self.fl_config.split_point_2:
-                continue
-            outputs = block(
-                hidden_states)
-            hidden_states = outputs[0]
-        hidden_states = self.ln_f(hidden_states)
-        return BaseModelOutputWithPastAndCrossAttentions(
-            last_hidden_state=hidden_states
         )

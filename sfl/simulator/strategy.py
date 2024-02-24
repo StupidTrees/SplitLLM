@@ -3,7 +3,7 @@ from abc import ABC
 from copy import deepcopy
 from typing import Any, Iterator
 
-from sfl.config import FLConfig
+from sfl.config import FLConfig, Intermediate
 from sfl.model.split_model import SplitModel
 
 
@@ -15,6 +15,7 @@ class FLStrategy(ABC):
     def __init__(self, simulator=None):
         self.simulator = simulator
         self.client_logs = {}
+        self.task_type = 'lm'
 
     @abc.abstractmethod
     def client_step(self, client_id: str, global_round, client_epoch, model: SplitModel, iterator: Iterator,
@@ -23,8 +24,8 @@ class FLStrategy(ABC):
 
     @abc.abstractmethod
     def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step,
-                                     b2tr_fx, tr2b_grad,
-                                     tr2t_fx, t2tr_grad,
+                                     b2tr_inter: Intermediate, tr2t_inter: Intermediate,
+                                     all_inter: dict[int, Intermediate],
                                      batch, logs):
         raise NotImplementedError
 

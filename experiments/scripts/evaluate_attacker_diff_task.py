@@ -5,19 +5,30 @@ import sys
 import wandb
 
 sys.path.append(os.path.abspath('../..'))
+
 from experiments.scripts.basic_strategy import BaseSFLStrategy
 from sfl.utils.experiments import add_sfl_params
-from sfl.model.dlgattacker import GPT2TopDLGAttacker
 from sfl.simulator.simulator import SFLSimulator
-from sfl.config import FLConfig
+from sfl.config import FLConfig, Intermediate
 from sfl.utils.training import set_random_seed, get_dataset_class, get_attacker_class, extract_attacker_path, \
-    get_model_and_tokenizer
+    get_tokenizer, get_model
+
+
+# 定义Client本地学习策略
+class QAFLStrategy(BaseSFLStrategy):
+    def normal_attacker_triggered(self, global_round, client_id, local_epoch, local_step,
+                                  b2tr_inter: Intermediate, tr2t_inter: Intermediate,
+                                  all_inter: dict[int, Intermediate],
+                                  batch, logs):
+        pass
 
 
 def sfl_with_attacker(args):
-    model, tokenizer  = get_model_and_tokenizer(args.model_name,args.task_type)
+    # 加载tokenizer
+    tokenizer = get_tokenizer(args.model_name)
     # 加载攻击模型
     attacker1, attacker2 = extract_attacker_path(args, get_attacker_class(args.attacker_model))
+
     # 配置联邦学习
     client_ids = [str(i) for i in range(args.client_num)]
     config = FLConfig(global_round=args.global_round,
@@ -33,34 +44,43 @@ def sfl_with_attacker(args):
                       noise_mode=args.noise_mode,
                       noise_scale=args.noise_scale,  # 噪声大小
                       collect_intermediates=True,
+                      collect_all_layers=args.collect_all_layers,
+                      dataset_type=args.dataset_label
                       )
-    # 加载TAG攻击模型
-    mocker = None
-    if args.dlg_enable:
-        # !需要在LoRA加上去之前进行复制
-        mocker = GPT2TopDLGAttacker(config, model)
     # 加载数据集
     dataset_cls = get_dataset_class(args.dataset)
     fed_dataset = dataset_cls(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
     test_dataset = dataset_cls(tokenizer=tokenizer, client_ids=[])
-    test_loader = test_dataset.get_dataloader_unsliced(1, 'test', shrink_frac=args.test_data_shrink_frac)
+    test_loader = test_dataset.get_dataloader_unsliced(1, args.test_data_label, shrink_frac=args.test_data_shrink_frac)
+    print('Test length:', len(test_loader))
+    # 加载模型
+    model = get_model(args.model_name, args.task_type, fed_dataset.num_labels, tokenizer)
+    # if fed_dataset.task_type == 'clsf':
+    #     model = GPT2SplitClassificationModel.from_pretrained(
+    #         os.path.join(sfl.config.model_download_dir, args.model_name),
+    #         num_labels=fed_dataset.num_labels, )
+    # else:
+    #     model = GPT2SplitLMHeadModel.from_pretrained(
+    #         os.path.join(sfl.config.model_download_dir, args.model_name))
     simulator = SFLSimulator(client_ids=client_ids,
-                             strategy=BaseSFLStrategy(args, tokenizer, attacker1, attacker2, model, test_loader),
+                             strategy=QAFLStrategy(args, tokenizer, attacker1, attacker2, model, test_loader),
                              llm=model,
                              tokenizer=tokenizer,
-                             dataset=fed_dataset, config=config)
+                             dataset=fed_dataset, config=config, args=args)
+    simulator.strategy.task_type = args.task_type
+
     wandb.init(
         project=args.exp_name,
-        name=f"{args.split_points}",
+        name=f"{args.model_name}-{args.dataset}.{args.dataset_label}-{args.task_type}",
         config=args
     )
-    simulator.strategy.dlg = mocker
     simulator.simulate()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     add_sfl_params(parser)
+    parser.add_argument('--task_type', type=str, default=None)
     args = parser.parse_args()
     set_random_seed(args.seed)
     sfl_with_attacker(args)

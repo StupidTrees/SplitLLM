@@ -1,15 +1,17 @@
 seeds=(42)
 
-datasets=('wikitext')
+datasets=('imdb')
 models=('gru')
-attack_mode=('tr2t')
-sp1s=(15)
+attack_mode=('b2tr')
+sp1s=(4)
 sp2=999
-model_name='gpt2-large'
-train_label='validation'
-test_label='test'
-save_checkpoint='True'
-log_to_wandb='False'
+model_name='bert'
+train_label='test'
+test_label='unsupervised'
+save_checkpoint=True
+log_to_wandb=False
+dataset_train_frac=0.1
+dataset_test_frac=0.01
 
 for seed in "${seeds[@]}"; do
   for dataset in "${datasets[@]}"; do
@@ -28,7 +30,9 @@ for seed in "${seeds[@]}"; do
             --dataset_train_label "$train_label" \
             --dataset_test_label "$test_label" \
             --save_checkpoint "$save_checkpoint" \
-            --log_to_wandb "$log_to_wandb"
+            --log_to_wandb "$log_to_wandb" \
+            --dataset_train_frac "$dataset_train_frac" \
+            --dataset_test_frac "$dataset_test_frac"
         done
       done
     done

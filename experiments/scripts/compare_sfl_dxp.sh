@@ -2,23 +2,23 @@ seeds=(42)
 
 datasets=('wikitext')
 
-model_name='gpt2'
+model_name='gpt2-large'
 
-exp_name='sfl_watt_dxp'
+exp_name='compare_sfl_dxp'
 
-sps='2-10'
+sps='8-30'
 global_round=1
-noises=(5.0 20.0)
+noises=(5.0 10.0 20.0)
 noise_mode="dxp"
 client_from_scratch=('False')
-attacker_enable="True"
-attacker_prefixes=('dxp:5.0' 'normal')
-attacker_search=('False')
-dlg_enable="True"
+attacker_prefixes=('normal')
+attacker_search=(True)
+attacker_freq=100
+attacker_samples=50
+dlg_enable=False
 dlg_adjust=(0)
 dlg_beta=(0.8)
-
-self_pt_enable='False'
+self_pt_enable=False
 
 for seed in "${seeds[@]}"; do
   for dataset in "${datasets[@]}"; do
@@ -42,10 +42,11 @@ for seed in "${seeds[@]}"; do
                   --dlg_enable "$dlg_enable" \
                   --dlg_adjust "$mocker_a" \
                   --dlg_beta "$mocker_b" \
-                  --attacker_enable "$attacker_enable" \
                   --attacker_prefix "$ap" \
                   --attacker_search "$search" \
-                  --self_pt_enable "$self_pt_enable"
+                  --self_pt_enable "$self_pt_enable" \
+                  --attacker_samples "$attacker_samples" \
+                  --attacker_freq "$attacker_freq"
               done
             done
           done

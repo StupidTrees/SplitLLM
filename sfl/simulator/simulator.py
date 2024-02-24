@@ -3,6 +3,8 @@ from typing import Iterator
 
 import torch
 import wandb
+from tqdm import tqdm
+from transformers import AdamW
 
 from sfl.config import FLConfig
 from sfl.model.split_model import SplitModel
@@ -19,17 +21,22 @@ class SFLSimulator(object):
     """
 
     def __init__(self, client_ids, strategy: FLStrategy, llm: SplitModel, tokenizer, dataset: FedDataset,
-                 config: FLConfig):
+                 config: FLConfig, additional_param_keys=None, b2tr_hooks=None,args=None):
+        self.args = args
         self.client_ids = client_ids
         self.strategy: FLStrategy = strategy
         self.strategy.simulator = self
+        task_type = dataset.task_type
+        if args.task_type is not None:
+            task_type = args.task_type
+        self.strategy.task_type = task_type
         self.llm: SplitModel = llm
         self.tokenizer = tokenizer
         self.dataset = dataset
         self.config = config
         self.device = get_best_gpu() if torch.cuda.is_available() else 'cpu'
         self.parameter_keeper = InMemoryParameterKeeper(client_ids)
-        self.llm.config_sfl(config, self.parameter_keeper)
+        self.llm.config_sfl(config, self.parameter_keeper, b2tr_hooks)
         self.communication_overhead_uplink = {}
         self.communication_overhead_downlink = {}
         # Step pointer
@@ -37,15 +44,20 @@ class SFLSimulator(object):
         self.local_epochs = {cid: 0 for cid in self.client_ids}
         self.local_steps = {cid: 0 for cid in self.client_ids}
         self.global_steps = {cid: 0 for cid in self.client_ids}
+
         if not self.llm.adapter_added:
             self.llm = self.llm.convert_to_lora_model()
         # store pretrained parameters
-        self.parameter_keeper.store_other_params('pretrained', 'trunk',
-                                                 [p.detach().cpu() for nm, p in self.llm.get_trunk_params()])
-        self.parameter_keeper.store_other_params('pretrained', 'top',
-                                                 [p.detach().cpu() for nm, p in self.llm.get_top_params()])
-        self.parameter_keeper.store_other_params('pretrained', 'bottom',
-                                                 [p.detach().cpu() for nm, p in self.llm.get_bottom_params()])
+        if additional_param_keys is None:
+            additional_param_keys = ['mirror']
+        for key in ['pretrained'] + additional_param_keys:
+            self.parameter_keeper.store_other_params(key, 'trunk',
+                                                     [p.detach().cpu() for nm, p in self.llm.get_trunk_params()])
+            self.parameter_keeper.store_other_params(key, 'top',
+                                                     [p.detach().cpu() for nm, p in self.llm.get_top_params()])
+            self.parameter_keeper.store_other_params(key, 'bottom',
+                                                     [p.detach().cpu() for nm, p in self.llm.get_bottom_params()])
+
         # special initialization
         if config.top_and_bottom_from_scratch in ['True', 'Embedding']:
             self.llm.reset_params(self.llm.get_top_params(), config.top_and_bottom_from_scratch)
@@ -57,6 +69,47 @@ class SFLSimulator(object):
             for nm, param in self.llm.get_bottom_params():
                 scale = param.data.max() - param.data.min()
                 param.data += torch.randn_like(param.data) * scale * 0.02
+
+    def pre_ft(self, data_loader, parts=None):
+        self.llm.to(self.device)
+        self.llm.train()
+        if parts is None:
+            parts = ['top', 'bottom']
+        # 不收集中间结果
+        bk_ci = self.llm.fl_config.collect_intermediates
+        self.llm.fl_config.collect_intermediates = False
+        # 冻结Trunk
+        frozen_params = []
+        frozen_states = []
+        for part in {'top', 'bottom', 'trunk'} - set(parts):
+            if part == 'top':
+                ls = self.llm.get_top_params()
+            elif part == ' trunk':
+                ls = self.llm.get_trunk_params()
+            else:
+                ls = self.llm.get_bottom_params()
+            for nm, p in ls:
+                frozen_states.append(p.requires_grad)
+                p.requires_grad = False
+                frozen_params.append(p)
+        # 微调bottom和top
+        tune = [p for p in self.llm.parameters() if p.requires_grad]
+        optimizer = AdamW(tune, lr=1e-5)
+        with tqdm(total=len(data_loader)) as pbar:
+            for step, batch in enumerate(data_loader):
+                optimizer.zero_grad()
+                input_ids = batch['input_ids'].to(self.llm.device)
+                attention_mask = batch['input_att_mask'].to(self.llm.device)
+                outputs = self.llm(input_ids=input_ids, labels=input_ids, attention_mask=attention_mask)
+                loss = outputs.loss
+                pbar.set_description(f'Pre-FT Loss {loss.item():.3f}')
+                loss.backward()
+                optimizer.step()
+                pbar.update(1)
+        # 恢复
+        for p, r in zip(frozen_params, frozen_states):
+            p.requires_grad = r
+        self.llm.fl_config.collect_intermediates = bk_ci
 
     def simulate(self):
         self.llm.to(self.device)
@@ -126,7 +179,7 @@ class SFLSimulator(object):
             self.llm.load_trunk_params(backup_params)
         return outputs
 
-    def restored_run(self, func, parts=None, key: str = '', **kwargs):
+    def restored_run(self, func, parts=None, key: str = '', write_back=True, **kwargs):
         if key not in self.parameter_keeper.other_params:
             for part in self.parameter_keeper.other_params['pretrained']:
                 self.parameter_keeper.store_other_params(key, part,
@@ -156,7 +209,8 @@ class SFLSimulator(object):
             elif part == 'trunk':
                 updated_params = [p.detach().cpu() for nm, p in self.llm.get_trunk_params()]
                 self.llm.load_trunk_params(backup_params[part])
-            self.parameter_keeper.store_other_params(key, part, updated_params)
+            if write_back:
+                self.parameter_keeper.store_other_params(key, part, updated_params)
 
     def get_current_step(self, client_id, mini_step):
         global_step = self.global_steps[client_id] + mini_step
@@ -196,18 +250,17 @@ class SFLSimulator(object):
         local_step, global_step = self.get_current_step(client_id, mini_step)
         local_epoch = self.local_epochs[client_id]
 
-        tr2t_fx, t2tr = self.llm.get_top_to_trunk_grad()  # top-to-trunk
-        b2tr_fx, tr2b = self.llm.get_trunk_to_bottom_grad()  # trunk-to-bottom
+        b2tr_inter, tr2t_inter, all_inters = self.llm.get_all_inter()
         self.communication_overhead_uplink.setdefault(self.current_global_round, {})
         self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})
         self.communication_overhead_uplink[self.current_global_round][client_id].setdefault(local_epoch, 0)
         self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += tensor_bytes(
-            t2tr) + tensor_bytes(b2tr_fx)
+            tr2t_inter.grad) + tensor_bytes(b2tr_inter.fx)
         self.communication_overhead_downlink.setdefault(self.current_global_round, {})
         self.communication_overhead_downlink[self.current_global_round].setdefault(client_id, {})
         self.communication_overhead_downlink[self.current_global_round][client_id].setdefault(local_epoch, 0)
         self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tensor_bytes(
-            tr2b) + tensor_bytes(tr2t_fx)
+            b2tr_inter.grad) + tensor_bytes(tr2t_inter.fx)
 
         # 进行log
 
@@ -220,8 +273,7 @@ class SFLSimulator(object):
                                                    client_id,
                                                    local_epoch,
                                                    local_step,
-                                                   b2tr_fx, tr2b,
-                                                   tr2t_fx, t2tr,
+                                                   b2tr_inter, tr2t_inter, all_inters,
                                                    batch, logs)
         if (local_step + 1) % self.config.client_evaluate_freq == 0:
             self.strategy.client_evaluate(self.current_global_round, client_id, logs)

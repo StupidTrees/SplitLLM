@@ -4,8 +4,8 @@ import regex
 from peft import LoraConfig, get_peft_model
 from torch import nn
 
+from sfl.config import FLConfig, Intermediate
 from sfl.simulator.param_keeper import ParameterKeeper
-from sfl.config import FLConfig
 
 
 class SplitModel(nn.Module, ABC):
@@ -18,10 +18,16 @@ class SplitModel(nn.Module, ABC):
         self.param_keeper: ParameterKeeper | None = None
         self.fl_config: FLConfig | None = None
         self.adapter_added = False
+        self.b2tr_hooks = []
+        self.perturber = None
+        self.intermediate_fx = {}
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None):
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
         self.fl_config = config
         self.param_keeper = param_keeper
+        if b2tr_hooks is not None:
+            for hk in b2tr_hooks:
+                self.b2tr_hooks.append(hk)
 
     def print_split_model(self):
         print(f'=================Split-{self.config._name_or_path}=================')
@@ -113,28 +119,48 @@ class SplitModel(nn.Module, ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
     def get_bottom_params(self, trainable_only=True):
-        raise NotImplementedError
+        for nm, p in self.named_parameters():
+            if trainable_only and not p.requires_grad:
+                continue
+            if self._get_block_num(nm) >= self.fl_config.split_point_1:
+                break
+            else:
+                yield nm, p
 
-    @abstractmethod
     def get_top_params(self, trainable_only=True):
-        raise NotImplementedError
+        trunk = False
+        for nm, p in self.named_parameters():
+            if trainable_only and not p.requires_grad:
+                continue
+            if self._get_block_num(nm) >= self.fl_config.split_point_2:
+                trunk = True
+            if trunk:
+                yield nm, p
 
-    @abstractmethod
     def get_trunk_params(self, trainable_only=True):
-        raise NotImplementedError
+        for nm, p in self.named_parameters():
+            if trainable_only and not p.requires_grad:
+                continue
+            if self.fl_config.split_point_1 <= self._get_block_num(nm) < self.fl_config.split_point_2:
+                yield nm, p
 
-    @abstractmethod
-    def get_top_to_trunk_grad(self, detach=True):
-        raise NotImplementedError
+    def get_all_inter(self, detach=True):
+        res = {}
+        bt2tr = None
+        tr2t = None
+        for idx, v in self.intermediate_fx.items():
+            inter = Intermediate(v.detach().cpu() if detach else v)
+            if v.grad is not None:
+                inter.grad = v.grad.clone().detach().cpu() if detach else v.grad
+            if idx == self.fl_config.split_point_1 - 1:
+                inter.type = 'b2tr'
+                bt2tr = inter
+            elif idx == self.fl_config.split_point_2 - 1:
+                inter.type = 'tr2t'
+                tr2t = inter
+            res[idx] = inter
+        return bt2tr, tr2t, res
 
-    @abstractmethod
-    def get_trunk_to_bottom_grad(self, detach=True):
-        raise NotImplementedError
-
-    def _store_bottom_to_trunk_fx(self, fx):
-        raise NotImplementedError
-
-    def _store_trunk_to_top_fx(self, fx):
-        raise NotImplementedError
+    def _store_fx(self, layer_index, fx):
+        self.intermediate_fx[layer_index] = fx

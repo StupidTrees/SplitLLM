@@ -9,14 +9,29 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 sys.path.append(os.path.abspath('../..'))
+
+from sfl.utils.experiments import str2bool
+
 from sfl import config
 from sfl.config import AttackerConfig
 from sfl.config import FLConfig
 from sfl.model.gpt2.gpt2_split import GPT2SplitLMHeadModel
-from sfl.utils.training import get_best_gpu, set_random_seed, calc_unshift_loss, get_dataset_class, calc_shifted_loss
+from sfl.utils.training import get_best_gpu, set_random_seed, calc_unshift_loss, get_dataset_class, calc_shifted_loss, \
+    get_model_and_tokenizer
 from sfl.utils.model import calculate_rouge
 from sfl.model.attack_model import LSTMAttackerConfig, LSTMAttackModel, LinearAttackModel, \
     TransformerEncoderAttackModel, TransformerAttackerConfig, TransformerDecoderAttackModel, GRUAttackModel
+
+
+def get_save_path(md, attacker, save_dir, args):
+    p = os.path.join(save_dir,
+                     f'{args.model_name}/{args.dataset}/{args.dataset_train_label}*{args.dataset_train_frac:.3f}-{args.dataset_test_label}*{args.dataset_test_frac:.3f}'
+                     f'/{args.attack_model}/{md.fl_config.attack_mode}-{md.fl_config.split_point_1 if md.fl_config.attack_mode == "b2tr" else md.fl_config.split_point_2}/')
+    attacker_prefix = 'normal/'
+    if md.fl_config.noise_mode != 'none':
+        attacker_prefix = f'{md.fl_config.noise_mode}:{md.fl_config.noise_scale}/'
+    p += attacker_prefix
+    return p
 
 
 def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
@@ -42,16 +57,10 @@ def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
             rouge_l_r += result['rouge-l']['r']
     print(
         f'Epoch {epc} Test Rouge_1: {rouge_1 / dl_len}, Rouge_2: {rouge_2 / dl_len}, Rouge_l_f1: {rouge_l_f1 / dl_len}, Rouge_l_p: {rouge_l_p / dl_len}, Rouge_l_r: {rouge_l_r / dl_len}')
-    p = os.path.join(save_dir,
-                     f'{attacker.config.target_model}/{args.dataset}/{args.dataset_train_label}*{args.dataset_train_frac:.3f}-{args.dataset_test_label}*{args.dataset_test_frac:.3f}'
-                     f'/{args.attack_model}/{md.fl_config.attack_mode}-{md.fl_config.split_point_1 if md.fl_config.attack_mode == "b2tr" else md.fl_config.split_point_2}/')
-    attacker_prefix = 'normal/'
-    if md.fl_config.noise_mode != 'none':
-        attacker_prefix = f'{md.fl_config.noise_mode}:{md.fl_config.noise_scale}/'
-    p += attacker_prefix
+    p = get_save_path(md, attacker, save_dir, args)
     if rouge_l_f1 / dl_len > 0.1 and (epc + 1) % 10 == 0 and args.save_checkpoint:
         attacker.save_pretrained(p + f'epoch_{epc}_rouge_{rouge_l_f1 / dl_len:.4f}')
-    if args.log_to_wandb == 'True':
+    if args.log_to_wandb:
         wandb.log({'epoch': epc, 'test_rouge_1': rouge_1 / dl_len, 'test_rouge_2': rouge_2 / dl_len,
                    'test_rouge_l_f1': rouge_l_f1 / dl_len, 'test_rouge_l_p': rouge_l_p / dl_len,
                    'test_rouge_l_r': rouge_l_r / dl_len})
@@ -66,12 +75,9 @@ def train_attacker(args):
     :param args:
     """
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_download_dir + f"/{args.model_name}/")
-    model: GPT2SplitLMHeadModel = GPT2SplitLMHeadModel.from_pretrained(args.model_download_dir + f"/{args.model_name}/")
-    tokenizer.pad_token_id = model.config.eos_token_id
+    model, tokenizer = get_model_and_tokenizer(args.model_name)
     dataset_cls = get_dataset_class(args.dataset)
     dataset = dataset_cls(tokenizer, [])
-
     if args.dataset_test_label == args.dataset_train_label:  # self-testing
         dataloader, dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size,
                                                                       type=args.dataset_train_label,
@@ -116,16 +122,18 @@ def train_attacker(args):
     elif args.attack_model == 'trans-dec':
         attack_model = TransformerDecoderAttackModel(TransformerAttackerConfig(), model.config)
 
+    if os.path.exists(get_save_path(model, attack_model, args.save_dir, args)) and args.skip_exists:
+        print('Model exists, skipping...')
+        return
+
     optimizer = Adam(attack_model.parameters(), lr=args.lr)
-    model.to(device)
     attack_model.to(device)
     epoch = args.epochs
-    if args.log_to_wandb == 'True':
+    if args.log_to_wandb:
         wandb.init(project="attacker-different-sp",
                    name=f"{args.model_name}_{args.split_point_1}",
                    config=vars(args)
                    )
-
     evaluate(0, model, attack_model, tokenizer, dataloader_test, args.save_dir)
     with tqdm(total=epoch * len(dataloader)) as pbar:
         for epc in range(epoch):
@@ -162,7 +170,7 @@ def train_attacker(args):
             # 计算测试集上的ROGUE
             if (epc + 1) % 5 == 0:
                 evaluate(epc, model, attack_model, tokenizer, dataloader_test, args.save_dir)
-            if args.log_to_wandb == 'True':
+            if args.log_to_wandb:
                 wandb.log(
                     {'epoch': epc, 'train_rouge_1': rouge_1, 'train_rouge_2': rouge_2, 'train_rouge_l_f1': rouge_l_f1,
                      'train_rouge_l_p': rouge_l_p, 'train_rouge_l_r': rouge_l_r})
@@ -188,8 +196,10 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--noise_mode', type=str, default='none')
     parser.add_argument('--noise_scale', type=float, default=5.0)
-    parser.add_argument('--save_checkpoint', type=str, default='False')
-    parser.add_argument('--log_to_wandb', type=str, default='False')
+    parser.add_argument('--save_checkpoint', type=str2bool, default=False)
+    parser.add_argument('--log_to_wandb', type=str2bool, default=False)
+    parser.add_argument('--skip_exists', type=str2bool, default=True)
+
     args = parser.parse_args()
     set_random_seed(args.seed)
     train_attacker(args)

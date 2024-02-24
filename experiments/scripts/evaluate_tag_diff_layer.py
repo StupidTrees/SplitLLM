@@ -3,21 +3,41 @@ import os
 import sys
 
 import wandb
+from transformers import AutoTokenizer
 
 sys.path.append(os.path.abspath('../..'))
+from sfl.model.dlgattacker import GPT2TopDLGAttacker
 from experiments.scripts.basic_strategy import BaseSFLStrategy
 from sfl.utils.experiments import add_sfl_params
-from sfl.model.dlgattacker import GPT2TopDLGAttacker
+from sfl.utils.model import calculate_rouge
+import sfl
 from sfl.simulator.simulator import SFLSimulator
-from sfl.config import FLConfig
-from sfl.utils.training import set_random_seed, get_dataset_class, get_attacker_class, extract_attacker_path, \
-    get_model_and_tokenizer
+from sfl.config import FLConfig, Intermediate
+from sfl.model.gpt2.gpt2_split import GPT2SplitLMHeadModel
+from sfl.utils.training import set_random_seed, get_dataset_class
+
+
+# 定义Client本地学习策略
+class QAFLStrategy(BaseSFLStrategy):
+
+    def sample_attacker_triggered(self, global_round, client_id, local_epoch, local_step,
+                                  b2tr_inter: Intermediate, tr2t_inter: Intermediate,
+                                  all_inter: dict[int, Intermediate],
+                                  batch, logs):
+        gt = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
+                          epochs=self.args.dlg_epochs,
+                          adjust=self.args.dlg_adjust,
+                          beta=self.args.dlg_beta)
+        rouge = calculate_rouge(self.tokenizer, gt, batch['input_text'])
+        self.log_to_sample_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
+        self.log_to_all_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
 
 
 def sfl_with_attacker(args):
-    model, tokenizer  = get_model_and_tokenizer(args.model_name,args.task_type)
-    # 加载攻击模型
-    attacker1, attacker2 = extract_attacker_path(args, get_attacker_class(args.attacker_model))
+    tokenizer = AutoTokenizer.from_pretrained(os.path.join(sfl.config.model_download_dir, args.model_name))
+    model = GPT2SplitLMHeadModel.from_pretrained(os.path.join(sfl.config.model_download_dir, args.model_name))
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.pad_token_id = 50256
     # 配置联邦学习
     client_ids = [str(i) for i in range(args.client_num)]
     config = FLConfig(global_round=args.global_round,
@@ -33,7 +53,10 @@ def sfl_with_attacker(args):
                       noise_mode=args.noise_mode,
                       noise_scale=args.noise_scale,  # 噪声大小
                       collect_intermediates=True,
+                      dataset_type=args.dataset_label,
+                      collect_all_layers=args.collect_all_layers,
                       )
+
     # 加载TAG攻击模型
     mocker = None
     if args.dlg_enable:
@@ -45,7 +68,7 @@ def sfl_with_attacker(args):
     test_dataset = dataset_cls(tokenizer=tokenizer, client_ids=[])
     test_loader = test_dataset.get_dataloader_unsliced(1, 'test', shrink_frac=args.test_data_shrink_frac)
     simulator = SFLSimulator(client_ids=client_ids,
-                             strategy=BaseSFLStrategy(args, tokenizer, attacker1, attacker2, model, test_loader),
+                             strategy=QAFLStrategy(args, tokenizer, None, None, model, test_loader),
                              llm=model,
                              tokenizer=tokenizer,
                              dataset=fed_dataset, config=config)
@@ -54,6 +77,7 @@ def sfl_with_attacker(args):
         name=f"{args.split_points}",
         config=args
     )
+    mocker.to(simulator.device)
     simulator.strategy.dlg = mocker
     simulator.simulate()
 

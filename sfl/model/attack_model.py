@@ -17,7 +17,10 @@ class AttackModel(PreTrainedModel):
         super().__init__(config, *args, **kwargs)
         if target_config:
             self.target_config = target_config
-            self.config.n_embed = target_config.n_embd
+            if hasattr(target_config, 'n_embd'):
+                self.config.n_embed = target_config.n_embd
+            elif hasattr(target_config, 'hidden_size'):
+                self.config.n_embed = target_config.hidden_size
             self.config.vocab_size = target_config.vocab_size
             name_or_path = target_config.name_or_path
             # if it is a path, use the last dir name

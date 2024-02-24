@@ -3,13 +3,13 @@ seeds=(42)
 datasets=('wikitext')
 models=('gru')
 attack_mode=('b2tr')
-sp1s=(2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31)
-sp2=999
+sp1s=(8)
+sp2=30
 model_name='gpt2-large'
 train_label='validation'
 test_label='test'
-save_checkpoint='False'
-log_to_wandb='False'
+save_checkpoint=False
+log_to_wandb=False
 
 for seed in "${seeds[@]}"; do
   for dataset in "${datasets[@]}"; do
