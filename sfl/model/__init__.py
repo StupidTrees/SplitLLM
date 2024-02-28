@@ -1,1 +1,1 @@
-__all__ = ['split_model', 'gpt2']
+__all__ = ['attacker', 'llm']

@@ -23,7 +23,7 @@ class FLConfig:
     use_lora_at_top: bool = False
     collect_intermediates: bool = True  # 是否记录中间结果
     collect_all_layers: bool = False  # 是否记录所有层的中间结果
-    trigger_hook:bool = False
+    trigger_hook: bool = False
     top_and_bottom_from_scratch: str = 'False'  # 设置为True，Client将不采用预训练的Top和Bottom参数
     attack_mode: str | None = None  # 'b2tr' or 'tr2b' or 'self' or None
     noise_mode: str = 'none'
@@ -32,16 +32,8 @@ class FLConfig:
     batch_size: int = 2
 
 
-
 @dataclass
-class Intermediate:
-    fx: Any
-    grad: Any | None = None
-    type: str = 'normal'
-
-
-@dataclass
-class AttackerConfig(PretrainedConfig):
+class DRAttackerConfig(PretrainedConfig):
     model_name: str = None
     target_model: str = None
     vocab_size: int = 0
@@ -49,3 +41,20 @@ class AttackerConfig(PretrainedConfig):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+
+@dataclass
+class DRAConfig:
+    path: str = attacker_path
+    b2tr_enable: bool = True
+    b2tr_sp: int = -1
+    tr2t_enable: bool = True
+    tr2t_sp: int = -1
+    model: str = 'gru'  # DRAttacker Model
+    dataset: str = None  # what dataset the DRAttacker is trained on
+    train_label: str = 'validation'  # training dataset of that model
+    train_frac: float = 1.0  # percentage of dataset used for training
+    prefix: str = 'normal'
+    target_model_name: str = None
+    target_dataset: str = None
+    target_sps: str = None

@@ -78,9 +78,26 @@ class PIQAFedDataset(FedDataset):
 
     def _format(self, example):
         q = "### Question: " + example["goal"]
-        a = "### Solution: " + example["sol1"]
+        a = "\n### Solution: " + example["sol1"]
         return {'q': q, 'a': a,
-                'input': q + "\n" + a}
+                'input': q + a}
+
+    def _col_fun(self, batch):
+        texts = [b['input'] for b in batch]
+        qs = [b['q'] for b in batch]
+        as_ = [b['a'] for b in batch]
+        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
+        input_q = self.tokenizer(qs, padding=True, truncation=True, return_tensors='pt')
+        input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt')
+        return {'input_ids': input['input_ids'],
+                'input_att_mask': input['attention_mask'],
+                'input_text': texts,
+                'q_ids': input_q['input_ids'],
+                'q_att_mask': input_q['attention_mask'],
+                'a_ids': input_a['input_ids'],
+                'a_att_mask': input_a['attention_mask'],
+                'q_text': qs,
+                'a_text': as_}
 
 
 class GSM8KFedDataset(FedDataset):
@@ -145,7 +162,8 @@ class CodeAlpacaFedDataset(FedDataset):
 class IMDBFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
-        super().__init__(tokenizer, client_ids, load_dataset('imdb', cache_dir=config.dataset_cache_dir),
+        super().__init__(tokenizer, client_ids,
+                         load_dataset(config.dataset_cache_dir + 'imdb'),
                          ['train', 'test', 'unsupervised'],
                          shrink_frac, task_type='clsf', num_labels=2)
 

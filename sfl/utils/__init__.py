@@ -1,1 +1,1 @@
-__all__ = ['data', 'model', 'training']
+__all__ = ['data', 'model', 'exp.py']

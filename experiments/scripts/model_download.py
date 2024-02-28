@@ -8,7 +8,8 @@ import time
 
 import requests
 from huggingface_hub import snapshot_download
-sys.path.append(os.path.abspath('../..'))
+sys.path.append(os.path.abspath('../../..'))
+
 from sfl import config
 
 

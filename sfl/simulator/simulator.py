@@ -7,12 +7,12 @@ from tqdm import tqdm
 from transformers import AdamW
 
 from sfl.config import FLConfig
-from sfl.model.split_model import SplitModel
+from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.dataset import FedDataset
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.simulator.strategy import FLStrategy
 from sfl.utils.data import size_str, tensor_bytes
-from sfl.utils.training import get_best_gpu
+from sfl.utils.model import get_best_gpu
 
 
 class SFLSimulator(object):
@@ -20,8 +20,8 @@ class SFLSimulator(object):
     SFL实验模拟
     """
 
-    def __init__(self, client_ids, strategy: FLStrategy, llm: SplitModel, tokenizer, dataset: FedDataset,
-                 config: FLConfig, additional_param_keys=None, b2tr_hooks=None,args=None):
+    def __init__(self, client_ids, strategy: FLStrategy, llm: SplitWrapperModel, tokenizer, dataset: FedDataset,
+                 config: FLConfig, additional_param_keys=None, b2tr_hooks=None, args=None):
         self.args = args
         self.client_ids = client_ids
         self.strategy: FLStrategy = strategy
@@ -30,7 +30,7 @@ class SFLSimulator(object):
         if args.task_type is not None:
             task_type = args.task_type
         self.strategy.task_type = task_type
-        self.llm: SplitModel = llm
+        self.llm: SplitWrapperModel = llm
         self.tokenizer = tokenizer
         self.dataset = dataset
         self.config = config
@@ -59,10 +59,10 @@ class SFLSimulator(object):
                                                      [p.detach().cpu() for nm, p in self.llm.get_bottom_params()])
 
         # special initialization
-        if config.top_and_bottom_from_scratch in ['True', 'Embedding']:
-            self.llm.reset_params(self.llm.get_top_params(), config.top_and_bottom_from_scratch)
-            self.llm.reset_params(self.llm.get_bottom_params(), config.top_and_bottom_from_scratch)
-        elif config.top_and_bottom_from_scratch == 'Noised':
+        # if config.top_and_bottom_from_scratch in ['True', 'Embedding']:
+        #     self.llm.reset_params(self.llm.get_top_params(), config.top_and_bottom_from_scratch)
+        #     self.llm.reset_params(self.llm.get_bottom_params(), config.top_and_bottom_from_scratch)
+        if config.top_and_bottom_from_scratch == 'Noised':
             for nm, param in self.llm.get_top_params():
                 scale = param.data.max() - param.data.min()
                 param.data += torch.randn_like(param.data) * scale * 0.02
@@ -279,7 +279,8 @@ class SFLSimulator(object):
             self.strategy.client_evaluate(self.current_global_round, client_id, logs)
         for k, v in logs.items():
             report[f'client{client_id}_{k}'] = v
-
+        if self.args and not self.args.log_to_wandb:
+            return
         wandb.log(report)
 
     def __summarize_communication(self, global_round=None, client_id=None):

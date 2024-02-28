@@ -12,14 +12,28 @@ pip install -r requirements.txt
 2. 运行下载脚本（以GPT2为例），可能需要代理
 ```shell
 cd experiments/scripts
-python model_download.py --repo_id gpt2
-python download_model.py
+python model_download.py --repo_id gpt2-large
+python model_download.py --repo_id FacebookAI/roberta-large
+python model_download.py --repo_id google-bert/bert-base-uncased
+python model_download.py --repo_id google/flan-t5-base
 ```
 
+## 数据集下载
+```shell
+cd $dataset_cache_dir
+git clone https://huggingface.co/datasets/wikitext.git
+git clone https://huggingface.co/datasets/piqa.git
+git clone https://huggingface.co/datasets/HuggingFaceH4/CodeAlpaca_20K.git
+git clone https://huggingface.co/datasets/knkarthick/dialogsum.git
+git clone https://huggingface.co/datasets/gsm8k.git
+git clone https://huggingface.co/datasets/imdb.git
+```
+
+
+
 ## 攻击模型训练
-- 可直接使用 `experiments/notebook/attack.ipynb`进行简单的观察实验
-- 也可运行python脚本`experiments/scripts/train_attacker.py` 进行训练
-- 也可运行脚本 `experiments/scripts/run_train_attacker.sh` 进行超参组合的自动运行
+- 运行python脚本`experiments/scripts/py/train_attacker.py` 进行训练
+- 也可运行脚本 `experiments/scripts/pipeline/run_train_attacker.sh` 进行超参组合的自动运行
 
 上述过程需要配置wandb，在本地环境使用
 ```shell
@@ -29,7 +43,6 @@ wandb login
 
 ## SFL模拟
 训练完攻击模型吼，使用sfl_with_attacker相关的notebook/py文件/脚本，进行SFL模拟
-其中，需要配置`attack_model_path_1`和`attack_model_path_2`为训练好的针对切分点1和切分点2的攻击模型的路径。
 
 ## 实现说明
 
