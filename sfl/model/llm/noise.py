@@ -1,4 +1,5 @@
 import torch
+from torch import float16
 from torch.nn import Module
 
 
@@ -13,6 +14,8 @@ class DxPrivacy(Module):
         with torch.no_grad():
             noise = torch.distributions.laplace.Laplace(0, scale=1 / self.epsilon).sample(inputs_embeds.size()).to(
                 inputs_embeds.device)
+            if inputs_embeds.dtype == float16:
+                noise = noise.half()
             inputs_embeds = inputs_embeds + noise
         all_words = torch.tensor(list([i for i in range(self.vocab_size)])).to(inputs_embeds.device)
         all_embeds = self.embedder(all_words)

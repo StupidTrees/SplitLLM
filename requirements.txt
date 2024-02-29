@@ -7,3 +7,4 @@ transformers==4.31.0
 rouge-score==0.1.2
 rouge==1.0.1
 wandb
+bitsandbytes

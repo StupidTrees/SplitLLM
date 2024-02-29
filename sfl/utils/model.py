@@ -137,7 +137,6 @@ def sentence_score_tokens(sent, model):
     return score
 
 
-
 def get_best_gpu():
     """Return gpu (:class:`torch.device`) with largest free memory."""
     assert torch.cuda.is_available()
@@ -262,7 +261,10 @@ def batched_perplexity(model, dataloader, tokenizer, stride=512):
 
 def evaluate_perplexity(model, loader, stride=1024):
     model.train(False)
-    max_length = model.config.n_positions
+    if hasattr(model.config, 'n_positions'):
+        max_length = model.config.n_positions
+    elif hasattr(model.config, 'max_length'):
+        max_length = model.config.max_length
     ppl = 0
     len = 0
     for batch in loader:

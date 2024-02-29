@@ -2,180 +2,15 @@ import logging
 from typing import Optional, Union, Tuple, List
 
 import torch
-from regex import regex
-from torch.nn import CrossEntropyLoss
-import torch.nn.functional as F
-from transformers import LlamaModel, LlamaConfig, LlamaForCausalLM
-from transformers.modeling_outputs import CausalLMOutputWithPast, BaseModelOutputWithPast
+from transformers import LlamaModel
+from transformers.modeling_outputs import BaseModelOutputWithPast
 
 from sfl.config import FLConfig
+from sfl.model.llm.noise import DxPrivacy
 from sfl.model.llm.split_model import SplitModel
 from sfl.simulator.param_keeper import ParameterKeeper
 
-
 logger = logging.getLogger(__name__)
-
-
-class LLAMA2SplitLMHeadModel(LlamaForCausalLM, SplitModel):
-    """
-    最后一层用于文本生成
-    """
-
-    def __init__(self, config):
-        super(LLAMA2SplitLMHeadModel, self).__init__(config)
-        self.model = LLAMA2SplitModel(config)
-
-    def get_bottom_to_trunk_fx(self):
-        return self.model.get_bottom_to_trunk_fx()
-
-    def get_trunk_to_top_fx(self):
-        return self.model.get_trunk_to_top_fx()
-
-    def get_top_to_trunk_grad(self):
-        return self.model.get_top_to_trunk_grad()
-
-    def get_trunk_to_bottom_grad(self):
-        return self.model.get_trunk_to_bottom_grad()
-
-    def get_trunk_adapter_module_regex(self):
-        # Trunk部分(h.start~h.end)的proj/fc/_attn模块
-        if self.fl_config is not None:
-            reg = rf".*\.layer\.({'|'.join([str(i) for i in range(self.fl_config.split_point_1, self.fl_config.split_point_2)])})\..*(.+attn|proj|fc)$"
-            return reg
-        return ""
-
-    @staticmethod
-    def _get_block_num(param_name: str):
-        # 获得该参数所属的block的块号，不属于block则返回-1
-        r = regex.findall('\.h\.[0-9]+', param_name)
-        return int(r[0].split('.')[-1]) if len(r) > 0 else -1
-
-    def get_bottom_params(self, trainable_only=True):
-        for nm, p in self.named_parameters():
-            if trainable_only and not p.requires_grad:
-                continue
-            if self._get_block_num(nm) >= self.fl_config.split_point_1:
-                break
-            else:
-                yield nm, p
-
-    def get_top_params(self, trainable_only=True):
-        trunk = False
-        for nm, p in self.named_parameters():
-            if trainable_only and not p.requires_grad:
-                continue
-            if self._get_block_num(nm) >= self.fl_config.split_point_2:
-                trunk = True
-            if trunk:
-                yield nm, p
-
-    def get_trunk_params(self, trainable_only=True):
-        for nm, p in self.named_parameters():
-            if trainable_only and not p.requires_grad:
-                continue
-            if self.fl_config.split_point_1 <= self._get_block_num(nm) < self.fl_config.split_point_2:
-                yield nm, p
-
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper|None):
-        super(LLAMA2SplitLMHeadModel, self).config_sfl(config, param_keeper)
-        self.model.config_sfl(config, param_keeper)
-
-    def forward(
-        self,
-        input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.LongTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, CausalLMOutputWithPast]:
-        r"""
-        Args:
-            labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-                Labels for computing the masked language modeling loss. Indices should either be in `[0, ...,
-                config.vocab_size]` or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored
-                (masked), the loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`.
-
-        Returns:
-
-        Example:
-
-        ```python
-        >>> from transformers import AutoTokenizer, LlamaForCausalLM
-
-        >>> model = LlamaForCausalLM.from_pretrained(PATH_TO_CONVERTED_WEIGHTS)
-        >>> tokenizer = AutoTokenizer.from_pretrained(PATH_TO_CONVERTED_TOKENIZER)
-
-        >>> prompt = "Hey, are you conscious? Can you talk to me?"
-        >>> inputs = tokenizer(prompt, return_tensors="pt")
-
-        >>> # Generate
-        >>> generate_ids = model.generate(inputs.input_ids, max_length=30)
-        >>> tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
-        "Hey, are you conscious? Can you talk to me?\nI'm not conscious, but I can talk to you."
-        ```"""
-
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
-        outputs = self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-        
-        # @ add for fl
-        if self.fl_config and self.fl_config.attack_mode:
-            return outputs
-
-        hidden_states = outputs[0]
-        if self.pretraining_tp > 1:
-            lm_head_slices = self.lm_head.weight.split(self.vocab_size // self.pretraining_tp, dim=0)
-            logits = [F.linear(hidden_states, lm_head_slices[i]) for i in range(self.pretraining_tp)]
-            logits = torch.cat(logits, dim=-1)
-        else:
-            logits = self.lm_head(hidden_states)
-        logits = logits.float()
-
-        loss = None
-        if labels is not None:
-            # Shift so that tokens < n predict n
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
-            loss_fct = CrossEntropyLoss()
-            shift_logits = shift_logits.view(-1, self.config.vocab_size)
-            shift_labels = shift_labels.view(-1)
-            # Enable model parallelism
-            shift_labels = shift_labels.to(shift_logits.device)
-            loss = loss_fct(shift_logits, shift_labels)
-
-        if not return_dict:
-            output = (logits,) + outputs[1:]
-            return (loss,) + output if loss is not None else output
-
-        return CausalLMOutputWithPast(
-            loss=loss,
-            logits=logits,
-            past_key_values=outputs.past_key_values,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-        )
-
 
 
 class LLAMA2SplitModel(LlamaModel, SplitModel):
@@ -183,59 +18,25 @@ class LLAMA2SplitModel(LlamaModel, SplitModel):
     主模型，主要在FP过程中收集中间输出和梯度
     """
 
-    def get_bottom_params(self, trainable_only=True):
-        pass
-
-    def get_top_params(self, trainable_only=True):
-        pass
-
-    def get_trunk_params(self, trainable_only=True):
-        pass
-
-    def get_trunk_adapter_module_regex(self):
-        pass
-
-    def get_bottom_to_trunk_fx(self):
-        if 'trunk_to_top' in self.intermediate_fx:
-            return self.intermediate_fx['bottom_to_trunk'].detach().cpu()
-        return []
-
-    def get_trunk_to_top_fx(self):
-        if 'bottom_to_trunk' in self.intermediate_fx:
-            return self.intermediate_fx['trunk_to_top'].detach().cpu()
-        return []
-
-    def get_top_to_trunk_grad(self):
-        if 'trunk_to_top' in self.intermediate_fx:
-            return self.intermediate_fx['trunk_to_top'].grad.clone().detach().cpu()
-        return []
-
-    def get_trunk_to_bottom_grad(self):
-        if 'bottom_to_trunk' in self.intermediate_fx:
-            return self.intermediate_fx['bottom_to_trunk'].grad.clone().detach().cpu()
-        return []
-
-    def _store_bottom_to_trunk_fx(self, fx):
-        self.intermediate_fx['bottom_to_trunk'] = fx
-
-    def _store_trunk_to_top_fx(self, fx):
-        self.intermediate_fx['trunk_to_top'] = fx
-
     def __init__(self, config):
         super().__init__(config)
         self.intermediate_fx = {}
 
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
+        super(LLAMA2SplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
+        self.perturber = DxPrivacy(self.embed_tokens, self.config.vocab_size, self.fl_config.noise_scale)
+
     def forward(
-        self,
-        input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+            self,
+            input_ids: torch.LongTensor = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            position_ids: Optional[torch.LongTensor] = None,
+            past_key_values: Optional[List[torch.FloatTensor]] = None,
+            inputs_embeds: Optional[torch.FloatTensor] = None,
+            use_cache: Optional[bool] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -282,6 +83,10 @@ class LLAMA2SplitModel(LlamaModel, SplitModel):
             attention_mask, (batch_size, seq_length), inputs_embeds, past_key_values_length
         )
 
+        """
+        SFL: embedding后插入噪声
+        """
+        inputs_embeds = self.inject_after_embedding(inputs_embeds)
         hidden_states = inputs_embeds
 
         if self.gradient_checkpointing and self.training:
@@ -336,21 +141,9 @@ class LLAMA2SplitModel(LlamaModel, SplitModel):
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
-            # @ add for fl
-            # SFL: store intermediate hidden states
-            if self.fl_config and self.fl_config.attack_mode:
-                if idx == self.fl_config.split_point_1 - 1 and self.fl_config.attack_mode == 'b2tr':
-                    return hidden_states
-                elif idx == self.fl_config.split_point_2 and self.fl_config.attack_mode == 'tr2t':
-                    return hidden_states
-
-            if self.training and self.fl_config is not None and self.fl_config.collect_intermediates:
-                if idx == self.fl_config.split_point_1 - 1:  # bottom-trunk
-                    hidden_states.retain_grad()
-                    self._store_bottom_to_trunk_fx(hidden_states)
-                elif idx == self.fl_config.split_point_2:  # trunk-top
-                    hidden_states.retain_grad()
-                    self._store_trunk_to_top_fx(hidden_states)
+            interrupt = self.inject_between_blocks(hidden_states, idx)
+            if interrupt is not None:
+                return interrupt
 
         hidden_states = self.norm(hidden_states)
 

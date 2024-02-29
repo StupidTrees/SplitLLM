@@ -1,14 +1,16 @@
 from copy import deepcopy
 
 import torch
-from torch import nn
+from torch import nn, float16
 from torch.nn import CrossEntropyLoss
 from torch.nn import ModuleList
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
+from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaDecoderLayer
 from transformers.models.t5.modeling_t5 import T5Block, T5LayerNorm
 
 from sfl.config import FLConfig
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel
+from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
 from sfl.utils.model import calc_shifted_loss_logits
@@ -18,6 +20,7 @@ class DLGAttacker(nn.Module):
     """
     DLG攻击模型
     """
+
     def __init__(self, fl_config: FLConfig, model: SplitWrapperModel, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.target_model_config = model.config
@@ -32,7 +35,7 @@ class DLGAttacker(nn.Module):
         if gt_init is not None:
             if gt_init.shape[1] != gradient.shape[1]:
                 gt_init = gt_init[:, -gradient.shape[1]:, :]
-            dra_attacked = gt_init.clone().to(inter.device)  # (batch_size, seq_len, vocab_size)
+            dra_attacked = gt_init.clone().detach().to(inter.device)  # (batch_size, seq_len, vocab_size)
             # unc_vec = torch.softmax(torch.norm(gradient, p=1, dim=-1), dim=-1)  # (batch_size, seq_len)
             # unc_vec = 1 - temp_range + temp_range * 2 * (unc_vec - unc_vec.min()) / (unc_vec.max() - unc_vec.min())
             # get the tok-k indices of the vector
@@ -64,30 +67,30 @@ class DLGAttacker(nn.Module):
             optimizer.step()
 
         # further adjust
-        if further_ft > 0:
-            gt2 = gt.detach().clone().to(gt.device)
-            gt2.requires_grad = True
-            unc_vec = torch.softmax(torch.norm(gradient, p=1, dim=-1), dim=-1)  # (batch_size, seq_len)
-            # k = 20% of the seq_len
-            k = int(0.2 * seq_len)
-            largest_indexes = torch.topk(unc_vec, k, dim=-1)[1]  # (batch_size, k)
-            mask = torch.ones(gt2.shape[:2]).to(gt2.device)
-            mask = mask.scatter_(1, largest_indexes, 0).unsqueeze(-1).expand(-1, -1, vocab_size)
-            # gt2 = gt2.masked_fill(mask.bool(), 0)
-            optimizer2 = torch.optim.AdamW([gt2], lr=lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01)
-            for i in range(further_ft):
-                optimizer2.zero_grad()
-                x = self.forward(inter)
-                loss = calc_shifted_loss_logits(x, torch.softmax(gt2, dim=-1))
-                grad = torch.autograd.grad(loss, inter, create_graph=True)
-                grad_diff = 0
-                for gx, gy in zip(grad, gradient.to(loss.device)):
-                    grad_diff += beta * ((gx - gy) ** 2).sum() + (1 - beta) * (torch.abs(gx - gy)).sum()
-                grad_diff.backward()
-                gt2.grad = gt2.grad.masked_fill(mask.bool(), 0)
-                optimizer2.step()
-            nmask = 1 - mask
-            gt = gt.masked_scatter(nmask.bool(), gt2.masked_select(nmask.bool()))
+        # if further_ft > 0:
+        #     gt2 = gt.detach().clone().to(gt.device)
+        #     gt2.requires_grad = True
+        #     unc_vec = torch.softmax(torch.norm(gradient, p=1, dim=-1), dim=-1)  # (batch_size, seq_len)
+        #     # k = 20% of the seq_len
+        #     k = int(0.2 * seq_len)
+        #     largest_indexes = torch.topk(unc_vec, k, dim=-1)[1]  # (batch_size, k)
+        #     mask = torch.ones(gt2.shape[:2]).to(gt2.device)
+        #     mask = mask.scatter_(1, largest_indexes, 0).unsqueeze(-1).expand(-1, -1, vocab_size)
+        #     # gt2 = gt2.masked_fill(mask.bool(), 0)
+        #     optimizer2 = torch.optim.AdamW([gt2], lr=lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01)
+        #     for i in range(further_ft):
+        #         optimizer2.zero_grad()
+        #         x = self.forward(inter)
+        #         loss = calc_shifted_loss_logits(x, torch.softmax(gt2, dim=-1))
+        #         grad = torch.autograd.grad(loss, inter, create_graph=True)
+        #         grad_diff = 0
+        #         for gx, gy in zip(grad, gradient.to(loss.device)):
+        #             grad_diff += beta * ((gx - gy) ** 2).sum() + (1 - beta) * (torch.abs(gx - gy)).sum()
+        #         grad_diff.backward()
+        #         gt2.grad = gt2.grad.masked_fill(mask.bool(), 0)
+        #         optimizer2.step()
+        #     nmask = 1 - mask
+        #     gt = gt.masked_scatter(nmask.bool(), gt2.masked_select(nmask.bool()))
 
         if adjust > 0:
             optimizer2 = torch.optim.AdamW(self.parameters(), lr=1e-5)
@@ -115,6 +118,33 @@ class GPT2TopDLGAttacker(DLGAttacker):
 
     def forward(self, x, **kwargs):
         for block in self.decoder:
+            x = block(x)[0]
+        x = self.ln(x)
+        return self.head(x)
+
+
+class LLAMA2TopDLGAttacker(DLGAttacker):
+
+    def __init__(self, fl_config: FLConfig, model: LLAMA2SplitLMHeadModel):
+        super().__init__(fl_config, model)
+        num_blocks = model.config.num_hidden_layers - fl_config.split_point_2
+        model.config_sfl(fl_config, None)
+        self.layers = deepcopy(model.model.layers[-num_blocks:])
+        self.ln = deepcopy(model.model.norm)  # LlamaRMSNorm(model.config.hidden_size, eps=model.config.rms_norm_eps)
+        self.head = deepcopy(model.lm_head)
+        # copy the parameters
+        # for (nm1, param1), (nm2, param2) in zip(model.get_top_params(trainable_only=False), self.named_parameters()):
+        #     param2.data = deepcopy(param1.data).float()
+
+        # if model.dtype == float16:
+        #     self.layers.half()
+        #     self.ln.half()
+        #     self.head.half()
+
+    def forward(self, x, **kwargs):
+        # if x.dtype == float16:
+        #     x = x.float()
+        for block in self.layers:
             x = block(x)[0]
         x = self.ln(x)
         return self.head(x)

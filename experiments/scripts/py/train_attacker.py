@@ -9,7 +9,6 @@ from tqdm import tqdm
 
 sys.path.append(os.path.abspath('../../..'))
 
-
 from sfl import config
 from sfl.config import FLConfig, DRAttackerConfig
 from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
@@ -89,8 +88,6 @@ def train_attacker(args):
                                                      shrink_frac=args.dataset_train_frac)
         dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=args.dataset_test_label,
                                                           shrink_frac=args.dataset_test_frac)
-    device = get_best_gpu()
-    model.to(device)
     model.config_sfl(FLConfig(collect_intermediates=False,
                               split_point_1=args.split_point_1,
                               split_point_2=args.split_point_2,
@@ -105,7 +102,7 @@ def train_attacker(args):
 
     def get_output(text, encoder_model, attack_model):
         t = tokenizer(text, return_tensors="pt")
-        inter = encoder_model(t['input_ids'].to(device), attention_mask=t['attention_mask'].to(device))
+        inter = encoder_model(t['input_ids'].to(model.device), attention_mask=t['attention_mask'].to(model.device))
         res = attack_model(inter)
         r = tokenizer.decode(res.argmax(dim=-1)[-1], skip_special_tokens=True)
         return r
@@ -128,8 +125,12 @@ def train_attacker(args):
         print('Model exists, skipping...')
         return
 
+    if 'llama2' not in args.model_name:
+        device = get_best_gpu()
+        model.to(device)
+
     optimizer = Adam(attack_model.parameters(), lr=args.lr)
-    attack_model.to(device)
+    attack_model.to(model.device)
 
     epoch = args.epochs
     if args.log_to_wandb:
@@ -146,14 +147,14 @@ def train_attacker(args):
             for step, batch in enumerate(dataloader):
                 optimizer.zero_grad()
                 if model.type == 'encoder-decoder':
-                    input_args = get_t5_input(batch, tokenizer, device)
+                    input_args = get_t5_input(batch, tokenizer, model.device)
                     enc_hidden, dec_hidden = model(**input_args)
                     intermediate = torch.concat([enc_hidden, dec_hidden], dim=1)
                     input_ids = torch.concat([input_args['input_ids'], input_args['decoder_input_ids']], dim=1).to(
-                        device)
+                        model.device)
                 else:
-                    input_ids = batch['input_ids'].to(device)
-                    attention_mask = batch['input_att_mask'].to(device)
+                    input_ids = batch['input_ids'].to(model.device)
+                    attention_mask = batch['input_att_mask'].to(model.device)
                     intermediate = model(input_ids=input_ids, attention_mask=attention_mask)
 
                 logits = attack_model(intermediate)

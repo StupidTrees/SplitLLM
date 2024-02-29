@@ -1,11 +1,11 @@
 seeds=(42)
 
-datasets=('piqa')
+datasets=('wikitext')
 models=('gru')
 attack_mode=('b2tr')
-sp1s=(2 3 4 5 6 7 8 9 10)
+sp1s=(2 4 6 8 10 12 14 16 18 20 22 24 26 28 30)
 sp2=999
-model_name='flan-t5-base'
+model_name='llama2'
 train_label='validation'
 test_label='test'
 log_to_wandb=True
@@ -19,8 +19,9 @@ for seed in "${seeds[@]}"; do
         for sp1 in "${sp1s[@]}"; do
 
           save_checkpoint=False
-          if [ $sp1 -eq 3 ] || [ $sp1 -eq 4 ]; then
-            save_checkpoint=True
+
+          if [ "$sp1" -eq 3 ] || [ "$sp1" -eq 4 ] || [ "$model_name" = 'llama2' ]; then
+            save_checkpoint=true
           fi
 
           echo "Running train_attacker.py with seed=$seed, dataset=$dataset, model=$model, mode=$mode"

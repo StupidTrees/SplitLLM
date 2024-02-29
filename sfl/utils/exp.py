@@ -1,15 +1,17 @@
 import argparse
 import os
 
-from transformers import AutoTokenizer
+import torch
+from transformers import AutoTokenizer, BitsAndBytesConfig
 
 import sfl
 from sfl.config import FLConfig, attacker_path, DRAConfig
-from sfl.model.attacker.dlg_attacker import GPT2TopDLGAttacker, T5DecoderDLGAttacker
+from sfl.model.attacker.dlg_attacker import GPT2TopDLGAttacker, T5DecoderDLGAttacker, LLAMA2TopDLGAttacker
 from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
     TransformerEncoderDRAttacker
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel, GPT2SplitClassificationModel
+from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
 from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificationSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
@@ -34,7 +36,6 @@ def add_sfl_params(parser):
     parser.add_argument('--pre_ft_dataset', type=str, default='')
     parser.add_argument('--pre_ft_data_label', type=str, default='train')
     parser.add_argument('--pre_ft_data_shrink_frac', type=float, default=0.2)
-
     parser.add_argument('--dataset', type=str, default='wikitext')
     parser.add_argument('--dataset_label', type=str, default='train')
     parser.add_argument('--data_shrink_frac', type=float, default=0.15, help='shrink dataset to this fraction')
@@ -70,20 +71,22 @@ def add_sfl_params(parser):
     parser.add_argument('--global_round', type=int, default=4)
     parser.add_argument('--client_from_scratch', type=str2bool, default=False)
     parser.add_argument('--dlg_enable', type=str2bool, default=True)
-    parser.add_argument('--dlg_epochs', type=int, default=300)
+    parser.add_argument('--dlg_epochs', type=int, default=30)
     parser.add_argument('--dlg_adjust', type=int, default=0)
-    parser.add_argument('--dlg_beta', type=float, default=0.8)
-    parser.add_argument('--dlg_init_with_dra', type=str2bool, default=False,
+    parser.add_argument('--dlg_beta', type=float, default=0.9)
+    parser.add_argument('--dlg_init_with_dra', type=str2bool, default=True,
                         help='initialize GT vector with DRA attacker')
     parser.add_argument('--dlg_dra_reg', type=float, default=0.0,
                         help='Add regularization term to make GT closer to DRA result')
-    parser.add_argument('--dlg_temp_range', type=float, default=0.5)
+    parser.add_argument('--dlg_temp_range', type=float, default=0.0)
+    parser.add_argument('--dlg_further_ft', type=int, default=0)
     parser.add_argument('--self_pt_enable', type=str2bool, default=False)
     parser.add_argument('--client_steps', type=int, default=50)
     parser.add_argument('--client_epoch', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--lr', type=float, default=1e-5)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--log_to_wandb', type=str2bool, default=True)
 
 
 def get_fl_config(args) -> FLConfig:
@@ -101,7 +104,8 @@ def get_fl_config(args) -> FLConfig:
                       noise_scale=args.noise_scale,  # 噪声大小
                       collect_intermediates=True,
                       collect_all_layers=args.collect_all_layers,
-                      dataset_type=args.dataset_label
+                      dataset_type=args.dataset_label,
+                      batch_size=args.batch_size
                       )
     return config
 
@@ -118,7 +122,7 @@ def get_dra_config(args) -> DRAConfig:
     res.b2tr_enable = args.attacker_b2tr_enable
     res.tr2t_sp = args.attacker_tr2t_sp
     res.tr2t_enable = args.attacker_tr2t_enable
-    res.target_dataset = args.datset
+    res.target_dataset = args.dataset
     res.target_model_name = args.model_name
     res.target_sps = args.split_points
     return res
@@ -134,6 +138,8 @@ def get_model_path(model_name):
         path = os.path.join(sfl.config.model_download_dir, f"FacebookAI/{model_name}/")
     elif model_name.startswith('flan-t5'):
         path = os.path.join(sfl.config.model_download_dir, f"google/{model_name}")
+    elif model_name.startswith('llama2'):
+        path = os.path.join(sfl.config.model_download_dir, f"daryl149/llama-2-7b-chat-hf")
     return path
 
 
@@ -141,9 +147,8 @@ def get_tokenizer(model_name='gpt2'):
     return AutoTokenizer.from_pretrained(get_model_path(model_name))
 
 
-def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None):
+def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, **kwargs):
     clz = GPT2SplitLMHeadModel
-    kwargs = {}
     if model_name.startswith('gpt2'):
         if task == 'lm':
             clz = GPT2SplitLMHeadModel
@@ -155,6 +160,20 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None):
         clz = RobertaForSequenceClassificationSplitModel
     elif 't5' in model_name:
         clz = T5ForConditionalGenerationSplitModel
+    elif 'llama2' in model_name:
+        bnb_config = BitsAndBytesConfig(
+            load_in_8bit=True,
+            # load_in_4bit=True,  # load the model into memory using 4-bit precision
+            bnb_4bit_use_double_quant=True,  # use double quantition
+            bnb_4bit_quant_type="nf4",  # use NormalFloat quantition
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_8bit_use_double_quant=True,  # use double quantition
+            bnb_8bit_quant_type="nf8",  # use NormalFloat quantition
+            bnb_8bit_compute_dtype=torch.bfloat16  # use hf for computing when we need
+
+        )
+        kwargs['quantization_config'] = bnb_config
+        clz = LLAMA2SplitLMHeadModel
 
     if task == 'clsf':
         kwargs['num_labels'] = num_labels
@@ -167,9 +186,9 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None):
     return model
 
 
-def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2):
+def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, **kwargs):
     tokenizer = get_tokenizer(model_name)
-    model = get_model(model_name, task, num_labels, tokenizer)
+    model = get_model(model_name, task, num_labels, tokenizer, **kwargs)
 
     return model, tokenizer
 
@@ -248,9 +267,12 @@ def get_dlg_attacker(llm: SplitWrapperModel):
     mocker = None
     assert llm.fl_config is not None
     # !需要在LoRA加上去之前进行复制
-    if llm.type == 'decoder-only':
+    if isinstance(llm, GPT2SplitLMHeadModel):
         mocker = GPT2TopDLGAttacker(llm.fl_config, llm)
-    elif llm.type == 'encoder-decoder':
+    elif isinstance(llm, LLAMA2SplitLMHeadModel):
+        mocker = LLAMA2TopDLGAttacker(llm.fl_config, llm)
+        # print(llm.config)
+    elif isinstance(llm, T5ForConditionalGenerationSplitModel):
         mocker = T5DecoderDLGAttacker(llm.fl_config, llm)
-    return mocker
 
+    return mocker

@@ -47,7 +47,8 @@ class SFLSimulator(object):
 
         if not self.llm.adapter_added:
             self.llm = self.llm.convert_to_lora_model()
-        # store pretrained parameters
+            self.strategy.llm = llm
+            # store pretrained parameters
         if additional_param_keys is None:
             additional_param_keys = ['mirror']
         for key in ['pretrained'] + additional_param_keys:
@@ -71,7 +72,8 @@ class SFLSimulator(object):
                 param.data += torch.randn_like(param.data) * scale * 0.02
 
     def pre_ft(self, data_loader, parts=None):
-        self.llm.to(self.device)
+        if not hasattr(self.llm.config, 'quantization_config'):
+            self.llm.to(self.device)
         self.llm.train()
         if parts is None:
             parts = ['top', 'bottom']
@@ -112,7 +114,8 @@ class SFLSimulator(object):
         self.llm.fl_config.collect_intermediates = bk_ci
 
     def simulate(self):
-        self.llm.to(self.device)
+        if not hasattr(self.llm.config, 'quantization_config'):
+            self.llm.to(self.device)
         self.llm.train()
         # initialize server parameters
         self.parameter_keeper.store_server_params('server',

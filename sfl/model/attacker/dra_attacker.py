@@ -144,6 +144,8 @@ class GRUDRAttacker(DRAttacker):
         self.mlp = nn.Linear(hidden_size, self.config.vocab_size)
 
     def forward(self, x):
+        if x.dtype == torch.float16:
+            x = x.float()
         # x[batch_size, seq_len, n_embed]
         # output [batch_size,seq_len, vocab_size]
         hidden, _ = self.gru(x)  # hidden [batch_size, seq_len, n_embed]
