@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath('../../..'))
 
 from sfl.simulator.strategy import BaseSFLStrategy
 
-from sfl.utils.model import calculate_rouge, Intermediate, set_random_seed, get_output
+from sfl.utils.model import Intermediate, set_random_seed, get_output, evaluate_attacker_rouge
 from sfl.simulator.simulator import SFLSimulator
 from sfl.utils.exp import *
 
@@ -32,9 +32,9 @@ class QAFLStrategy(BaseSFLStrategy):
                         self.simulator.device), inter.fx.to(atk.device)], dim=1))
                 else:
                     attacked = atk(inter.fx.to(atk.device))
-                rouge_res = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
-                self.log_to_sample_result(client_id, f'attacker_{type}', rouge_res['rouge-l']['f'])
-                self.log_to_all_result(client_id, f'attacker_{type}', rouge_res['rouge-l']['f'])
+                rouge_res = evaluate_attacker_rouge(self.tokenizer, attacked, batch)
+                self.log_to_sample_result(client_id, f'DRA_{type}_rgLf', rouge_res['rouge-l']['f'])
+                self.log_to_all_result(client_id, f'DRA_{type}_rgLf', rouge_res['rouge-l']['f'])
                 logs[f'attacker_{type}_step'] = rouge_res['rouge-l']['f']
         gt_init = None
         if self.args.dlg_init_with_dra:
@@ -51,14 +51,28 @@ class QAFLStrategy(BaseSFLStrategy):
                           encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
                               self.simulator.device)
                           )
+        dlg_logits = gt
         if self.llm.type == 'encoder-decoder':
-            # replace the latter half of attacked to gt
-            attacked[:, -gt.shape[1]:, :] = gt
-            rouge = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
-        else:
-            rouge = calculate_rouge(self.tokenizer, gt, batch['input_text'])
-        self.log_to_sample_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
-        self.log_to_all_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
+            dlg_logits = attacked.clone()
+            dlg_logits[:, -gt.shape[1]:, :] = gt
+        dlg_rouge = evaluate_attacker_rouge(self.tokenizer, dlg_logits, batch)
+        self.log_to_sample_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
+        self.log_to_all_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
+        if args.dlg_raw_enable:  # 进行不初始化的dlg以作为对比
+            gt2 = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
+                               epochs=self.args.dlg_epochs * 8,  # 轮次要拉大一点
+                               beta=self.args.dlg_beta,
+                               gt_init=None,
+                               encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
+                                   self.simulator.device)
+                               )
+            dlg2_logits = gt2
+            if self.llm.type == 'encoder-decoder':
+                dlg2_logits = attacked.clone()
+                dlg2_logits[:, -gt2.shape[1]:, :] = gt2
+            dlg2_rouge = evaluate_attacker_rouge(self.tokenizer, dlg2_logits, batch)
+            self.log_to_sample_result(client_id, 'DLG_raw_rgLf', dlg2_rouge['rouge-l']['f'])
+            self.log_to_all_result(client_id, 'DLG_raw_rgLf', dlg2_rouge['rouge-l']['f'])
 
 
 def sfl_with_attacker(args):
@@ -78,10 +92,10 @@ def sfl_with_attacker(args):
     attacker, attacker2 = get_dra_attacker(get_dra_config(args))
 
     # 加载数据集
-    dataset_cls = get_dataset_class(args.dataset)
-    fed_dataset = dataset_cls(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
-    test_dataset = dataset_cls(tokenizer=tokenizer, client_ids=[])
-    test_loader = test_dataset.get_dataloader_unsliced(args.batch_size, 'test', shrink_frac=args.test_data_shrink_frac)
+    fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
+    test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[])
+    test_loader = test_dataset.get_dataloader_unsliced(args.batch_size, args.test_data_label,
+                                                       shrink_frac=args.test_data_shrink_frac)
     simulator = SFLSimulator(client_ids=client_ids,
                              strategy=QAFLStrategy(args, model, tokenizer, test_loader, attacker, attacker2, tag),
                              llm=model,
@@ -89,13 +103,22 @@ def sfl_with_attacker(args):
                              dataset=fed_dataset, config=config, args=args)
     # 加载Pre-FT数据集
     if args.pre_ft_dataset is not None and len(args.pre_ft_dataset) > 0:
-        pre_ft_dataset = get_dataset_class(args.pre_ft_dataset)(tokenizer=tokenizer, client_ids=[])
+        pre_ft_dataset = get_dataset(args.pre_ft_dataset, tokenizer=tokenizer, client_ids=[])
         pre_ft_loader = pre_ft_dataset.get_dataloader_unsliced(args.batch_size, args.pre_ft_data_label,
                                                                shrink_frac=args.pre_ft_data_shrink_frac)
         simulator.pre_ft(pre_ft_loader, ['bottom', 'top'])
+
+    noise_name = args.noise_mode
+    if args.noise_mode == 'grad':
+        noise_name += f'[{args.noise_scale_grad}]'
+    elif args.noise_mode == 'dxp':
+        noise_name += f'[{args.noise_scale_dxp}]'
+    elif args.noise_mode == 'both':
+        noise_name += f'[{args.noise_scale_dxp},{args.noise_scale_grad}]'
+
     wandb.init(
         project=args.exp_name,
-        name=f"C-Dxp{args.noise_scale}-{args.dlg_epochs}-adjust{args.dlg_adjust}-beta{args.dlg_beta}-temp{args.dlg_temp_range}-ft{args.dlg_further_ft}",
+        name=args.case_name,
         config=args
     )
     model.train()
@@ -106,6 +129,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     add_sfl_params(parser)
     args = parser.parse_args()
-    print(args)
     set_random_seed(args.seed)
     sfl_with_attacker(args)

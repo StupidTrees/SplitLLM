@@ -60,7 +60,7 @@ for dataset in "${datasets[@]}"; do
       --global_round "$global_round" \
       --seed "$seed" \
       --dataset "$dataset" \
-      --noise_scale "$noise_scale" \
+      --noise_scale_dxp "$noise_scale" \
       --exp_name "$exp_name" \
       --attacker_b2tr_sp "$attacker_sp" \
       --attacker_tr2t_sp "$attacker_sp" \

@@ -7,7 +7,8 @@ import wandb
 sys.path.append(os.path.abspath('../../..'))
 
 from sfl.simulator.simulator import SFLSimulator
-from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, get_dlg_attacker, get_dataset_class, add_sfl_params
+from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, get_dlg_attacker, add_sfl_params, \
+    get_dataset
 
 from sfl.simulator.strategy import BaseSFLStrategy
 from sfl.utils.model import Intermediate, calculate_rouge, set_random_seed
@@ -39,9 +40,8 @@ def sfl_with_attacker(args):
     dlg = get_dlg_attacker(model)
 
     # 加载数据集
-    dataset_cls = get_dataset_class(args.dataset)
-    fed_dataset = dataset_cls(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
-    test_dataset = dataset_cls(tokenizer=tokenizer, client_ids=[])
+    fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
+    test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[])
     test_loader = test_dataset.get_dataloader_unsliced(1, 'test', shrink_frac=args.test_data_shrink_frac)
     simulator = SFLSimulator(client_ids=client_ids,
                              strategy=QAFLStrategy(args, model, tokenizer, test_loader, None, None, dlg),

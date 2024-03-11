@@ -4,11 +4,10 @@ import os
 import torch
 from transformers import AutoTokenizer, BitsAndBytesConfig
 
-import sfl
-from sfl.config import FLConfig, attacker_path, DRAConfig
+from sfl.config import FLConfig, attacker_path, DRAConfig, model_download_dir, DRA_train_label
 from sfl.model.attacker.dlg_attacker import GPT2TopDLGAttacker, T5DecoderDLGAttacker, LLAMA2TopDLGAttacker
 from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
-    TransformerEncoderDRAttacker
+    TransformerEncoderDRAttacker, MOEDRAttacker
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel, GPT2SplitClassificationModel
 from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
@@ -16,7 +15,7 @@ from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificati
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
 from sfl.simulator.dataset import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
-    GSM8KFedDataset, WikiTextFedDataset
+    GSM8KFedDataset, WikiTextFedDataset, SanitizedFedDataset, FedDataset, MixtureFedDataset
 
 
 def str2bool(v):
@@ -32,6 +31,7 @@ def str2bool(v):
 
 def add_sfl_params(parser):
     parser.add_argument('--exp_name', type=str, default='compare_tag')
+    parser.add_argument('--case_name', type=str, default='')
     parser.add_argument('--model_name', type=str, default='gpt2-large')
     parser.add_argument('--pre_ft_dataset', type=str, default='')
     parser.add_argument('--pre_ft_data_label', type=str, default='train')
@@ -50,9 +50,9 @@ def add_sfl_params(parser):
     parser.add_argument('--lora_at_top', type=str2bool, default=False, help='use LoRA at top part')
     parser.add_argument('--noise_mode', type=str, default='none')
     parser.add_argument('--task_type', type=str, default='lm')
-    parser.add_argument('--noise_scale', type=float, default=0.0)
+    parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
+    parser.add_argument('--noise_scale_grad', type=float, default=0.0)
     parser.add_argument('--attacker_model', type=str, default='gru', help='lstm, gru, linear')
-    parser.add_argument('--attacker_train_label', type=str, default='validation')
     parser.add_argument('--attacker_train_frac', type=float, default=1.0)
     parser.add_argument('--attacker_prefix', type=str, default='normal')
     parser.add_argument('--attacker_search', type=str2bool, default=False)
@@ -71,6 +71,7 @@ def add_sfl_params(parser):
     parser.add_argument('--global_round', type=int, default=4)
     parser.add_argument('--client_from_scratch', type=str2bool, default=False)
     parser.add_argument('--dlg_enable', type=str2bool, default=True)
+    parser.add_argument('--dlg_raw_enable', type=str2bool, default=False)
     parser.add_argument('--dlg_epochs', type=int, default=30)
     parser.add_argument('--dlg_adjust', type=int, default=0)
     parser.add_argument('--dlg_beta', type=float, default=0.9)
@@ -101,7 +102,8 @@ def get_fl_config(args) -> FLConfig:
                       use_lora_at_bottom=args.lora_at_bottom,
                       top_and_bottom_from_scratch=args.client_from_scratch,  # top和bottom都不采用预训练参数.
                       noise_mode=args.noise_mode,
-                      noise_scale=args.noise_scale,  # 噪声大小
+                      noise_scale_dxp=args.noise_scale_dxp,  # 噪声大小
+                      noise_scale_grad=args.noise_scale_grad,
                       collect_intermediates=True,
                       collect_all_layers=args.collect_all_layers,
                       dataset_type=args.dataset_label,
@@ -114,7 +116,10 @@ def get_dra_config(args) -> DRAConfig:
     res = DRAConfig()
     res.path = args.attacker_path
     res.model = args.attacker_model
-    res.train_label = args.attacker_train_label
+    if ',' in args.attacker_dataset:
+        res.train_label = DRA_train_label[args.attacker_dataset.split(',')[0]]
+    else:
+        res.train_label = DRA_train_label[args.attacker_dataset]
     res.train_frac = args.attacker_train_frac
     res.prefix = args.attacker_prefix
     res.dataset = args.attacker_dataset
@@ -131,15 +136,15 @@ def get_dra_config(args) -> DRAConfig:
 def get_model_path(model_name):
     path = ''
     if model_name.startswith('gpt2'):
-        path = os.path.join(sfl.config.model_download_dir, model_name)
+        path = os.path.join(model_download_dir, model_name)
     elif model_name == 'bert':
-        path = os.path.join(sfl.config.model_download_dir, "google-bert/bert-base-uncased/")
+        path = os.path.join(model_download_dir, "google-bert/bert-base-uncased/")
     elif model_name.startswith('roberta'):
-        path = os.path.join(sfl.config.model_download_dir, f"FacebookAI/{model_name}/")
+        path = os.path.join(model_download_dir, f"FacebookAI/{model_name}/")
     elif model_name.startswith('flan-t5'):
-        path = os.path.join(sfl.config.model_download_dir, f"google/{model_name}")
+        path = os.path.join(model_download_dir, f"google/{model_name}")
     elif model_name.startswith('llama2'):
-        path = os.path.join(sfl.config.model_download_dir, f"daryl149/llama-2-7b-chat-hf")
+        path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
     return path
 
 
@@ -147,7 +152,7 @@ def get_tokenizer(model_name='gpt2'):
     return AutoTokenizer.from_pretrained(get_model_path(model_name))
 
 
-def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, **kwargs):
+def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_bits=8, **kwargs):
     clz = GPT2SplitLMHeadModel
     if model_name.startswith('gpt2'):
         if task == 'lm':
@@ -161,18 +166,19 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, **kwar
     elif 't5' in model_name:
         clz = T5ForConditionalGenerationSplitModel
     elif 'llama2' in model_name:
-        bnb_config = BitsAndBytesConfig(
-            load_in_8bit=True,
-            # load_in_4bit=True,  # load the model into memory using 4-bit precision
-            bnb_4bit_use_double_quant=True,  # use double quantition
-            bnb_4bit_quant_type="nf4",  # use NormalFloat quantition
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_8bit_use_double_quant=True,  # use double quantition
-            bnb_8bit_quant_type="nf8",  # use NormalFloat quantition
-            bnb_8bit_compute_dtype=torch.bfloat16  # use hf for computing when we need
+        if load_bits <= 8:
+            bnb_config = BitsAndBytesConfig(
+                load_in_8bit=load_bits == 8,  # load the model into memory using 8-bit precision
+                load_in_4bit=load_bits == 4,  # load the model into memory using 4-bit precision
+                bnb_4bit_use_double_quant=True,  # use double quantition
+                bnb_4bit_quant_type="nf4",  # use NormalFloat quantition
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_8bit_use_double_quant=True,  # use double quantition
+                bnb_8bit_quant_type="nf8",  # use NormalFloat quantition
+                bnb_8bit_compute_dtype=torch.bfloat16  # use hf for computing when we need
+            )
+            kwargs['quantization_config'] = bnb_config
 
-        )
-        kwargs['quantization_config'] = bnb_config
         clz = LLAMA2SplitLMHeadModel
 
     if task == 'clsf':
@@ -193,6 +199,17 @@ def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, **kwargs
     return model, tokenizer
 
 
+def get_dataset(dataset_name, tokenizer, client_ids=None, shrink_frac=1.0) -> FedDataset:
+    if client_ids is None:
+        client_ids = []
+    if ',' in dataset_name:
+        dataset_names = dataset_name.split(',')
+        dataset_classes = [get_dataset_class(dn) for dn in dataset_names]
+        return MixtureFedDataset(tokenizer, client_ids, shrink_frac, dataset_names, dataset_classes)
+    else:
+        return get_dataset_class(dataset_name)(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=shrink_frac)
+
+
 def get_dataset_class(dataset_name):
     if dataset_name == 'piqa':
         dataset_cls = PIQAFedDataset
@@ -206,6 +223,8 @@ def get_dataset_class(dataset_name):
         dataset_cls = DialogSumFedDataset
     elif dataset_name == 'imdb':
         dataset_cls = IMDBFedDataset
+    elif dataset_name == 'sanitized':
+        dataset_cls = SanitizedFedDataset
     else:
         raise AttributeError
     return dataset_cls
@@ -221,6 +240,8 @@ def get_attacker_class(attack_model):
         attacker_cls = LinearDRAttacker
     elif attack_model == 'trans-enc':
         attacker_cls = TransformerEncoderDRAttacker
+    elif attack_model == 'moe' or attack_model=='moe2':
+        attacker_cls = MOEDRAttacker
     return attacker_cls
 
 
@@ -228,10 +249,21 @@ def get_dra_attacker(dra_config: DRAConfig):
     dataset = dra_config.dataset
     if dataset is None:
         dataset = dra_config.target_dataset
-    attacker_path = dra_config.path + f'{dra_config.target_model_name}/{dataset}/'
+
+    prefix = dra_config.prefix
+    if 'moe' in dra_config.model:
+        prefix = ''
+
+    model_name = dra_config.target_model_name
+    if model_name == 'llama2':
+        model_name += f"-{dra_config.target_model_load_bits}bits"
+    attacker_path = dra_config.path + f'{model_name}/{dataset}/'
     match = False
     for d in os.listdir(attacker_path):
-        if d.startswith(f'{dra_config.train_label}*{dra_config.train_frac:.3f}'):
+        pattern = f'{dra_config.train_label}*{dra_config.train_frac:.3f}'
+        if ',' in dra_config.dataset:
+            pattern = f'Tr{dra_config.train_frac:.3f}'
+        if d.startswith(pattern):
             attacker_path = os.path.join(attacker_path, d) + '/'
             match = True
             break
@@ -242,7 +274,7 @@ def get_dra_attacker(dra_config: DRAConfig):
         sp1 = int(dra_config.target_sps.split('-')[0])
         if dra_config.b2tr_sp >= 0:
             sp1 = dra_config.b2tr_sp
-        attacker_path_1 = attacker_path + f'/b2tr-{sp1}/' + dra_config.prefix
+        attacker_path_1 = attacker_path + f'/b2tr-{sp1}/' + prefix
         l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[-1]
         attacker_path_1 = os.path.join(attacker_path_1, l)
     attacker_path_2 = None
@@ -250,7 +282,7 @@ def get_dra_attacker(dra_config: DRAConfig):
         sp2 = int(dra_config.target_sps.split('-')[1])
         if dra_config.tr2t_sp >= 0:
             sp2 = dra_config.tr2t_sp
-        attacker_path_2 = attacker_path + f'/tr2t-{sp2}/' + dra_config.prefix
+        attacker_path_2 = attacker_path + f'/tr2t-{sp2}/' + prefix
         if not os.path.exists(attacker_path_2):
             attacker_path_2 = attacker_path_2.replace('tr2t', 'b2tr')
         l = sorted(list(os.listdir(attacker_path_2)), key=lambda x: float(x.split('_')[-1]))[-1]

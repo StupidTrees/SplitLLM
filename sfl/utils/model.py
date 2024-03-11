@@ -17,6 +17,21 @@ class Intermediate:
     type: str = 'normal'
 
 
+def evaluate_attacker_rouge(tok, attacker_logits, batch):
+    if 'input_santi_mask' in batch:  # 只评估敏感词
+        mask = batch['input_santi_mask']
+        zero_indexes = torch.where(mask == 0)
+        masked_atk_ids = attacker_logits.argmax(dim=-1)
+        masked_atk_ids[zero_indexes] = tok.eos_token_id
+        masked_gt_ids = batch['input_ids'].clone()
+        masked_gt_ids[zero_indexes] = tok.eos_token_id
+        atk_txts = [tok.decode(s, skip_special_tokens=True) for s in masked_atk_ids]
+        gt_txts = [tok.decode(s, skip_special_tokens=True) for s in masked_gt_ids]
+        return calculate_rouge_text(atk_txts, gt_txts)
+    else:
+        return calculate_rouge(tok, attacker_logits, batch['input_text'])
+
+
 def calculate_rouge(tok, logits, labels, print_comparison=False, is_tokens=False):
     my_rouge = Rouge()
     if not is_tokens:
@@ -30,8 +45,11 @@ def calculate_rouge(tok, logits, labels, print_comparison=False, is_tokens=False
         for h, r in zip(hyps, refs):
             print(f'{r}==>{h}')
     try:
+        hyps = list('<EMP>' if len(h) == 0 else h for h in hyps)
         result = my_rouge.get_scores(hyps, refs, avg=True, ignore_empty=True)  # 取一个 batch 的平均
-    except:
+    except Exception as e:
+        # print(f'rouge error {e}')
+        # print(hyps, refs)
         result = {'rouge-1': {'f': 0.0, 'p': 0.0, 'r': 0.0},
                   'rouge-2': {'f': 0.0, 'p': 0.0, 'r': 0.0},
                   'rouge-l': {'f': 0.0, 'p': 0.0, 'r': 0.0}}
@@ -46,8 +64,11 @@ def calculate_rouge_text(texts, labels, print_comparison=False):
         for h, r in zip(hyps, refs):
             print(f'{r}==>{h}')
     try:
+        hyps = list('<EMP>' if len(h) == 0 else h for h in hyps)
         result = my_rouge.get_scores(hyps, refs, avg=True, ignore_empty=True)  # 取一个 batch 的平均
-    except:
+    except Exception as e:
+        print(f'rouge error {e}')
+        print(hyps, refs)
         result = {'rouge-1': {'f': 0.0, 'p': 0.0, 'r': 0.0},
                   'rouge-2': {'f': 0.0, 'p': 0.0, 'r': 0.0},
                   'rouge-l': {'f': 0.0, 'p': 0.0, 'r': 0.0}}

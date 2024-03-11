@@ -20,7 +20,10 @@ class GPT2SplitModel(GPT2Model, SplitModel):
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
         super(GPT2SplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.perturber = DxPrivacy(self.wte, self.config.vocab_size, self.fl_config.noise_scale)
+        self.perturber = DxPrivacy(self.wte, self.config.vocab_size, self.fl_config.noise_scale_dxp)
+
+    def change_noise_scale(self, noise_scale):
+        self.perturber.epsilon = noise_scale
 
     def forward(
             self,

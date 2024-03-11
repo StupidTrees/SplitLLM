@@ -35,7 +35,7 @@ for seed in "${seeds[@]}"; do
                   --global_round "$global_round" \
                   --seed "$seed" \
                   --dataset "$dataset" \
-                  --noise_scale "$noise" \
+                  --noise_scale_dxp "$noise" \
                   --exp_name "$exp_name" \
                   --split_points "$sps" \
                   --client_from_scratch "$cfs" \

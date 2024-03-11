@@ -1,10 +1,13 @@
+import ast
 from abc import ABC, abstractmethod
 
+import pandas as pd
 import torch
-from datasets import load_dataset, disable_progress_bar
+from datasets import load_dataset, disable_progress_bar, Dataset
 from torch.utils.data import DataLoader
 
 from sfl import config
+from sfl.config import DRA_train_label, DRA_test_label
 from sfl.utils.data import random_slicing
 
 
@@ -64,6 +67,63 @@ class FedDataset(ABC):
     @abstractmethod
     def _format(self, example):
         raise NotImplementedError
+
+
+class CombinedDataLoader:
+    def __init__(self, *dataloaders):
+        self.dataloaders = dataloaders
+
+    def __len__(self):
+        return sum(len(dataloader) for dataloader in self.dataloaders)
+
+    def __iter__(self):
+        # 创建迭代器列表
+        iterators = [iter(dataloader) for dataloader in self.dataloaders]
+
+        while iterators:
+            # 随机选择一个DataLoader
+            idx = torch.randint(len(iterators), (1,)).item()
+            try:
+                # 获取数据
+                data = next(iterators[idx])
+                data['type'] = idx
+                yield data
+            except StopIteration:
+                # 如果这个DataLoader已经没有数据了，就从列表中移除
+                del iterators[idx]
+
+
+
+class MixtureFedDataset(FedDataset):
+
+    def _format(self, example):
+        pass
+
+    def __init__(self, tokenizer, client_ids, shrink_frac=1.0, dataset_names=None, dataset_classes=None):
+        super().__init__(tokenizer, client_ids, None, [], shrink_frac)
+        if dataset_names is None:
+            dataset_names = []
+            dataset_classes = []
+        self.fed_datasets = []
+        self.dataset_names = dataset_names
+        for cls in dataset_classes:
+            self.fed_datasets.append(cls(tokenizer, client_ids, shrink_frac))
+
+    def get_dataloader(self, client_id, batch_size=1, type='train'):
+        return CombinedDataLoader(*[ds.get_dataloader(client_id, batch_size, type) for ds in self.fed_datasets])
+
+    def get_dataloader_unsliced(self, batch_size=2, type=None, shrink_frac=1.0, further_test_split=None):
+        train_loaders = []
+        test_loaders = []
+        for nm, ds in zip(self.dataset_names, self.fed_datasets):
+            if DRA_train_label[nm] == DRA_test_label[nm]:
+                d1, d2 = ds.get_dataloader_unsliced(batch_size,DRA_train_label[nm], shrink_frac, further_test_split=0.3)
+            else:
+                d1 = ds.get_dataloader_unsliced(batch_size,DRA_train_label[nm], shrink_frac=shrink_frac)
+                d2 = ds.get_dataloader_unsliced(batch_size,DRA_test_label[nm], shrink_frac=shrink_frac)
+            train_loaders.append(d1)
+            test_loaders.append(d2)
+        return CombinedDataLoader(*train_loaders), CombinedDataLoader(*test_loaders)
 
 
 class PIQAFedDataset(FedDataset):
@@ -130,7 +190,7 @@ class DialogSumFedDataset(FedDataset):
 
     def _col_fun(self, batch):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, max_length=512,
+        input = self.tokenizer(texts, padding=True, truncation=True, max_length=300,
                                return_tensors='pt')
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
@@ -152,7 +212,7 @@ class CodeAlpacaFedDataset(FedDataset):
 
     def _col_fun(self, batch):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, max_length=512,
+        input = self.tokenizer(texts, padding=True, truncation=True, max_length=400,
                                return_tensors='pt')
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
@@ -235,3 +295,35 @@ class WikiTextFedDataset(FedDataset):
             else:
                 res[k] = ls
         return res
+
+
+class SanitizedFedDataset(FedDataset):
+
+    def _format(self, example):
+        return {'input': example['content'], 'entities': ast.literal_eval(example['entity'])}
+
+    def _col_fun(self, batch):
+        texts = [b['input'] for b in batch]
+        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt', max_length=300)
+        mask = torch.zeros_like(input['input_ids'])
+        for sp, sample in enumerate(batch):
+            seq = input['input_ids'][sp].numpy().tolist()
+            r = self.tokenizer(sample['entities'], add_special_tokens=False)
+            for subseq in r.input_ids:
+                for i in range(len(seq) - len(subseq) + 1):
+                    if seq[i:i + len(subseq)] == subseq:
+                        mask[sp, i:i + len(subseq)] = 1
+
+        return {'input_ids': input['input_ids'],
+                'input_att_mask': input['attention_mask'],
+                'input_text': texts, 'entities': [b['entity'] for b in batch],
+                'input_santi_mask': mask}
+
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
+        self.df = pd.read_csv('/home/project/SFL-LLM/sanitized_data_marked.csv')
+        dataset = {
+            'train': Dataset.from_pandas(self.df[self.df['type'] == 'train']),
+            'val': Dataset.from_pandas(self.df[self.df['type'] == 'val']),
+            'test': Dataset.from_pandas(self.df[self.df['type'] == 'test'])
+        }
+        super().__init__(tokenizer, client_ids, dataset, ['train', 'val', 'test'], shrink_frac)

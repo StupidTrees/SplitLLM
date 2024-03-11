@@ -1,11 +1,10 @@
 from copy import deepcopy
 
 import torch
-from torch import nn, float16
+from torch import nn
 from torch.nn import CrossEntropyLoss
 from torch.nn import ModuleList
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
-from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaDecoderLayer
 from transformers.models.t5.modeling_t5 import T5Block, T5LayerNorm
 
 from sfl.config import FLConfig
@@ -27,8 +26,8 @@ class DLGAttacker(nn.Module):
         self.fl_config = fl_config
         self.model_type = model.type
 
-    def fit(self, inter, gradient, epochs=300, adjust=0, beta=0.5, lr=0.09, gt_init=None, gt_reg=0.0, temp_range=0.0,
-            further_ft=10, **kwargs):
+    def fit(self, inter, gradient, epochs=300, adjust=0, beta=0.85, lr=0.09, gt_init=None, gt_reg=0.0, temp_range=0.0,
+            further_ft=10,  **kwargs):
         batch_size, seq_len = inter.shape[:2]
         vocab_size = self.target_model_config.vocab_size
         dra_attacked = None

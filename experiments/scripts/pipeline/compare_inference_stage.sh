@@ -42,7 +42,7 @@ for seed in "${seeds[@]}"; do
               --seed "$seed" \
               --dataset "$dataset" \
               --dataset_label "$dataset_label" \
-              --noise_scale "$noise" \
+              --noise_scale_dxp "$noise" \
               --exp_name "$exp_name" \
               --split_points "$sp" \
               --dlg_enable "$dlg_enable" \

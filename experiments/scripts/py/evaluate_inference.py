@@ -54,8 +54,8 @@ def sfl_with_attacker(args):
     config.trigger_hook = True
 
     # 加载数据集
-    dataset_cls = get_dataset_class(args.dataset)
-    fed_dataset = dataset_cls(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
+    fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids,
+                              shrink_frac=args.data_shrink_frac)
     device = get_best_gpu()
 
     def hook(hidden):
@@ -67,14 +67,14 @@ def sfl_with_attacker(args):
     model = model.convert_to_lora_model()
     wandb.init(
         project=args.exp_name,
-        name=f"C-Dxp{args.noise_scale}-{args.dataset}.{args.dataset_label}-Pre{args.pre_ft_dataset}.{args.pre_ft_data_label}.{args.pre_ft_data_shrink_frac:.2f}",
+        name=f"C-Dxp{args.noise_scale_dxp}-{args.dataset}.{args.dataset_label}-Pre{args.pre_ft_dataset}.{args.pre_ft_data_label}.{args.pre_ft_data_shrink_frac:.2f}",
         config=args
     )
     attacker.to(device)
     model.to(device)
     # 加载Pre-FT数据集
     if args.pre_ft_dataset is not None and len(args.pre_ft_dataset) > 0:
-        pre_ft_dataset = get_dataset_class(args.pre_ft_dataset)(tokenizer=tokenizer, client_ids=[])
+        pre_ft_dataset = get_dataset(args.pre_ft_dataset, tokenizer=tokenizer)
         pre_ft_loader = pre_ft_dataset.get_dataloader_unsliced(args.batch_size, args.pre_ft_data_label,
                                                                shrink_frac=args.pre_ft_data_shrink_frac)
         pre_ft(model, pre_ft_loader)

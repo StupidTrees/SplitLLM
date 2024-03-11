@@ -27,6 +27,9 @@ class GPT2SplitWrapper(SplitWrapperModel):
         r = regex.findall('\.h\.[0-9]+', param_name)
         return int(r[0].split('.')[-1]) if len(r) > 0 else -1
 
+    def change_noise_scale(self, scale):
+        self.transformer.change_noise_scale(scale)
+
     def get_adapter_module_regex(self):
         if self.fl_config is None:
             return ""

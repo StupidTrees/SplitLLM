@@ -8,11 +8,10 @@ from sfl.utils.model import set_random_seed
 
 sys.path.append(os.path.abspath('../../..'))
 
-
 from sfl.simulator.strategy import BaseSFLStrategy
 from sfl.simulator.simulator import SFLSimulator
-from sfl.utils.exp import get_dataset_class, get_tokenizer, get_model, get_fl_config, \
-    add_sfl_params, get_dra_attacker, get_dra_config
+from sfl.utils.exp import get_tokenizer, get_model, get_fl_config, \
+    add_sfl_params, get_dra_attacker, get_dra_config, get_dataset
 
 
 def sfl_with_attacker(args):
@@ -25,9 +24,9 @@ def sfl_with_attacker(args):
     client_ids = [str(i) for i in range(args.client_num)]
     config = get_fl_config(args)
     # 加载数据集
-    dataset_cls = get_dataset_class(args.dataset)
-    fed_dataset = dataset_cls(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
-    test_dataset = dataset_cls(tokenizer=tokenizer, client_ids=[])
+    fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids,
+                              shrink_frac=args.data_shrink_frac)
+    test_dataset = get_dataset(args.dataset, tokenizer=tokenizer)
     test_loader = test_dataset.get_dataloader_unsliced(1, args.test_data_label, shrink_frac=args.test_data_shrink_frac)
 
     # 加载模型

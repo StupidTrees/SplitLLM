@@ -56,7 +56,7 @@ for sp in "${search_splits[@]}"; do
       --global_round "$global_round" \
       --seed "$seed" \
       --dataset "$dataset" \
-      --noise_scale "$noise_scale" \
+      --noise_scale_dxp "$noise_scale" \
       --exp_name "$exp_name" \
       --attacker_b2tr_sp "$sp" \
       --attacker_tr2t_sp "$sp" \

@@ -1,12 +1,12 @@
 seeds=(42)
 
-datasets=('wikitext')
+datasets=('sanitized')
 models=('gru')
 attack_mode=('b2tr')
-sp1s=(2 4 6 8 10 12 14 16 18 20 22 24 26 28 30)
+sp1s=(6 10 14)
 sp2=999
 model_name='llama2'
-train_label='validation'
+train_label='val'
 test_label='test'
 log_to_wandb=True
 dataset_train_frac=1.0

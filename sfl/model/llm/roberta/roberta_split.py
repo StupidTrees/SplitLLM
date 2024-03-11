@@ -23,7 +23,7 @@ class RobertaSplitModel(RobertaModel, SplitModel):
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks=None):
         super(RobertaSplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.perturber = DxPrivacy(self.embeddings, self.config.vocab_size, self.fl_config.noise_scale)
+        self.perturber = DxPrivacy(self.embeddings, self.config.vocab_size, self.fl_config.noise_scale_dxp)
         self.encoder.config_sfl(config, param_keeper, b2tr_hooks)
 
     def forward(

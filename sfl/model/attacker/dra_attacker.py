@@ -1,4 +1,5 @@
 import dataclasses
+from collections import OrderedDict
 
 import torch
 from torch import nn, Tensor
@@ -97,6 +98,21 @@ class TransformerDRAttackerConfig(DRAttackerConfig):
         self.model_name = 'trans_decoder'
 
 
+@dataclasses.dataclass
+class MOEDRAttackerConfig(DRAttackerConfig):
+    dropout: float = 0.1
+    hidden_size: int = 256
+    expert_scales: list[float] = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.model_name = 'moe'
+        if self.expert_scales is None:
+            self.expert_scales = [0, 10.0, 7.5, 5.0]
+
+
+
+
 class LinearDRAttacker(DRAttacker):
     config_class = DRAttackerConfig
 
@@ -151,6 +167,61 @@ class GRUDRAttacker(DRAttacker):
         hidden, _ = self.gru(x)  # hidden [batch_size, seq_len, n_embed]
         hidden = torch.dropout(hidden, p=self.config.dropout, train=self.training)
         return self.mlp(hidden)
+
+
+class MOEDRAttacker(DRAttacker):
+    config_class = MOEDRAttackerConfig
+
+    def __init__(self, config: MOEDRAttackerConfig, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+        self.experts = ModuleList(
+            [nn.GRU(input_size=self.config.n_embed, hidden_size=self.config.hidden_size, batch_first=True)
+             for _ in config.expert_scales])
+        # self.gating_rnn = nn.GRU(input_size=self.config.n_embed, hidden_size=self.config.hidden_size,
+        #                          batch_first=True)
+        # self.gating_mlp = nn.Linear(self.config.n_embed, self.config.hidden_size//2)
+        self.gating_mlp = nn.Linear(self.config.n_embed, self.config.hidden_size)
+        self.gating_mlp2 = nn.Linear(self.config.hidden_size, len(config.expert_scales))
+        self.gating_attn = nn.MultiheadAttention(self.config.hidden_size, 4, dropout=self.config.dropout)
+        # self.gating_rnn = nn.GRU(
+        #     input_size=self.config.n_embed + len(config.expert_scales) * self.config.hidden_size,
+        #     hidden_size=config.hidden_size//2, batch_first=True)
+
+        self.mlp = nn.Linear(self.config.hidden_size, self.config.vocab_size)
+
+    def train_exp_forward(self, inters: list):
+        assert self.training
+        assert len(inters) == len(self.experts)
+        outputs = []
+        for inter, exp in zip(inters, self.experts):
+            if inter is None:
+                outputs.append(None)
+                continue
+            hidden = torch.dropout(exp(inter)[0], p=self.config.dropout, train=self.training)
+            outputs.append(self.mlp(hidden))
+        return outputs
+
+    def freeze_parts(self, experts=False, freeze=True):
+        if experts:
+            # self.mlp.requires_grad_(not freeze)
+            for expert in self.experts:
+                expert.requires_grad_(not freeze)
+        else:
+            self.gating_attn.requires_grad_(not freeze)
+            self.gating_mlp.requires_grad_(not freeze)
+            self.gating_mlp2.requires_grad_(not freeze)
+
+    def forward(self, x) -> Tensor:
+        if x.dtype == torch.float16:
+            x = x.float()
+        exp_outputs = [torch.dropout(exp(x)[0], p=self.config.dropout, train=self.training) for exp in self.experts]
+        exp_outputs = torch.stack(exp_outputs, dim=1)  # [batch_size, len(experts), seq_len, hidden_size]
+        qkv = self.gating_mlp(x)
+        gating_hidden, _ = self.gating_attn(qkv, qkv, qkv)  # [batch_size, seq_len, hidden_size]
+        gating_hidden = torch.mean(self.gating_mlp2(gating_hidden), dim=1)  # [batch_size, hidden_size]
+        weights = torch.softmax(gating_hidden, dim=-1)  # [batch_size, len(experts)]
+        output = torch.einsum('besh,be->bsh', exp_outputs, weights)  # [batch_size, seq_len, hidden_size]
+        return self.mlp(output)  # [batch_size, seq_len, vocab_size]
 
 
 class TransformerDecoderDRAttacker(DRAttacker):

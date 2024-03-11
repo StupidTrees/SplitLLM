@@ -81,7 +81,7 @@ class BaseSFLStrategy(FLStrategy):
                     config: FLConfig):
         optimizer = AdamW(llm.parameters(), lr=1e-5)
         avg_loss = 0
-        # avg_self_rouge = 0
+        avg_self_rouge = 0
         # avg_self_rouge_pt = 0
         batch_num = 0
         with tqdm(total=config.client_steps) as pbar:
@@ -96,24 +96,39 @@ class BaseSFLStrategy(FLStrategy):
                     if 'labels' in batch and self.task_type == 'clsf':
                         labels = batch['labels'].to(llm.device)
                     outputs = llm(input_ids=input_ids, labels=labels, attention_mask=attention_mask)
+
                 loss = outputs.loss
                 pbar.set_description(
                     f'Client {client_id} Epoch {client_epoch} Step {self.simulator.get_current_step(client_id, step)} Loss {loss.item():.3f}')
-                loss.backward()
+                if self.args.noise_mode in ['grad', 'both']:
+                    loss.backward(retain_graph=True)
+                    b2tr, tr2t, all_inter = llm.get_all_inter(detach=False)
+                    b2tr.fx.grad = None
+                    grad = tr2t.grad.clone()
+                    tr2t.fx.grad = None
+                    for _, p in llm.get_bottom_params():
+                        p.grad = None
+                    for _, p in llm.get_trunk_params():
+                        p.grad = None
+                    noise = torch.randn_like(grad) * ((self.args.noise_scale_grad * 1.0) ** 2)
+                    grad = grad + noise
+                    tr2t.fx.backward(grad)
+                else:
+                    loss.backward()
+
                 batch_num += 1
                 optimizer.step()
                 avg_loss += loss.detach().cpu().item()
-                # avg_self_rouge += \
-                #     calculate_rouge(self.tokenizer, outputs.logits.argmax(dim=-1), batch['input_text'])['rouge-l'][
-                #         'f']
+                avg_self_rouge += \
+                    calculate_rouge(self.tokenizer, outputs.logits.argmax(dim=-1), batch['input_text'])['rouge-l'][
+                        'f']
                 # if self.args.self_pt_enable:
                 #     outputs_pt = self.simulator.restored_forward('top', input_ids=input_ids, labels=input_ids,
                 #                                                  attention_mask=attention_mask)
                 #     avg_self_rouge_pt += \
                 #         calculate_rouge(self.tokenizer, outputs_pt.logits, batch['input_text'])['rouge-l']['f']
                 self.step_done(client_id, step, batch,
-                               {"loss": float(avg_loss / batch_num)})
-                # , "self": float(avg_self_rouge / batch_num),
+                               {"loss": float(avg_loss / batch_num), "self": float(avg_self_rouge / batch_num)})
                 #  "self_pt": float(avg_self_rouge_pt / batch_num)})  # Collect gradients
                 pbar.update(1)
 

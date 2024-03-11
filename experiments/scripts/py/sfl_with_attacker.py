@@ -11,7 +11,7 @@ from sfl.utils.model import set_random_seed
 from sfl.simulator.simulator import SFLSimulator
 from sfl.simulator.strategy import BaseSFLStrategy
 from sfl.utils.exp import get_model_and_tokenizer, get_dra_config, get_dra_attacker, get_fl_config, get_dlg_attacker, \
-    get_dataset_class, add_sfl_params
+    add_sfl_params, get_dataset
 
 
 def sfl_with_attacker(args):
@@ -24,9 +24,8 @@ def sfl_with_attacker(args):
     # 加载TAG攻击模型
     dlg = get_dlg_attacker(args)
     # 加载数据集
-    dataset_cls = get_dataset_class(args.dataset)
-    fed_dataset = dataset_cls(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
-    test_dataset = dataset_cls(tokenizer=tokenizer, client_ids=[])
+    fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
+    test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[])
     test_loader = test_dataset.get_dataloader_unsliced(1, 'test', shrink_frac=args.test_data_shrink_frac)
     simulator = SFLSimulator(client_ids=client_ids,
                              strategy=BaseSFLStrategy(args, model, tokenizer, test_loader, attacker1, attacker2, dlg),

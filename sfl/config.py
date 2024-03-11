@@ -8,6 +8,16 @@ model_download_dir = '/root/autodl-tmp/sfl/models/'
 model_cache_dir = '/root/autodl-tmp/sfl/cache/'
 attacker_path = '/root/autodl-tmp/sfl/models/attacker/'
 
+DRA_train_label = {
+    'codealpaca': 'test',
+    'dialogsum': 'validation',
+    'piqa': 'validation',
+    'gsm8k': 'test',
+    'wikitext': 'validation',
+    'sanitized':'val'
+}
+
+DRA_test_label = {nm:'test' for nm in DRA_train_label.keys()}
 
 @dataclass
 class FLConfig:
@@ -27,7 +37,8 @@ class FLConfig:
     top_and_bottom_from_scratch: str = 'False'  # 设置为True，Client将不采用预训练的Top和Bottom参数
     attack_mode: str | None = None  # 'b2tr' or 'tr2b' or 'self' or None
     noise_mode: str = 'none'
-    noise_scale: float = 0.0
+    noise_scale_dxp: float = 0.0
+    noise_scale_grad: float = 0.0
     dataset_type: str = 'train'
     batch_size: int = 2
 
@@ -58,3 +69,4 @@ class DRAConfig:
     target_model_name: str = None
     target_dataset: str = None
     target_sps: str = None
+    target_model_load_bits: int = 8

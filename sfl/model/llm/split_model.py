@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from copy import deepcopy
 
 import regex
 import torch
@@ -31,6 +32,10 @@ class SplitModel(nn.Module, ABC):
             for hk in b2tr_hooks:
                 self.b2tr_hooks.append(hk)
 
+    @abstractmethod
+    def change_noise_scale(self, noise_scale):
+        raise NotImplementedError
+
     def get_all_inter(self, detach=True):
         res = {}
         bt2tr = None
@@ -52,7 +57,7 @@ class SplitModel(nn.Module, ABC):
         self.intermediate_fx[layer_index] = fx
 
     def inject_after_embedding(self, inputs_embeds):
-        if self.fl_config and self.fl_config.noise_mode == 'dxp':
+        if self.fl_config and self.fl_config.noise_mode in ['dxp', 'both']:
             return self.perturber(inputs_embeds)
         return inputs_embeds
 
@@ -72,7 +77,7 @@ class SplitModel(nn.Module, ABC):
                     min = hidden_states.min()
                     max = hidden_states.max()
                     noise = torch.randn_like(hidden_states)
-                    noise = noise * (max - min) * self.fl_config.noise_scale
+                    noise = noise * (max - min) * self.fl_config.noise_scale_dxp
                     hidden_states = hidden_states + noise
                 hidden_states.retain_grad()
                 self._store_fx(i, hidden_states)
@@ -107,6 +112,10 @@ class SplitWrapperModel(SplitModel, ABC):
 
     @abstractmethod
     def get_all_inter(self, detach=True):
+        raise NotImplementedError
+
+    @abstractmethod
+    def change_noise_scale(self, scale):
         raise NotImplementedError
 
     def print_split_model(self):

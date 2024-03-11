@@ -48,9 +48,9 @@ def sfl_with_attacker(args):
     client_ids = [str(i) for i in range(args.client_num)]
     config = get_fl_config(args)
     # 加载数据集
-    dataset_cls = get_dataset_class(args.dataset)
-    fed_dataset = dataset_cls(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
-    test_dataset = dataset_cls(tokenizer=tokenizer, client_ids=[])
+    fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids,
+                              shrink_frac=args.data_shrink_frac)
+    test_dataset = get_dataset(args.dataset, tokenizer=tokenizer)
     test_loader = test_dataset.get_dataloader_unsliced(1, 'test', shrink_frac=args.test_data_shrink_frac)
     simulator = SFLSimulator(client_ids=client_ids,
                              strategy=MultiLayerDRAFLStrategy(args, model, tokenizer, test_loader, attacker1, None),

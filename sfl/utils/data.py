@@ -73,6 +73,8 @@ def random_slicing(dataset, num_clients, sgm=0):
 
 
 def tensor_bytes(tensor: Tensor):
+    if tensor is None:
+        return 0
     """Return the number of bytes of a tensor."""
     return tensor.numel() * tensor.element_size()
 

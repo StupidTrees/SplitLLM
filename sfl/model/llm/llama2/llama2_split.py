@@ -24,7 +24,7 @@ class LLAMA2SplitModel(LlamaModel, SplitModel):
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
         super(LLAMA2SplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.perturber = DxPrivacy(self.embed_tokens, self.config.vocab_size, self.fl_config.noise_scale)
+        self.perturber = DxPrivacy(self.embed_tokens, self.config.vocab_size, self.fl_config.noise_scale_dxp)
 
     def forward(
             self,

@@ -11,12 +11,15 @@ class DxPrivacy(Module):
         self.embedder = embedder
 
     def forward(self, inputs_embeds):
+        if self.epsilon == 0:
+            return inputs_embeds
         with torch.no_grad():
             noise = torch.distributions.laplace.Laplace(0, scale=1 / self.epsilon).sample(inputs_embeds.size()).to(
                 inputs_embeds.device)
             if inputs_embeds.dtype == float16:
                 noise = noise.half()
             inputs_embeds = inputs_embeds + noise
+
         all_words = torch.tensor(list([i for i in range(self.vocab_size)])).to(inputs_embeds.device)
         all_embeds = self.embedder(all_words)
         cosine_similarities = torch.matmul(inputs_embeds, all_embeds.transpose(0, 1))

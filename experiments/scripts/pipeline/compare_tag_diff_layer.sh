@@ -43,7 +43,7 @@ for seed in "${seeds[@]}"; do
               --global_round "$global_round" \
               --seed "$seed" \
               --dataset "$dataset" \
-              --noise_scale "$noise" \
+              --noise_scale_dxp "$noise" \
               --exp_name "$exp_name" \
               --split_points "$sp" \
               --dlg_enable "$dlg_enable" \
