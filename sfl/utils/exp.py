@@ -4,10 +4,11 @@ import os
 import torch
 from transformers import AutoTokenizer, BitsAndBytesConfig
 
-from sfl.config import FLConfig, attacker_path, DRAConfig, model_download_dir, DRA_train_label
+from sfl.config import FLConfig, attacker_path, DRAConfig, model_download_dir, DRA_train_label, fsha_path
 from sfl.model.attacker.dlg_attacker import GPT2TopDLGAttacker, T5DecoderDLGAttacker, LLAMA2TopDLGAttacker
 from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
     TransformerEncoderDRAttacker, MOEDRAttacker
+from sfl.model.attacker.fsha_attacker import FSHAAttacker
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel, GPT2SplitClassificationModel
 from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
@@ -52,6 +53,7 @@ def add_sfl_params(parser):
     parser.add_argument('--task_type', type=str, default='lm')
     parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
     parser.add_argument('--noise_scale_grad', type=float, default=0.0)
+    parser.add_argument('--noise_beta_dc', type=float, default=0.1)
     parser.add_argument('--attacker_model', type=str, default='gru', help='lstm, gru, linear')
     parser.add_argument('--attacker_train_frac', type=float, default=1.0)
     parser.add_argument('--attacker_prefix', type=str, default='normal')
@@ -59,7 +61,7 @@ def add_sfl_params(parser):
     parser.add_argument('--attacker_freq', type=int, default=25, help='attack every * steps')
     parser.add_argument('--attacker_samples', type=int, default=10, help='attack how many batches each time')
     parser.add_argument('--attacker_dataset', type=str,
-                        default=None)
+                        default='')
     parser.add_argument('--attacker_path', type=str,
                         default=attacker_path,
                         help='trained attacker model for b2tr')
@@ -104,6 +106,7 @@ def get_fl_config(args) -> FLConfig:
                       noise_mode=args.noise_mode,
                       noise_scale_dxp=args.noise_scale_dxp,  # 噪声大小
                       noise_scale_grad=args.noise_scale_grad,
+                      noise_beta_dc=args.noise_beta_dc,
                       collect_intermediates=True,
                       collect_all_layers=args.collect_all_layers,
                       dataset_type=args.dataset_label,
@@ -240,7 +243,7 @@ def get_attacker_class(attack_model):
         attacker_cls = LinearDRAttacker
     elif attack_model == 'trans-enc':
         attacker_cls = TransformerEncoderDRAttacker
-    elif attack_model == 'moe' or attack_model=='moe2':
+    elif attack_model == 'moe' or attack_model == 'moe2':
         attacker_cls = MOEDRAttacker
     return attacker_cls
 
@@ -293,6 +296,38 @@ def get_dra_attacker(dra_config: DRAConfig):
     if attacker_path_2:
         attacker2 = get_attacker_class(dra_config.model).from_pretrained(attacker_path_2)
     return attacker, attacker2
+
+
+def get_fsha_attacker(dra_config: DRAConfig):
+    dataset = dra_config.dataset
+    if dataset is None:
+        dataset = dra_config.target_dataset
+    model_name = dra_config.target_model_name
+    if model_name == 'llama2':
+        model_name += f"-{dra_config.target_model_load_bits}bits"
+    attacker_path = fsha_path + f'{model_name}/{dataset}/'
+    match = False
+    for d in os.listdir(attacker_path):
+        pattern = f'{dra_config.train_label}*{dra_config.train_frac:.3f}'
+        if ',' in dra_config.dataset:
+            pattern = f'Tr{dra_config.train_frac:.3f}'
+        if d.startswith(pattern):
+            attacker_path = os.path.join(attacker_path, d) + '/'
+            match = True
+            break
+    assert match
+    attacker_path_1 = None
+    if dra_config.b2tr_enable:
+        sp1 = int(dra_config.target_sps.split('-')[0])
+        if dra_config.b2tr_sp >= 0:
+            sp1 = dra_config.b2tr_sp
+        attacker_path_1 = attacker_path + f'/b2tr-{sp1}/'
+        l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[-1]
+        attacker_path_1 = os.path.join(attacker_path_1, l)
+
+    attacker = FSHAAttacker.from_pretrained(attacker_path_1)
+
+    return attacker
 
 
 def get_dlg_attacker(llm: SplitWrapperModel):

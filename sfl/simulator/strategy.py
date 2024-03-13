@@ -10,7 +10,8 @@ from transformers import AdamW
 
 from sfl.config import FLConfig
 from sfl.model.llm.split_model import SplitModel, SplitWrapperModel
-from sfl.utils.model import Intermediate, calculate_rouge, evaluate_accuracy, evaluate_perplexity, get_t5_input
+from sfl.utils.model import Intermediate, calculate_rouge, evaluate_accuracy, evaluate_perplexity, get_t5_input, \
+    dist_corr
 
 
 class FLStrategy(ABC):
@@ -100,7 +101,12 @@ class BaseSFLStrategy(FLStrategy):
                 loss = outputs.loss
                 pbar.set_description(
                     f'Client {client_id} Epoch {client_epoch} Step {self.simulator.get_current_step(client_id, step)} Loss {loss.item():.3f}')
-                if self.args.noise_mode in ['grad', 'both']:
+                if config.noise_mode in ['dc']:
+                    b2tr, tr2t, all_inter = llm.get_all_inter(detach=False)
+                    embed = all_inter['embedding']
+                    dcor = dist_corr(embed.fx, b2tr.fx)
+                    loss += config.noise_beta_dc * dcor
+                if config.noise_mode in ['grad', 'both']:
                     loss.backward(retain_graph=True)
                     b2tr, tr2t, all_inter = llm.get_all_inter(detach=False)
                     b2tr.fx.grad = None
@@ -110,7 +116,7 @@ class BaseSFLStrategy(FLStrategy):
                         p.grad = None
                     for _, p in llm.get_trunk_params():
                         p.grad = None
-                    noise = torch.randn_like(grad) * ((self.args.noise_scale_grad * 1.0) ** 2)
+                    noise = torch.randn_like(grad) * ((config.noise_scale_grad * 1.0) ** 2)
                     grad = grad + noise
                     tr2t.fx.backward(grad)
                 else:

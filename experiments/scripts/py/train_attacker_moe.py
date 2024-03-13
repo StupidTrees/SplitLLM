@@ -14,7 +14,7 @@ from sfl.simulator.dataset import MixtureFedDataset
 from sfl import config
 from sfl.config import FLConfig, DRA_test_label, DRA_train_label
 from sfl.model.attacker.dra_attacker import MOEDRAttacker, MOEDRAttackerConfig
-from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, str2bool, get_dataset
+from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, str2bool
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
     evaluate_attacker_rouge
 

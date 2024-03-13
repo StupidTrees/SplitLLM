@@ -59,6 +59,8 @@ class SplitModel(nn.Module, ABC):
     def inject_after_embedding(self, inputs_embeds):
         if self.fl_config and self.fl_config.noise_mode in ['dxp', 'both']:
             return self.perturber(inputs_embeds)
+        if self.fl_config.noise_mode == 'dc':
+            self._store_fx('embedding', inputs_embeds)
         return inputs_embeds
 
     def inject_between_blocks(self, hidden_states, i):

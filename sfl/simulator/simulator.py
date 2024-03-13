@@ -257,13 +257,15 @@ class SFLSimulator(object):
         self.communication_overhead_uplink.setdefault(self.current_global_round, {})
         self.communication_overhead_uplink[self.current_global_round].setdefault(client_id, {})
         self.communication_overhead_uplink[self.current_global_round][client_id].setdefault(local_epoch, 0)
-        self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += tensor_bytes(
-            tr2t_inter.grad) + tensor_bytes(b2tr_inter.fx)
+
         self.communication_overhead_downlink.setdefault(self.current_global_round, {})
         self.communication_overhead_downlink[self.current_global_round].setdefault(client_id, {})
         self.communication_overhead_downlink[self.current_global_round][client_id].setdefault(local_epoch, 0)
-        self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tensor_bytes(
-            b2tr_inter.grad) + tensor_bytes(tr2t_inter.fx)
+        if self.config.collect_intermediates:
+            self.communication_overhead_downlink[self.current_global_round][client_id][local_epoch] += tensor_bytes(
+                b2tr_inter.grad) + tensor_bytes(tr2t_inter.fx)
+            self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += tensor_bytes(
+                tr2t_inter.grad) + tensor_bytes(b2tr_inter.fx)
 
         # 进行log
 

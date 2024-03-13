@@ -281,6 +281,8 @@ def batched_perplexity(model, dataloader, tokenizer, stride=512):
 
 
 def evaluate_perplexity(model, loader, stride=1024):
+    if loader is None:
+        return 0
     model.train(False)
     if hasattr(model.config, 'n_positions'):
         max_length = model.config.n_positions
@@ -314,6 +316,8 @@ def evaluate_perplexity(model, loader, stride=1024):
 
 
 def evaluate_accuracy(model, loader):
+    if loader is None:
+        return 0
     model.train(False)
     acc = 0
     itm = 0
@@ -339,3 +343,19 @@ def get_t5_input(batch, tokenizer, device):
     labels = a_ids[:, 1:].contiguous()
     labels[a_ids[:, 1:] == tokenizer.pad_token_id] = -100
     return {'input_ids': q_ids, 'attention_mask': q_mask, 'decoder_input_ids': dec_input, 'labels': labels}
+
+
+def dist_corr(x, y):
+    """
+    Compute the distance correlation function
+    """
+    n = x.size(0)
+    a = torch.cdist(x, x)
+    b = torch.cdist(y, y)
+    A = a - a.mean(dim=0) - a.mean(dim=1)[:, None] + a.mean()
+    B = b - b.mean(dim=0) - b.mean(dim=1)[:, None] + b.mean()
+    dcov2 = (A * B).sum() / n ** 2
+    dvar = (A ** 2).sum() / n ** 2
+    dvar2 = (B ** 2).sum() / n ** 2
+    dcor = dcov2 / (torch.sqrt(dvar) * torch.sqrt(dvar2))
+    return dcor

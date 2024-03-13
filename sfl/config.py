@@ -7,6 +7,7 @@ dataset_cache_dir = '/root/autodl-tmp/sfl/datasets/'
 model_download_dir = '/root/autodl-tmp/sfl/models/'
 model_cache_dir = '/root/autodl-tmp/sfl/cache/'
 attacker_path = '/root/autodl-tmp/sfl/models/attacker/'
+fsha_path = '/root/autodl-tmp/sfl/models/attacker-fsha/'
 
 DRA_train_label = {
     'codealpaca': 'test',
@@ -14,10 +15,11 @@ DRA_train_label = {
     'piqa': 'validation',
     'gsm8k': 'test',
     'wikitext': 'validation',
-    'sanitized':'val'
+    'sanitized': 'val'
 }
 
-DRA_test_label = {nm:'test' for nm in DRA_train_label.keys()}
+DRA_test_label = {nm: 'test' for nm in DRA_train_label.keys()}
+
 
 @dataclass
 class FLConfig:
@@ -39,6 +41,7 @@ class FLConfig:
     noise_mode: str = 'none'
     noise_scale_dxp: float = 0.0
     noise_scale_grad: float = 0.0
+    noise_beta_dc: float = 0.1
     dataset_type: str = 'train'
     batch_size: int = 2
 
