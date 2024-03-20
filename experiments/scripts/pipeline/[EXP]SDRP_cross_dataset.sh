@@ -1,18 +1,16 @@
-# 实验：跨层黑盒攻击
+# 实验：跨层DRA攻击
 seed=42
 
 dataset_label='train'
-model_name='gpt2-large'
-exp_name='attacker_cross_dataset'
+exp_name='[EXP]SDRP_cross_dataset'
 client_num=1
 global_round=1
-client_steps=250
+client_steps=500
 noise_scale=0.0
 noise_mode="none"
 attacker_prefix='normal'
-attacker_search=False
-data_shrink_frac=0.5
-test_data_shrink_frac=0.5
+data_shrink_frac=0.08
+test_data_shrink_frac=0.3
 evaluate_freq=500
 self_pt_enable=False
 lora_at_trunk=True
@@ -20,24 +18,20 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
+model_name='llama2'
 attack_model='gru'
-attacker_sp=23
+sps='6-26'
+attacker_sp=6
+batch_size=1
 
-attacker_datasets=("codealpaca" "piqa" "dialogsum" "gsm8k" "wikitext")
+attacker_datasets=("codealpaca" "piqa" "dialogsum" "gsm8k" "wikitext" "sanitized")
 # 观察不同的模型
-sfl_datasets=("dialogsum" "gsm8k" "wikitext" "codealpaca" "piqa")
+sfl_datasets=("codealpaca" "piqa" "dialogsum" "gsm8k" "wikitext" "sanitized")
+
+
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
-    if [ "$attacker_dataset" == "$sfl_dataset" ]; then
-      continue
-    fi
-
-    attacker_train_label='validation'
-    attacker_test_label='test'
-    if [ "$attacker_dataset" == "codealpaca" ] || [ "$attacker_dataset" == "gsm8k" ]; then
-      attacker_train_label='test'
-    fi
 
     # 先训练攻击模型
     echo "Running train_attacker.py with atk_ds=$attacker_dataset"
@@ -47,19 +41,20 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       --dataset "$attacker_dataset" \
       --attack_model "$attack_model" \
       --attack_mode 'b2tr' \
-      --split_point_1 "$attacker_sp" \
-      --split_point_2 999 \
-      --dataset_train_label "$attacker_train_label" \
-      --dataset_test_label "$attacker_test_label" \
+      --noise_mode "$noise_mode"\
+      --sps "$sps"\
       --save_checkpoint True \
       --log_to_wandb False
 
+    case_name="${model_name}-${sfl_dataset}<${attacker_dataset}"
 
     # 将其用于攻击
-    echo "Running evaluate_dra_cross_layer.py with sfl_ds=$sfl_dataset"
+    echo "Running evaluate_dra_cross_dataset.py with sfl_ds=$sfl_dataset"
     python ../py/evaluate_dra_cross_dataset.py \
       --noise_mode "$noise_mode" \
+      --case_name "$case_name"\
       --model_name "$model_name" \
+      --split_points "$sps"\
       --global_round "$global_round" \
       --seed "$seed" \
       --dataset "$sfl_dataset" \
@@ -68,7 +63,6 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       --attacker_b2tr_sp "$attacker_sp" \
       --attacker_tr2t_sp "$attacker_sp" \
       --attacker_prefix "$attacker_prefix" \
-      --attacker_search "$attacker_search" \
       --self_pt_enable "$self_pt_enable" \
       --client_num "$client_num" \
       --data_shrink_frac "$data_shrink_frac" \
@@ -80,8 +74,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       --lora_at_bottom "$lora_at_bottom" \
       --collect_all_layers "$collect_all_layers" \
       --dataset_label "$dataset_label" \
-      --attacker_dataset "$attacker_dataset" \
-      --attacker_train_label "$attacker_train_label"
-
+      --attacker_dataset "$attacker_dataset"\
+      --batch_size "$batch_size"
   done
 done

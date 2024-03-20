@@ -80,7 +80,7 @@ class BaseSFLStrategy(FLStrategy):
 
     def client_step(self, client_id: str, global_round, client_epoch, llm: SplitWrapperModel, iterator: Iterator,
                     config: FLConfig):
-        optimizer = AdamW(llm.parameters(), lr=1e-5)
+        optimizer = AdamW(llm.parameters(), lr=2e-5)
         avg_loss = 0
         avg_self_rouge = 0
         # avg_self_rouge_pt = 0
@@ -101,6 +101,7 @@ class BaseSFLStrategy(FLStrategy):
                 loss = outputs.loss
                 pbar.set_description(
                     f'Client {client_id} Epoch {client_epoch} Step {self.simulator.get_current_step(client_id, step)} Loss {loss.item():.3f}')
+                avg_loss += loss.detach().cpu().item()
                 if config.noise_mode in ['dc']:
                     b2tr, tr2t, all_inter = llm.get_all_inter(detach=False)
                     embed = all_inter['embedding']
@@ -124,7 +125,7 @@ class BaseSFLStrategy(FLStrategy):
 
                 batch_num += 1
                 optimizer.step()
-                avg_loss += loss.detach().cpu().item()
+
                 avg_self_rouge += \
                     calculate_rouge(self.tokenizer, outputs.logits.argmax(dim=-1), batch['input_text'])['rouge-l'][
                         'f']
@@ -134,7 +135,7 @@ class BaseSFLStrategy(FLStrategy):
                 #     avg_self_rouge_pt += \
                 #         calculate_rouge(self.tokenizer, outputs_pt.logits, batch['input_text'])['rouge-l']['f']
                 self.step_done(client_id, step, batch,
-                               {"loss": float(avg_loss / batch_num), "self": float(avg_self_rouge / batch_num)})
+                               {"step_loss": loss.item(), "avg_loss": float(avg_loss / batch_num), "self": float(avg_self_rouge / batch_num)})
                 #  "self_pt": float(avg_self_rouge_pt / batch_num)})  # Collect gradients
                 pbar.update(1)
 
@@ -208,8 +209,9 @@ class BaseSFLStrategy(FLStrategy):
         gt_init = None
         if self.args.dlg_init_with_dra:
             gt_init = attacked
-        self.dlg.to(self.simulator.device)
-        gt = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
+        if self.dlg is not None:
+            self.dlg.to(self.simulator.device)
+            gt = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
                           epochs=self.args.dlg_epochs,
                           adjust=self.args.dlg_adjust,
                           beta=self.args.dlg_beta,
@@ -220,11 +222,12 @@ class BaseSFLStrategy(FLStrategy):
                           encoder_inter=None if encoder_inter is None else
                           encoder_inter.fx.to(self.simulator.device)
                           )
-        if self.llm.type == 'encoder-decoder':
-            # replace the latter half of attacked to gt
-            attacked[:, -gt.shape[1]:, :] = gt
-            rouge = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
-        else:
-            rouge = calculate_rouge(self.tokenizer, gt, batch['input_text'])
-        self.log_to_sample_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
-        self.log_to_all_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
+            if self.llm.type == 'encoder-decoder':
+                # replace the latter half of attacked to gt
+                attacked[:, -gt.shape[1]:, :] = gt
+                rouge = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
+            else:
+                rouge = calculate_rouge(self.tokenizer, gt, batch['input_text'])
+            self.log_to_sample_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
+            self.log_to_all_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
+

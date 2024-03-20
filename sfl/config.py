@@ -41,6 +41,7 @@ class FLConfig:
     noise_mode: str = 'none'
     noise_scale_dxp: float = 0.0
     noise_scale_grad: float = 0.0
+    noise_scale_gaussian: float = 0.0
     noise_beta_dc: float = 0.1
     dataset_type: str = 'train'
     batch_size: int = 2

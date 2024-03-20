@@ -21,14 +21,14 @@ class GPT2SplitWrapper(SplitWrapperModel):
     最外层模型，需要重写get_all_inter(), config_sfl()两个方法
     """
 
+    def change_noise(self, scale, mode=None):
+        self.transformer.change_noise(scale, mode)
+
     @staticmethod
     def _get_block_num(param_name: str):
         # 获得该参数所属的block的块号，不属于block则返回-1
         r = regex.findall('\.h\.[0-9]+', param_name)
         return int(r[0].split('.')[-1]) if len(r) > 0 else -1
-
-    def change_noise_scale(self, scale):
-        self.transformer.change_noise_scale(scale)
 
     def get_adapter_module_regex(self):
         if self.fl_config is None:

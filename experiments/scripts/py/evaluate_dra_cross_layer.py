@@ -22,21 +22,16 @@ class MultiLayerDRAFLStrategy(BaseSFLStrategy):
                                   b2tr_inter: Intermediate, tr2t_inter: Intermediate,
                                   all_inter: dict[int, Intermediate],
                                   batch, logs):
-        rg = [False]
-        if args.attacker_search:
-            rg.append(True)
-        for search in rg:
-            with torch.no_grad():
-                for idx, inter in all_inter.items():
-                    suffix = inter.type
-                    self.dra1.to(self.simulator.device)
-                    if search:
-                        attacked = self.dra1.search(inter.fx, self.llm)
-                    else:
-                        attacked = self.dra1(inter.fx.to(self.dra1.device))
-                    rouge_res = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
-                    self.log_to_all_result(client_id, f'attacker_{idx}_{suffix}', rouge_res['rouge-l']['f'])
-                    logs[f'attacker_{idx}_{suffix}_step'] = rouge_res['rouge-l']['f']
+        with torch.no_grad():
+            for idx, inter in all_inter.items():
+                # suffix = inter.type
+                self.dra1.to(self.simulator.device)
+                attacked = self.dra1(inter.fx.to(self.dra1.device))
+                rouge_res = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
+                self.log_to_all_result(client_id, f'DRA_{idx}_RLF', rouge_res['rouge-l']['f'])
+                self.log_to_all_result(client_id, f'DRA_{idx}_R1F', rouge_res['rouge-1']['f'])
+                self.log_to_all_result(client_id, f'DRA_{idx}_R2F', rouge_res['rouge-2']['f'])
+                logs[f'DRA_{idx}_step_RLF'] = rouge_res['rouge-l']['f']
 
 
 def sfl_with_attacker(args):

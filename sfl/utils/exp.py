@@ -4,6 +4,7 @@ import os
 import torch
 from transformers import AutoTokenizer, BitsAndBytesConfig
 
+from sfl import config
 from sfl.config import FLConfig, attacker_path, DRAConfig, model_download_dir, DRA_train_label, fsha_path
 from sfl.model.attacker.dlg_attacker import GPT2TopDLGAttacker, T5DecoderDLGAttacker, LLAMA2TopDLGAttacker
 from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
@@ -30,6 +31,31 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
+def add_train_dra_params(parser):
+    parser.add_argument('--exp_name', type=str, default='attacker')
+    parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
+    parser.add_argument('--model_name', type=str, default='gpt2')
+    parser.add_argument('--save_dir', type=str, default=config.attacker_path)
+    parser.add_argument('--dataset', type=str, default='piqa')
+    parser.add_argument('--dataset_train_frac', type=float, default=1.0)
+    parser.add_argument('--dataset_test_frac', type=float, default=1.0)
+    parser.add_argument('--attack_model', type=str, default='moe', help='lstm or ...')
+    parser.add_argument('--sps', type=str, default='6-26', help='split points')
+    parser.add_argument('--attack_mode', type=str, default='tr2t', help='b2tr or t2tr')
+    parser.add_argument('--load_bits', type=int, default=8, help='load bits for large models')
+    parser.add_argument('--epochs', type=int, default=15)
+    parser.add_argument('--epochs_gating', type=int, default=10)
+    parser.add_argument('--batch_size', type=int, default=6)
+    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--noise_mode', type=str, default='none')
+    parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
+    parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
+    parser.add_argument('--save_checkpoint', type=str2bool, default=False)
+    parser.add_argument('--log_to_wandb', type=str2bool, default=False)
+    parser.add_argument('--skip_exists', type=str2bool, default=True)
+
+
 def add_sfl_params(parser):
     parser.add_argument('--exp_name', type=str, default='compare_tag')
     parser.add_argument('--case_name', type=str, default='')
@@ -52,6 +78,7 @@ def add_sfl_params(parser):
     parser.add_argument('--noise_mode', type=str, default='none')
     parser.add_argument('--task_type', type=str, default='lm')
     parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
+    parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
     parser.add_argument('--noise_scale_grad', type=float, default=0.0)
     parser.add_argument('--noise_beta_dc', type=float, default=0.1)
     parser.add_argument('--attacker_model', type=str, default='gru', help='lstm, gru, linear')
@@ -105,6 +132,7 @@ def get_fl_config(args) -> FLConfig:
                       top_and_bottom_from_scratch=args.client_from_scratch,  # top和bottom都不采用预训练参数.
                       noise_mode=args.noise_mode,
                       noise_scale_dxp=args.noise_scale_dxp,  # 噪声大小
+                      noise_scale_gaussian=args.noise_scale_gaussian,  # 噪声大小
                       noise_scale_grad=args.noise_scale_grad,
                       noise_beta_dc=args.noise_beta_dc,
                       collect_intermediates=True,
@@ -119,13 +147,15 @@ def get_dra_config(args) -> DRAConfig:
     res = DRAConfig()
     res.path = args.attacker_path
     res.model = args.attacker_model
-    if ',' in args.attacker_dataset:
-        res.train_label = DRA_train_label[args.attacker_dataset.split(',')[0]]
+    res.dataset = args.attacker_dataset
+    if args.attacker_dataset is None or len(args.attacker_dataset) == 0:
+        res.dataset = args.dataset
+    if ',' in res.dataset:
+        res.train_label = DRA_train_label[res.dataset.split(',')[0]]
     else:
-        res.train_label = DRA_train_label[args.attacker_dataset]
+        res.train_label = DRA_train_label[res.dataset]
     res.train_frac = args.attacker_train_frac
     res.prefix = args.attacker_prefix
-    res.dataset = args.attacker_dataset
     res.b2tr_sp = args.attacker_b2tr_sp
     res.b2tr_enable = args.attacker_b2tr_enable
     res.tr2t_sp = args.attacker_tr2t_sp
@@ -254,9 +284,6 @@ def get_dra_attacker(dra_config: DRAConfig):
         dataset = dra_config.target_dataset
 
     prefix = dra_config.prefix
-    if 'moe' in dra_config.model:
-        prefix = ''
-
     model_name = dra_config.target_model_name
     if model_name == 'llama2':
         model_name += f"-{dra_config.target_model_load_bits}bits"
@@ -277,7 +304,7 @@ def get_dra_attacker(dra_config: DRAConfig):
         sp1 = int(dra_config.target_sps.split('-')[0])
         if dra_config.b2tr_sp >= 0:
             sp1 = dra_config.b2tr_sp
-        attacker_path_1 = attacker_path + f'/b2tr-{sp1}/' + prefix
+        attacker_path_1 = attacker_path + f'/layer{sp1}/' + prefix
         l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[-1]
         attacker_path_1 = os.path.join(attacker_path_1, l)
     attacker_path_2 = None
@@ -285,7 +312,7 @@ def get_dra_attacker(dra_config: DRAConfig):
         sp2 = int(dra_config.target_sps.split('-')[1])
         if dra_config.tr2t_sp >= 0:
             sp2 = dra_config.tr2t_sp
-        attacker_path_2 = attacker_path + f'/tr2t-{sp2}/' + prefix
+        attacker_path_2 = attacker_path + f'/layer{sp2}/' + prefix
         if not os.path.exists(attacker_path_2):
             attacker_path_2 = attacker_path_2.replace('tr2t', 'b2tr')
         l = sorted(list(os.listdir(attacker_path_2)), key=lambda x: float(x.split('_')[-1]))[-1]

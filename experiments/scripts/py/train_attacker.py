@@ -1,5 +1,6 @@
 import argparse
 import os
+import random
 import sys
 
 import torch
@@ -7,48 +8,53 @@ import wandb
 from torch.optim import Adam
 from tqdm import tqdm
 
-
 sys.path.append(os.path.abspath('../../..'))
 from sfl.simulator.dataset import MixtureFedDataset
 
-from sfl import config
 from sfl.config import FLConfig, DRAttackerConfig
 from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
     TransformerEncoderDRAttacker, TransformerDecoderDRAttacker, LSTMDRAttackerConfig, TransformerDRAttackerConfig
-from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, str2bool
+from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
-    evaluate_attacker_rouge
+    evaluate_attacker_rouge, random_choose_noise
 
 from sfl.config import DRA_train_label, DRA_test_label
 
 
-def get_save_path(md, save_dir, args):
+def get_save_path(fl_config, save_dir, args):
     model_name = args.model_name
+    cut_layer = fl_config.split_point_1 if fl_config.attack_mode == "b2tr" else fl_config.split_point_2
     if model_name == 'llama2':
         model_name += f'-{args.load_bits}bits'
     if ',' in args.dataset:
         p = os.path.join(save_dir,
                          f'{model_name}/{args.dataset}/Tr{args.dataset_train_frac:.3f}-Ts*{args.dataset_test_frac:.3f}'
-                         f'/{args.attack_model}/{md.fl_config.attack_mode}-{md.fl_config.split_point_1 if md.fl_config.attack_mode == "b2tr" else md.fl_config.split_point_2}/')
+                         f'/{args.attack_model}/layer{cut_layer}/')
     else:
         p = os.path.join(save_dir,
-                     f'{model_name}/{args.dataset}/{DRA_train_label[args.dataset]}*{args.dataset_train_frac:.3f}-{DRA_test_label[args.dataset]}*{args.dataset_test_frac:.3f}'
-                     f'/{args.attack_model}/{md.fl_config.attack_mode}-{md.fl_config.split_point_1 if md.fl_config.attack_mode == "b2tr" else md.fl_config.split_point_2}/')
+                         f'{model_name}/{args.dataset}/{DRA_train_label[args.dataset]}*{args.dataset_train_frac:.3f}-{DRA_test_label[args.dataset]}*{args.dataset_test_frac:.3f}'
+                         f'/{args.attack_model}/layer{cut_layer}/')
     attacker_prefix = 'normal/'
-    if md.fl_config.noise_mode == 'dxp':
-        attacker_prefix = f'{md.fl_config.noise_mode}:{md.fl_config.noise_scale_dxp}/'
+    if fl_config.noise_mode == 'dxp':
+        attacker_prefix = f'{fl_config.noise_mode}:{fl_config.noise_scale_dxp}/'
+    elif fl_config.noise_mode == 'gaussian':
+        attacker_prefix = f'{fl_config.noise_mode}:{fl_config.noise_scale_gaussian}/'
+    elif fl_config.noise_mode == 'mix':
+        attacker_prefix = 'mix/'
     if 'moe' in args.attack_model:
-        attacker_prefix = ''
+        attacker_prefix = f'{fl_config.noise_mode}/'
     p += attacker_prefix
     return p
 
 
-def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
+def evaluate(epc, md, attacker, tok, test_data_loader, args):
     """
     恢复的评价指标选用ROUGE
     :return: ROUGE-1, ROUGE-2, ROUGE-L, ROUGE-L-P, ROUGE-L-R
     """
     md.eval()
+    if args.noise_mode == 'mix' or args.noise_scale_dxp < 0 or args.noise_scale_gaussian < 0:
+        md.change_noise(0)
     attacker.eval()
     dl_len = len(test_data_loader)
     with torch.no_grad():
@@ -71,8 +77,8 @@ def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
 
     print(
         f'Epoch {epc} Test Rouge_l_f1: {rouge_l_f1 / dl_len}')  # , Test2 Rouge_l_f1: {rouge_l_f1_x / dl_len if attacker2 else 0}')
-    p = get_save_path(md, save_dir, args)
-    if rouge_l_f1 / dl_len > 0.1 and (epc + 1) % 5 == 0 and args.save_checkpoint:
+    p = get_save_path(md.fl_config, args.save_dir, args)
+    if rouge_l_f1 / dl_len > 0.1 and args.save_checkpoint:
         attacker.save_pretrained(p + f'epoch_{epc}_rouge_{rouge_l_f1 / dl_len:.4f}')
     if args.log_to_wandb:
         log_dict = {'epoch': epc, 'test_rouge_1': rouge_1 / dl_len, 'test_rouge_2': rouge_2 / dl_len,
@@ -84,11 +90,65 @@ def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
     return rouge_1 / dl_len, rouge_2 / dl_len, rouge_l_f1 / dl_len, rouge_l_p / dl_len, rouge_l_r / dl_len
 
 
+# def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
+#     """
+#     恢复的评价指标选用ROUGE
+#     :return: ROUGE-1, ROUGE-2, ROUGE-L, ROUGE-L-P, ROUGE-L-R
+#     """
+#     md.eval()
+#     md.change_noise_scale(0)
+#     attacker.eval()
+#     dl_len = len(test_data_loader)
+#     with torch.no_grad():
+#         rouge_1, rouge_2, rouge_l_f1, rouge_l_p, rouge_l_r = 0, 0, 0, 0, 0
+#         for step, batch in tqdm(enumerate(test_data_loader), total=dl_len):
+#             if md.type == 'encoder-decoder':
+#                 enc_hidden, dec_hidden = md(**get_t5_input(batch, tok, md.device))
+#                 inter = torch.concat([enc_hidden, dec_hidden], dim=1)
+#             else:
+#                 input_ids = batch['input_ids'].to(md.device)
+#                 attention_mask = batch['input_att_mask'].to(md.device)
+#                 inter = md(input_ids=input_ids, attention_mask=attention_mask)
+#             logits = attacker(inter)
+#             result = evaluate_attacker_rouge(tok, logits, batch)
+#             rouge_1 += result['rouge-1']['f']
+#             rouge_2 += result['rouge-2']['f']
+#             rouge_l_f1 += result['rouge-l']['f']
+#             rouge_l_p += result['rouge-l']['p']
+#             rouge_l_r += result['rouge-l']['r']
+#
+#     print(
+#         f'Epoch {epc} Test Rouge_l_f1: {rouge_l_f1 / dl_len}')
+#     p = get_save_path(md, save_dir, args)
+#     if rouge_l_f1 / dl_len > 0.1 and (epc + 1) % 1 == 0 and args.save_checkpoint:
+#         attacker.save_pretrained(p + f'epoch_{epc}_rouge_{rouge_l_f1 / dl_len:.4f}')
+#     if args.log_to_wandb:
+#         log_dict = {'epoch': epc, 'test_rouge_1': rouge_1 / dl_len, 'test_rouge_2': rouge_2 / dl_len,
+#                     'test_rouge_l_f1': rouge_l_f1 / dl_len, 'test_rouge_l_p': rouge_l_p / dl_len,
+#                     'test_rouge_l_r': rouge_l_r / dl_len}
+#         wandb.log(log_dict)
+#     md.train(True)
+#     attacker.train(True)
+#     return rouge_1 / dl_len, rouge_2 / dl_len, rouge_l_f1 / dl_len, rouge_l_p / dl_len, rouge_l_r / dl_len
+
+
 def train_attacker(args):
     """
     训练攻击模型
     :param args:
     """
+    config = FLConfig(collect_intermediates=False,
+                      split_point_1=int(args.sps.split('-')[0]),
+                      split_point_2=int(args.sps.split('-')[1]),
+                      attack_mode=args.attack_mode,
+                      noise_mode=args.noise_mode,
+                      noise_scale_dxp=args.noise_scale_dxp,
+                      noise_scale_gaussian=args.noise_scale_gaussian
+                      )
+    p = get_save_path(config, args.save_dir, args)
+    if os.path.exists(p) and args.skip_exists:
+        print('Model exists, skipping...')
+        return
 
     model, tokenizer = get_model_and_tokenizer(args.model_name, load_bits=args.load_bits)
     if ',' not in args.dataset:
@@ -112,13 +172,7 @@ def train_attacker(args):
                                                                       type=None,
                                                                       shrink_frac=args.dataset_train_frac)
 
-    model.config_sfl(FLConfig(collect_intermediates=False,
-                              split_point_1=args.split_point_1,
-                              split_point_2=args.split_point_2,
-                              attack_mode=args.attack_mode,
-                              noise_mode=args.noise_mode,
-                              noise_scale_dxp=args.noise_scale_dxp,
-                              ),
+    model.config_sfl(config,
                      param_keeper=None)
     # freeze all parts:
     for name, param in model.named_parameters():
@@ -144,11 +198,6 @@ def train_attacker(args):
     elif args.attack_model == 'trans-dec':
         attack_model = TransformerDecoderDRAttacker(TransformerDRAttackerConfig(), model.config)
 
-    p = get_save_path(model, args.save_dir, args)
-    if os.path.exists(p) and args.skip_exists:
-        print('Model exists, skipping...')
-        return
-
     if 'llama2' not in args.model_name:
         device = get_best_gpu()
         model.to(device)
@@ -170,6 +219,20 @@ def train_attacker(args):
             item_count = 0
             for step, batch in enumerate(dataloader):
                 optimizer.zero_grad()
+                if args.noise_mode == 'dxp' and args.noise_scale_dxp < 0:
+                    # 随机生成噪声
+                    model.change_noise(random_choose_noise({5, 7.5, 10}))
+                elif args.noise_mode == 'gaussian' and args.noise_scale_gaussian < 0:
+                    model.change_noise(random_choose_noise({0.01, 0.02, 0.05}, mode='gaussian'))
+                elif args.noise_mode == 'mix':
+                    noise_mode = random.choice(['none', 'dxp', 'gaussian'])
+                    if noise_mode == 'none':
+                        model.change_noise(0, noise_mode)
+                    elif noise_mode == 'dxp':
+                        model.change_noise(random_choose_noise({5, 7.5, 10}, noise_mode), noise_mode)
+                    else:
+                        model.change_noise(random_choose_noise({0.01, 0.02, 0.05}, mode='gaussian'), noise_mode)
+
                 if model.type == 'encoder-decoder':
                     input_args = get_t5_input(batch, tokenizer, model.device)
                     enc_hidden, dec_hidden = model(**input_args)
@@ -202,8 +265,8 @@ def train_attacker(args):
                 item_count += 1
 
             # 计算测试集上的ROGUE
-            if (epc + 1) % 1 == 0:
-                evaluate(epc, model, attack_model, tokenizer, dataloader_test, args.save_dir)
+            if (epc + 1) % 5 == 0:
+                evaluate(epc, model, attack_model, tokenizer, dataloader_test, args)
             if args.log_to_wandb:
                 log_dict = {'epoch': epc,
                             'train_rouge_1': rouge_1 / item_count,
@@ -216,27 +279,7 @@ def train_attacker(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_name', type=str, default='attacker')
-    parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
-    parser.add_argument('--model_name', type=str, default='gpt2')
-    parser.add_argument('--save_dir', type=str, default=config.attacker_path)
-    parser.add_argument('--dataset', type=str, default='piqa')
-    parser.add_argument('--dataset_train_frac', type=float, default=1.0)
-    parser.add_argument('--dataset_test_frac', type=float, default=1.0)
-    parser.add_argument('--attack_model', type=str, default='gru', help='lstm or ...')
-    parser.add_argument('--split_point_1', type=int, default=2, help='split point for b2tr')
-    parser.add_argument('--split_point_2', type=int, default=30, help='split point for t2tr')
-    parser.add_argument('--attack_mode', type=str, default='tr2t', help='b2tr or t2tr')
-    parser.add_argument('--load_bits', type=int, default=8, help='load bits for large models')
-    parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=6)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--noise_mode', type=str, default='none')
-    parser.add_argument('--noise_scale_dxp', type=float, default=5.0)
-    parser.add_argument('--save_checkpoint', type=str2bool, default=False)
-    parser.add_argument('--log_to_wandb', type=str2bool, default=False)
-    parser.add_argument('--skip_exists', type=str2bool, default=True)
+    add_train_dra_params(parser)
     args = parser.parse_args()
     set_random_seed(args.seed)
     train_attacker(args)

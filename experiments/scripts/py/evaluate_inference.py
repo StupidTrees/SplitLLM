@@ -17,10 +17,10 @@ def pre_ft(llm, data_loader):
     # 不收集中间结果
     bk_ci = llm.fl_config.collect_intermediates
     bk_th = llm.fl_config.trigger_hook
-    bk_nm = llm.fl_config.noise_mode
+    bk_nm = llm.noise_mode
     llm.fl_config.collect_intermediates = False
     llm.fl_config.trigger_hook = False
-    llm.fl_config.noise_mode = 'none'
+    llm.noise_mode = 'none'
     # 微调bottom和top
     tune = [p for p in llm.parameters() if p.requires_grad]
     optimizer = AdamW(tune, lr=1e-5)
@@ -37,7 +37,7 @@ def pre_ft(llm, data_loader):
             pbar.update(1)
     llm.fl_config.collect_intermediates = bk_ci
     llm.fl_config.trigger_hook = bk_th
-    llm.fl_config.noise_mode = bk_nm
+    llm.noise_mode = bk_nm
     llm.eval()
 
 

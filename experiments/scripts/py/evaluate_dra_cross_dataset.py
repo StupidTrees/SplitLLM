@@ -5,19 +5,19 @@ import sys
 import wandb
 
 sys.path.append(os.path.abspath('../../..'))
+from experiments.scripts.py.evaluate_dra_cross_layer import MultiLayerDRAFLStrategy
+from sfl.utils.model import set_random_seed
 
-from experiments.scripts.evaluate_dra_cross_layer import MultiLayerDRAFLStrategy
 from sfl.simulator.simulator import SFLSimulator
-from sfl.utils.exp import set_random_seed, get_attacker_class, extract_attacker_path, \
-    get_model_and_tokenizer, get_fl_config, add_sfl_params, get_dataset
+from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, add_sfl_params, get_dataset, get_attacker_class, \
+    get_dra_attacker, get_dra_config
 
 
 def sfl_with_attacker(args):
     model, tokenizer = get_model_and_tokenizer(args.model_name)
 
     # 加载攻击模型
-    attacker1, _ = extract_attacker_path(args, get_attacker_class(args.attacker_model))
-
+    attacker1, _ = get_dra_attacker(get_dra_config(args))
     # 配置联邦学习
     client_ids = [str(i) for i in range(args.client_num)]
     config = get_fl_config(args)
@@ -25,16 +25,17 @@ def sfl_with_attacker(args):
     fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids,
                               shrink_frac=args.data_shrink_frac)
     test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[])
-    test_loader = test_dataset.get_dataloader_unsliced(1, 'test', shrink_frac=args.test_data_shrink_frac)
+    test_loader = test_dataset.get_dataloader_unsliced(args.batch_size, 'test', shrink_frac=args.test_data_shrink_frac)
     simulator = SFLSimulator(client_ids=client_ids,
-                             strategy=MultiLayerDRAFLStrategy(args, tokenizer, attacker1, None, model, test_loader),
+                             strategy=MultiLayerDRAFLStrategy(args,
+                                                              model, tokenizer, test_loader, attacker1),
                              llm=model,
                              tokenizer=tokenizer,
-                             dataset=fed_dataset, config=config)
+                             dataset=fed_dataset, config=config, args=args)
     wandb.init(
         project=args.exp_name,
-        name=f"{args.dataset}.{args.dataset_label}-attacked-by-{args.attacker_dataset}.{args.attacker_train_label}-on-{args.attacker_b2tr_sp}",
-        config=args
+        name=args.case_name,
+        config=args,
     )
     simulator.simulate()
 

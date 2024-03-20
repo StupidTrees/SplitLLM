@@ -359,3 +359,22 @@ def dist_corr(x, y):
     dvar2 = (B ** 2).sum() / n ** 2
     dcor = dcov2 / (torch.sqrt(dvar) * torch.sqrt(dvar2))
     return dcor
+
+
+def random_choose_noise(input_scales=None, mode='dxp'):
+    if input_scales is None:
+        if mode == 'dxp':
+            input_scales = {5, 7.5, 10}
+        elif mode == 'gaussian':
+            input_scales = {0.01, 0.02, 0.05}
+    scales = set()
+    for s in input_scales:
+        if s > 0:
+            scales.add(s)
+    numbers = [random.uniform(min(scales), max(scales)) for _ in
+               range(len(scales))]
+    numbers += [0, 0]
+    plus_one = max(scales) * 2
+    if mode == 'dxp':
+        numbers +=[plus_one]
+    return random.choice(numbers)

@@ -7,6 +7,7 @@ from peft import LoraConfig, get_peft_model
 from torch import nn
 
 from sfl.config import FLConfig
+from sfl.model.llm.noise import DxPrivacy, GaussianPerturber
 from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.utils.model import Intermediate
 
@@ -22,19 +23,25 @@ class SplitModel(nn.Module, ABC):
         self.fl_config: FLConfig | None = None
         self.adapter_added = False
         self.b2tr_hooks = []
-        self.perturber = None
         self.intermediate_fx = {}
+        self.noise_mode = None
+        self.perturbers = {'gaussian': GaussianPerturber()}
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
         self.fl_config = config
         self.param_keeper = param_keeper
+        self.noise_mode = config.noise_mode
         if b2tr_hooks is not None:
             for hk in b2tr_hooks:
                 self.b2tr_hooks.append(hk)
+        if config.noise_mode == 'gaussian':
+            self.perturbers['gaussian'].change_noise_scale(config.noise_scale_gaussian)
 
-    @abstractmethod
-    def change_noise_scale(self, noise_scale):
-        raise NotImplementedError
+    def change_noise(self, noise_scale, noise_mode=None):
+        if noise_mode is not None:
+            self.noise_mode = noise_mode
+        for k, v in self.perturbers.items():
+            v.change_noise_scale(noise_scale)
 
     def get_all_inter(self, detach=True):
         res = {}
@@ -57,30 +64,29 @@ class SplitModel(nn.Module, ABC):
         self.intermediate_fx[layer_index] = fx
 
     def inject_after_embedding(self, inputs_embeds):
-        if self.fl_config and self.fl_config.noise_mode in ['dxp', 'both']:
-            return self.perturber(inputs_embeds)
-        if self.fl_config.noise_mode == 'dc':
+        if self.noise_mode in ['dxp', 'both']:
+            return self.perturbers['dxp'](inputs_embeds)
+        if self.noise_mode == 'dc':
             self._store_fx('embedding', inputs_embeds)
         return inputs_embeds
 
     def inject_between_blocks(self, hidden_states, i):
         if self.fl_config and self.fl_config.attack_mode:
             if i == self.fl_config.split_point_1 - 1 and self.fl_config.attack_mode == 'b2tr':
-                return hidden_states
+                if self.noise_mode == 'gaussian':
+                    return self.perturbers['gaussian'](hidden_states)
+                return hidden_states, hidden_states
             elif i == self.fl_config.split_point_2 and self.fl_config.attack_mode == 'tr2t':
-                return hidden_states
+                return hidden_states, hidden_states
 
         if self.fl_config is not None and self.fl_config.trigger_hook and i == self.fl_config.split_point_1 - 1:  # bottom-trunk
             for hook in self.b2tr_hooks:
                 hook(hidden_states)
+
+        if self.fl_config is not None and self.noise_mode == 'gaussian' and i == self.fl_config.split_point_1 - 1:
+            hidden_states = self.perturbers['gaussian'](hidden_states)
         if self.training and self.fl_config is not None and self.fl_config.collect_intermediates:
             if i == self.fl_config.split_point_1 - 1:  # bottom-trunk
-                if self.fl_config.noise_mode == 'gaussian':
-                    min = hidden_states.min()
-                    max = hidden_states.max()
-                    noise = torch.randn_like(hidden_states)
-                    noise = noise * (max - min) * self.fl_config.noise_scale_dxp
-                    hidden_states = hidden_states + noise
                 hidden_states.retain_grad()
                 self._store_fx(i, hidden_states)
                 for hook in self.b2tr_hooks:
@@ -91,7 +97,7 @@ class SplitModel(nn.Module, ABC):
             elif self.fl_config.collect_all_layers:
                 hidden_states.retain_grad()
                 self._store_fx(i, hidden_states)
-        return None
+        return None, hidden_states
 
 
 class SplitWrapperModel(SplitModel, ABC):
@@ -117,7 +123,7 @@ class SplitWrapperModel(SplitModel, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def change_noise_scale(self, scale):
+    def change_noise(self, scale, mode=None):
         raise NotImplementedError
 
     def print_split_model(self):

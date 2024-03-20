@@ -1,6 +1,6 @@
 seeds=(42)
 
-datasets=('dialogsum,wikitext,gsm8k')
+datasets=('wikitext')
 models=('gru')
 attack_mode=('b2tr')
 sp1s=(6)
@@ -9,9 +9,11 @@ model_name="gpt2-large"
 save_checkpoint=True
 log_to_wandb=False
 dataset_train_frac=1.0
-dataset_test_frac=0.3
+dataset_test_frac=1.0
 load_bits=8
-
+noise_mode='dxp'
+noise_scale_gaussian=0.2
+noise_scale_dxp=0.2
 
 for seed in "${seeds[@]}"; do
   for dataset in "${datasets[@]}"; do
@@ -32,6 +34,9 @@ for seed in "${seeds[@]}"; do
             --log_to_wandb "$log_to_wandb" \
             --dataset_train_frac "$dataset_train_frac" \
             --dataset_test_frac "$dataset_test_frac" \
+            --noise_mode "$noise_mode"\
+            --noise_scale_gaussian "$noise_scale_gaussian"\
+            --noise_scale_dxp "$noise_scale_dxp"\
             --load_bits "$load_bits"\
             --epochs 20
         done

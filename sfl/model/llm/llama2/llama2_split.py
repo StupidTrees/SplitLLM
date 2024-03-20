@@ -24,7 +24,7 @@ class LLAMA2SplitModel(LlamaModel, SplitModel):
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
         super(LLAMA2SplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.perturber = DxPrivacy(self.embed_tokens, self.config.vocab_size, self.fl_config.noise_scale_dxp)
+        self.perturbers['dxp'] = DxPrivacy(self.embed_tokens, self.config.vocab_size, self.fl_config.noise_scale_dxp)
 
     def forward(
             self,
@@ -141,7 +141,7 @@ class LLAMA2SplitModel(LlamaModel, SplitModel):
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
-            interrupt = self.inject_between_blocks(hidden_states, idx)
+            interrupt, hidden_states = self.inject_between_blocks(hidden_states, idx)
             if interrupt is not None:
                 return interrupt
 

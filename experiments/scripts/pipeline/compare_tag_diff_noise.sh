@@ -4,7 +4,7 @@ seeds=(42)
 datasets=('piqa')
 dataset_label='train'
 test_data_label='test'
-data_shrink_frac=0.3
+data_shrink_frac=0.5
 test_data_shrink_frac=0.5
 
 model_name='gpt2-large'
@@ -14,11 +14,11 @@ exp_name='[TEST]diff_noise'
 client_num=1
 client_steps=250
 global_round=1
-batch_size=4
+batch_size=6
 dlg_enable=True
 dlg_beta=(0.85)
 
-evaluate_freq=500
+evaluate_freq=400
 self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True

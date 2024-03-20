@@ -18,6 +18,9 @@ class LLAMA2SplitLMHeadModel(LlamaForCausalLM, SplitWrapperModel):
     最后一层用于文本生成
     """
 
+    def change_noise(self, scale, mode=None):
+        self.model.change_noise(scale, mode)
+
     def get_adapter_module_regex(self):
         if self.fl_config is None:
             return ""

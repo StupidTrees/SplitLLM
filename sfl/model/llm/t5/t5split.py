@@ -23,7 +23,7 @@ class T5SplitStack(T5Stack, SplitModel):
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
         super().config_sfl(config, param_keeper, b2tr_hooks)
-        self.perturber = DxPrivacy(self.embed_tokens, self.config.vocab_size, self.fl_config.noise_scale_dxp)
+        self.perturbers['dxp'] = DxPrivacy(self.embed_tokens, self.config.vocab_size, self.fl_config.noise_scale_dxp)
 
     def get_all_inter(self, detach=True):
         b2tr, tr2t, res = super(T5SplitStack, self).get_all_inter(detach)
@@ -226,7 +226,7 @@ class T5SplitStack(T5Stack, SplitModel):
             """
             if self.is_decoder:
                 self.encoder_hidden_states = encoder_hidden_states
-                inter = self.inject_between_blocks(hidden_states, i)
+                inter, hidden_states = self.inject_between_blocks(hidden_states, i)
                 if inter is not None:
                     return inter
 
