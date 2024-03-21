@@ -1,0 +1,104 @@
+
+==================================Global Round 0=================================
+/opt/conda/envs/sfl/lib/python3.11/site-packages/transformers/optimization.py:411: FutureWarning: This implementation of AdamW is deprecated and will be removed in a future version. Use the PyTorch implementation torch.optim.AdamW instead, or set `no_deprecation_warning=True` to disable this warning
+  warnings.warn(
+  0%|                                                                                                                                 | 0/600 [00:00<?, ?it/s]Asking to truncate to max_length but no maximum length is provided and the model has no predefined maximum length. Default to no truncation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Client 0 Epoch 0 Step (109, 109) Loss 2.285:  18%|█████████████▌                                                            | 110/600 [00:48<03:34,  2.29it/s]
+Traceback (most recent call last):
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/../py/evaluate_tag_methods.py", line 134, in <module>
+    sfl_with_attacker(args)
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/../py/evaluate_tag_methods.py", line 126, in sfl_with_attacker
+    simulator.simulate()
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/simulator/simulator.py", line 150, in simulate
+    self._client_step(client_id, i, self.local_epochs[client_id], itt)
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/simulator/simulator.py", line 235, in _client_step
+    self.strategy.client_step(client_id, global_round, local_epoch, self.llm, iterator, self.config)
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/simulator/strategy.py", line 99, in client_step
+    outputs = llm(input_ids=input_ids, labels=labels, attention_mask=attention_mask)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/peft/peft_model.py", line 537, in forward
+    return self.get_base_model()(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/accelerate/hooks.py", line 166, in new_forward
+    output = module._old_forward(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/model/llm/llama2/llama2_wrapper.py", line 75, in forward
+    outputs = self.model(
+              ^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/accelerate/hooks.py", line 166, in new_forward
+    output = module._old_forward(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/model/llm/llama2/llama2_split.py", line 127, in forward
+    layer_outputs = decoder_layer(
+                    ^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/accelerate/hooks.py", line 166, in new_forward
+    output = module._old_forward(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/transformers/models/llama/modeling_llama.py", line 421, in forward
+    hidden_states = self.mlp(hidden_states)
+                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/accelerate/hooks.py", line 166, in new_forward
+    output = module._old_forward(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/transformers/models/llama/modeling_llama.py", line 216, in forward
+    down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+                                           ^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/accelerate/hooks.py", line 166, in new_forward
+    output = module._old_forward(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/bitsandbytes/nn/modules.py", line 687, in forward
+    out = bnb.matmul(x, self.weight, bias=self.bias, state=self.state)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/bitsandbytes/autograd/_functions.py", line 562, in matmul
+    return MatMul8bitLt.apply(A, B, out, bias, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/autograd/function.py", line 506, in apply
+    return super().apply(*args, **kwargs)  # type: ignore[misc]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/bitsandbytes/autograd/_functions.py", line 327, in forward
+    CA, CAt, SCA, SCAt, coo_tensorA = F.double_quant(A.to(torch.float16), threshold=state.threshold)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/bitsandbytes/functional.py", line 2215, in double_quant
+    val, idx = torch.sort(coo_tensor.rowidx)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

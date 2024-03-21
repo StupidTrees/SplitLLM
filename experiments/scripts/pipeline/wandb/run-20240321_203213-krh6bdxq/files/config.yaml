@@ -1,0 +1,204 @@
+wandb_version: 1
+
+exp_name:
+  desc: null
+  value: '[EXP]SDRP_diff_split_point'
+case_name:
+  desc: null
+  value: llama2-6
+model_name:
+  desc: null
+  value: llama2
+pre_ft_dataset:
+  desc: null
+  value: ''
+pre_ft_data_label:
+  desc: null
+  value: train
+pre_ft_data_shrink_frac:
+  desc: null
+  value: 0.2
+dataset:
+  desc: null
+  value: piqa
+max_global_step:
+  desc: null
+  value: 1200
+dataset_label:
+  desc: null
+  value: train
+data_shrink_frac:
+  desc: null
+  value: 1.0
+test_data_label:
+  desc: null
+  value: test
+test_data_shrink_frac:
+  desc: null
+  value: 0.1
+evaluate_freq:
+  desc: null
+  value: 3000
+collect_all_layers:
+  desc: null
+  value: true
+split_points:
+  desc: null
+  value: 6-20
+lora_at_trunk:
+  desc: null
+  value: true
+lora_at_bottom:
+  desc: null
+  value: true
+lora_at_top:
+  desc: null
+  value: true
+noise_mode:
+  desc: null
+  value: none
+task_type:
+  desc: null
+  value: null
+noise_scale_dxp:
+  desc: null
+  value: 0.0
+noise_scale_gaussian:
+  desc: null
+  value: 0.0
+noise_scale_grad:
+  desc: null
+  value: 0.0
+noise_beta_dc:
+  desc: null
+  value: 0.1
+attacker_model:
+  desc: null
+  value: gru
+attacker_train_frac:
+  desc: null
+  value: 1.0
+attacker_prefix:
+  desc: null
+  value: normal
+attacker_search:
+  desc: null
+  value: false
+attacker_freq:
+  desc: null
+  value: 200
+attacker_samples:
+  desc: null
+  value: 20
+attacker_dataset:
+  desc: null
+  value: piqa
+attacker_path:
+  desc: null
+  value: /code/VulDetectionLLM_local/SFL-LLM/output/attacker/
+attacker_b2tr_enable:
+  desc: null
+  value: true
+attacker_b2tr_sp:
+  desc: null
+  value: 6
+attacker_tr2t_enable:
+  desc: null
+  value: false
+attacker_tr2t_sp:
+  desc: null
+  value: 6
+client_num:
+  desc: null
+  value: 1
+global_round:
+  desc: null
+  value: 1
+client_from_scratch:
+  desc: null
+  value: false
+dlg_enable:
+  desc: null
+  value: false
+dlg_raw_enable:
+  desc: null
+  value: false
+dlg_epochs:
+  desc: null
+  value: 30
+dlg_adjust:
+  desc: null
+  value: 0
+dlg_beta:
+  desc: null
+  value: 0.9
+dlg_init_with_dra:
+  desc: null
+  value: true
+dlg_dra_reg:
+  desc: null
+  value: 0.0
+dlg_temp_range:
+  desc: null
+  value: 0.0
+dlg_further_ft:
+  desc: null
+  value: 0
+self_pt_enable:
+  desc: null
+  value: false
+client_steps:
+  desc: null
+  value: 600
+client_epoch:
+  desc: null
+  value: 1
+batch_size:
+  desc: null
+  value: 2
+lr:
+  desc: null
+  value: 1.0e-05
+seed:
+  desc: null
+  value: 42
+log_to_wandb:
+  desc: null
+  value: true
+_wandb:
+  desc: null
+  value:
+    python_version: 3.11.8
+    cli_version: 0.16.4
+    framework: huggingface
+    huggingface_version: 4.31.0
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1711024333.0
+    t:
+      1:
+      - 1
+      - 11
+      - 49
+      - 51
+      - 55
+      - 71
+      - 98
+      2:
+      - 1
+      - 11
+      - 49
+      - 51
+      - 55
+      - 71
+      - 98
+      3:
+      - 13
+      - 16
+      - 23
+      4: 3.11.8
+      5: 0.16.4
+      6: 4.31.0
+      8:
+      - 5
+      13: linux-x86_64

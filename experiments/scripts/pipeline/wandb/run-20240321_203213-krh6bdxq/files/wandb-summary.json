@@ -1,0 +1,1 @@
+{"global_step": 109, "client0_global_round": 0, "client0_local_epoch": 0, "client0_local_step": 109, "client0_step_loss": 2.2848358154296875, "client0_avg_loss": 4.157267908616499, "client0_self": 0.000252525250070146, "_timestamp": 1711024393.0913537, "_runtime": 59.120564699172974, "_step": 109, "_wandb": {"runtime": 54}}
