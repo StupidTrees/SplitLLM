@@ -22,7 +22,7 @@ attack_model='gru'
 batch_size=2
 
 # model_names=('bert-large' 'llama2' 'flan-t5-large' 'roberta-large'  'gpt2-large')
-model_names=('gpt2-large')
+model_names=('llama2')
 
 dataset_label='train'
 data_shrink_frac=1.0           # 被攻击数据集的缩减比例
