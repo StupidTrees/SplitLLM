@@ -28,13 +28,13 @@ sps='6-26'
 # 噪声规模
 attacker_noise_mode="mix"
 sfl_noise_modes=("dxp")
-sfl_noise_scales_dxp=(50 16 10 6)
+sfl_noise_scales_dxp=(2.0 1.0 0.5 0.1)
 sfl_noise_scales_gaussian=(0 0.01)
 attacker_train_frac=0.3
-attack_models=('moe2' 'gru' 'moe')
+attack_models=('gru' 'moe2')
 noise_scale_dxp=-1.0
 noise_scale_gaussian=-1.0
-datasets=('gsm8k' 'piqa' 'wikitext' 'dialogsum' 'sanitized')
+datasets=('wikitext') # 'gsm8k' 'wikitext' 'dialogsum' 'sanitized')
 attacker_dataset="wikitext"
 
 for seed in "${seeds[@]}"; do
@@ -79,13 +79,12 @@ for seed in "${seeds[@]}"; do
               --noise_scale_gaussian "$noise_scale_gaussian" \
               --dataset_train_frac "$attacker_train_frac"
 
-
             scale=$sfl_noise_scale_dxp
             if [ "$sfl_noise_mode" = "gaussian" ]; then
               scale=$sfl_noise_scale_gaussian
             fi
             attacker_prefix="${attacker_noise_mode}:${scale}"
-            if [ "$attacker_noise_mode" = "mix" ]|| [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
+            if [ "$attacker_noise_mode" = "mix" ] || [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
               attacker_prefix="${attacker_noise_mode}"
             fi
 

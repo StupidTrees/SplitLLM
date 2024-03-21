@@ -24,11 +24,9 @@ sps='6-26'
 attacker_sp=6
 batch_size=1
 
-attacker_datasets=("codealpaca" "piqa" "dialogsum" "gsm8k" "wikitext" "sanitized")
+attacker_datasets=("sensimasked")
 # 观察不同的模型
-sfl_datasets=("codealpaca" "piqa" "dialogsum" "gsm8k" "wikitext" "sanitized")
-
-
+sfl_datasets=("codealpaca" "piqa" "dialogsum" "gsm8k" "wikitext")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
@@ -41,8 +39,8 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       --dataset "$attacker_dataset" \
       --attack_model "$attack_model" \
       --attack_mode 'b2tr' \
-      --noise_mode "$noise_mode"\
-      --sps "$sps"\
+      --noise_mode "$noise_mode" \
+      --sps "$sps" \
       --save_checkpoint True \
       --log_to_wandb False
 
@@ -52,9 +50,9 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
     echo "Running evaluate_dra_cross_dataset.py with sfl_ds=$sfl_dataset"
     python ../py/evaluate_dra_cross_dataset.py \
       --noise_mode "$noise_mode" \
-      --case_name "$case_name"\
+      --case_name "$case_name" \
       --model_name "$model_name" \
-      --split_points "$sps"\
+      --split_points "$sps" \
       --global_round "$global_round" \
       --seed "$seed" \
       --dataset "$sfl_dataset" \
@@ -74,7 +72,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       --lora_at_bottom "$lora_at_bottom" \
       --collect_all_layers "$collect_all_layers" \
       --dataset_label "$dataset_label" \
-      --attacker_dataset "$attacker_dataset"\
+      --attacker_dataset "$attacker_dataset" \
       --batch_size "$batch_size"
   done
 done

@@ -17,7 +17,8 @@ from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificati
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
 from sfl.simulator.dataset import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
-    GSM8KFedDataset, WikiTextFedDataset, SanitizedFedDataset, FedDataset, MixtureFedDataset
+    GSM8KFedDataset, WikiTextFedDataset, FedDataset, MixtureFedDataset, SensiMarkedFedDataset, \
+    SensiReplacedFedDataset, SensiMaskedFedDataset
 
 
 def str2bool(v):
@@ -52,6 +53,7 @@ def add_train_dra_params(parser):
     parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
     parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
     parser.add_argument('--save_checkpoint', type=str2bool, default=False)
+    parser.add_argument('--checkpoint_freq', type=int, default=5)
     parser.add_argument('--log_to_wandb', type=str2bool, default=False)
     parser.add_argument('--skip_exists', type=str2bool, default=True)
 
@@ -64,6 +66,7 @@ def add_sfl_params(parser):
     parser.add_argument('--pre_ft_data_label', type=str, default='train')
     parser.add_argument('--pre_ft_data_shrink_frac', type=float, default=0.2)
     parser.add_argument('--dataset', type=str, default='wikitext')
+    parser.add_argument('--max_global_step', type=int, default=-1)
     parser.add_argument('--dataset_label', type=str, default='train')
     parser.add_argument('--data_shrink_frac', type=float, default=0.15, help='shrink dataset to this fraction')
     parser.add_argument('--test_data_label', type=str, default='test')
@@ -76,7 +79,7 @@ def add_sfl_params(parser):
     parser.add_argument('--lora_at_bottom', type=str2bool, default=False, help='use LoRA at bottom part')
     parser.add_argument('--lora_at_top', type=str2bool, default=False, help='use LoRA at top part')
     parser.add_argument('--noise_mode', type=str, default='none')
-    parser.add_argument('--task_type', type=str, default='lm')
+    parser.add_argument('--task_type', type=str, default=None)
     parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
     parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
     parser.add_argument('--noise_scale_grad', type=float, default=0.0)
@@ -124,6 +127,7 @@ def get_fl_config(args) -> FLConfig:
                       client_evaluate_freq=args.evaluate_freq,
                       client_steps=args.client_steps,
                       client_epoch=args.client_epoch,  # 每轮联邦每个Client训x轮
+                      max_global_step=args.max_global_step,
                       split_point_1=int(args.split_points.split('-')[0]),
                       split_point_2=int(args.split_points.split('-')[1]),
                       use_lora_at_trunk=args.lora_at_trunk,  # 在trunk部分使用LoRA
@@ -170,8 +174,8 @@ def get_model_path(model_name):
     path = ''
     if model_name.startswith('gpt2'):
         path = os.path.join(model_download_dir, model_name)
-    elif model_name == 'bert':
-        path = os.path.join(model_download_dir, "google-bert/bert-base-uncased/")
+    elif model_name.startswith('bert'):
+        path = os.path.join(model_download_dir, f"google-bert/{model_name}-uncased/")
     elif model_name.startswith('roberta'):
         path = os.path.join(model_download_dir, f"FacebookAI/{model_name}/")
     elif model_name.startswith('flan-t5'):
@@ -192,7 +196,7 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
             clz = GPT2SplitLMHeadModel
         elif task == 'clsf':
             clz = GPT2SplitClassificationModel
-    elif model_name == 'bert':
+    elif model_name.startswith('bert'):
         clz = BertForSequenceClassificationSplitModel
     elif model_name.startswith('roberta'):
         clz = RobertaForSequenceClassificationSplitModel
@@ -256,8 +260,12 @@ def get_dataset_class(dataset_name):
         dataset_cls = DialogSumFedDataset
     elif dataset_name == 'imdb':
         dataset_cls = IMDBFedDataset
-    elif dataset_name == 'sanitized':
-        dataset_cls = SanitizedFedDataset
+    elif dataset_name == 'sensimarked':
+        dataset_cls = SensiMarkedFedDataset
+    elif dataset_name == 'sensireplaced':
+        dataset_cls = SensiReplacedFedDataset
+    elif dataset_name == 'sensimasked':
+        dataset_cls = SensiMaskedFedDataset
     else:
         raise AttributeError
     return dataset_cls

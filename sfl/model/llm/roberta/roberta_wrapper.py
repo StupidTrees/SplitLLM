@@ -14,6 +14,9 @@ from sfl.simulator.param_keeper import ParameterKeeper
 
 class RobertaSplitWrapper(SplitWrapperModel):
 
+    def change_noise(self, scale, mode=None):
+        self.roberta.change_noise(scale, mode)
+
     @staticmethod
     def _get_block_num(param_name: str):
         # 获得该参数所属的block的块号，不属于block则返回-1
@@ -29,13 +32,13 @@ class RobertaSplitWrapper(SplitWrapperModel):
             if self.fl_config.use_lora_at_trunk:
                 blocks += [str(i) for i in range(self.fl_config.split_point_1, self.fl_config.split_point_2)]
             if self.fl_config.use_lora_at_top:
-                blocks += [str(i) for i in range(self.fl_config.split_point_2, self.config.n_layer)]
+                blocks += [str(i) for i in range(self.fl_config.split_point_2, self.config.num_hidden_layers)]
             reg = rf".*\.layer\.({'|'.join(blocks)})\..*(.+query|key|value|dense)$"
             return reg
         return ""
 
     def get_all_inter(self, detach=True):
-        return self.bert.get_all_inter(detach)
+        return self.roberta.get_all_inter(detach)
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks=None):
         super(RobertaSplitWrapper, self).config_sfl(config, param_keeper, b2tr_hooks)

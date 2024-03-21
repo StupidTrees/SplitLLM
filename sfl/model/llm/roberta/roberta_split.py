@@ -21,6 +21,9 @@ class RobertaSplitModel(RobertaModel, SplitModel):
         super().__init__(config, **kwargs)
         self.encoder = RobertaSplitEncoder(config)
 
+    def get_all_inter(self, detach=True):
+        return self.encoder.get_all_inter(detach)
+
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks=None):
         super(RobertaSplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
         self.perturbers['dxp'] = DxPrivacy(self.embeddings, self.config.vocab_size, self.fl_config.noise_scale_dxp)

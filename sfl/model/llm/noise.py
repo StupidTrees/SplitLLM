@@ -1,5 +1,6 @@
 import torch
 from torch import float16
+from torch.distributions import MultivariateNormal, Gamma
 from torch.nn import Module
 
 
@@ -23,11 +24,25 @@ class DxPrivacy(Perturber):
         if self.scale == 0:
             return inputs_embeds
         with torch.no_grad():
-            noise = torch.distributions.laplace.Laplace(0, scale=1 / self.scale).sample(inputs_embeds.size()).to(
-                inputs_embeds.device)
+            batch_size, seq_len, embed_size = inputs_embeds.shape
+            # 从多元正态分布中采样噪声
+            cov_matrix = torch.eye(embed_size).expand(batch_size, seq_len, embed_size, embed_size)
+            normal_dist = MultivariateNormal(torch.zeros(embed_size), covariance_matrix=cov_matrix[0, 0])
+            noise_v = normal_dist.sample(inputs_embeds.shape[:2])
+            norm = torch.linalg.norm(noise_v, dim=-1, keepdim=True)
+            norm = torch.where(norm > 0, norm, torch.ones_like(norm))
+            noise_v = noise_v / norm
+            # 从Gamma分布中采样尺度
+            alpha = embed_size
+            # self.scale = 相对epsilon = epsilon/embed_size
+            beta = self.scale * embed_size
+            gamma_dist = Gamma(torch.tensor([alpha]).float(), torch.tensor([beta]))
+            scale = gamma_dist.sample()
+            # 将尺度应用到噪声上，并添加到输入嵌入中
+            noise = scale * noise_v
             if inputs_embeds.dtype == float16:
                 noise = noise.half()
-            inputs_embeds = inputs_embeds + noise
+            inputs_embeds = inputs_embeds + noise.to(inputs_embeds.device)
 
         all_words = torch.tensor(list([i for i in range(self.vocab_size)])).to(inputs_embeds.device)
         all_embeds = self.embedder(all_words)

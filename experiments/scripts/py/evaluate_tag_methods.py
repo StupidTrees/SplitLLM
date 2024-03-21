@@ -36,43 +36,44 @@ class QAFLStrategy(BaseSFLStrategy):
                 self.log_to_sample_result(client_id, f'DRA_{type}_rgLf', rouge_res['rouge-l']['f'])
                 self.log_to_all_result(client_id, f'DRA_{type}_rgLf', rouge_res['rouge-l']['f'])
                 logs[f'attacker_{type}_step'] = rouge_res['rouge-l']['f']
-        gt_init = None
-        if self.args.dlg_init_with_dra:
-            gt_init = attacked
-        self.dlg.to(self.simulator.device)
-        gt = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
-                          epochs=self.args.dlg_epochs,
-                          adjust=args.dlg_adjust,
-                          beta=self.args.dlg_beta,
-                          gt_init=gt_init,
-                          gt_reg=self.args.dlg_dra_reg,
-                          temp_range=self.args.dlg_temp_range,
-                          further_ft=self.args.dlg_further_ft,
-                          encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                              self.simulator.device)
-                          )
-        dlg_logits = gt
-        if self.llm.type == 'encoder-decoder':
-            dlg_logits = attacked.clone()
-            dlg_logits[:, -gt.shape[1]:, :] = gt
-        dlg_rouge = evaluate_attacker_rouge(self.tokenizer, dlg_logits, batch)
-        self.log_to_sample_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
-        self.log_to_all_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
-        if args.dlg_raw_enable:  # 进行不初始化的dlg以作为对比
-            gt2 = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
-                               epochs=self.args.dlg_epochs * 8,  # 轮次要拉大一点
-                               beta=self.args.dlg_beta,
-                               gt_init=None,
-                               encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                   self.simulator.device)
-                               )
-            dlg2_logits = gt2
+        if self.args.dlg_enable:
+            gt_init = None
+            if self.args.dlg_init_with_dra:
+                gt_init = attacked
+            self.dlg.to(self.simulator.device)
+            gt = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
+                              epochs=self.args.dlg_epochs,
+                              adjust=args.dlg_adjust,
+                              beta=self.args.dlg_beta,
+                              gt_init=gt_init,
+                              gt_reg=self.args.dlg_dra_reg,
+                              temp_range=self.args.dlg_temp_range,
+                              further_ft=self.args.dlg_further_ft,
+                              encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
+                                  self.simulator.device)
+                              )
+            dlg_logits = gt
             if self.llm.type == 'encoder-decoder':
-                dlg2_logits = attacked.clone()
-                dlg2_logits[:, -gt2.shape[1]:, :] = gt2
-            dlg2_rouge = evaluate_attacker_rouge(self.tokenizer, dlg2_logits, batch)
-            self.log_to_sample_result(client_id, 'DLG_raw_rgLf', dlg2_rouge['rouge-l']['f'])
-            self.log_to_all_result(client_id, 'DLG_raw_rgLf', dlg2_rouge['rouge-l']['f'])
+                dlg_logits = attacked.clone()
+                dlg_logits[:, -gt.shape[1]:, :] = gt
+            dlg_rouge = evaluate_attacker_rouge(self.tokenizer, dlg_logits, batch)
+            self.log_to_sample_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
+            self.log_to_all_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
+            if args.dlg_raw_enable:  # 进行不初始化的dlg以作为对比
+                gt2 = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
+                                   epochs=self.args.dlg_epochs * 8,  # 轮次要拉大一点
+                                   beta=self.args.dlg_beta,
+                                   gt_init=None,
+                                   encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
+                                       self.simulator.device)
+                                   )
+                dlg2_logits = gt2
+                if self.llm.type == 'encoder-decoder':
+                    dlg2_logits = attacked.clone()
+                    dlg2_logits[:, -gt2.shape[1]:, :] = gt2
+                dlg2_rouge = evaluate_attacker_rouge(self.tokenizer, dlg2_logits, batch)
+                self.log_to_sample_result(client_id, 'DLG_raw_rgLf', dlg2_rouge['rouge-l']['f'])
+                self.log_to_all_result(client_id, 'DLG_raw_rgLf', dlg2_rouge['rouge-l']['f'])
 
 
 def sfl_with_attacker(args):

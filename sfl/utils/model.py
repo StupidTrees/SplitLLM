@@ -88,7 +88,12 @@ def generate(text, tokenizer, md):
 # 测试模型输出
 def get_output(text, tokenizer, md):
     t = tokenizer(text, return_tensors="pt", add_special_tokens=False)
-    res = md(t['input_ids'].to(md.device), attention_mask=t['attention_mask'].to(md.device))
+    if md.type == 'encoder-decoder':
+        res = md(t['input_ids'].to(md.device), attention_mask=t['attention_mask'].to(md.device),
+                 decoder_input_ids=t['input_ids'].to(md.device))
+    else:
+        res = md(t['input_ids'].to(md.device), attention_mask=t['attention_mask'].to(md.device))
+
     r = tokenizer.decode(res.logits.argmax(dim=-1)[-1], skip_special_tokens=True)
     return r
 
@@ -376,5 +381,5 @@ def random_choose_noise(input_scales=None, mode='dxp'):
     numbers += [0, 0]
     plus_one = max(scales) * 2
     if mode == 'dxp':
-        numbers +=[plus_one]
+        numbers += [plus_one]
     return random.choice(numbers)

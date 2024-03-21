@@ -155,6 +155,9 @@ class SFLSimulator(object):
                         self.local_steps[client_id] = 0
                         if self.local_epochs[client_id] >= self.config.client_epoch:
                             completed.add(client_id)
+                    print(self.global_steps[client_id], self.config.max_global_step)
+                    if (self.global_steps[client_id] + 1) >= self.config.max_global_step > 0:
+                        completed.add(client_id)
 
                     self.__summarize_communication(i, client_id)
                 # aggregate server parameters
@@ -328,6 +331,7 @@ class CircularDataLoaderIterator:
         try:
             batch_data = next(self.iters[0])
             self.count += 1
+            self.iterated_num = self.count
             if self.count > self.max_step:
                 self.iterated_num = self.count - 1
                 raise StopIteration

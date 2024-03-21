@@ -145,7 +145,9 @@ def train_attacker(args):
                       noise_scale_dxp=args.noise_scale_dxp,
                       noise_scale_gaussian=args.noise_scale_gaussian
                       )
+
     p = get_save_path(config, args.save_dir, args)
+    print(f'Checking Existing Model @ {p}')
     if os.path.exists(p) and args.skip_exists:
         print('Model exists, skipping...')
         return
@@ -265,7 +267,7 @@ def train_attacker(args):
                 item_count += 1
 
             # 计算测试集上的ROGUE
-            if (epc + 1) % 5 == 0:
+            if (epc + 1) % args.checkpoint_freq == 0:
                 evaluate(epc, model, attack_model, tokenizer, dataloader_test, args)
             if args.log_to_wandb:
                 log_dict = {'epoch': epc,

@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Any
 
 from transformers import PretrainedConfig
 
@@ -15,7 +14,10 @@ DRA_train_label = {
     'piqa': 'validation',
     'gsm8k': 'test',
     'wikitext': 'validation',
-    'sanitized': 'val'
+    'sensireplaced': 'validation',
+    'sensimarked': 'validation',
+    'sensimasked': 'validation',
+    'imdb': 'unsupervised'
 }
 
 DRA_test_label = {nm: 'test' for nm in DRA_train_label.keys()}
@@ -26,6 +28,7 @@ class FLConfig:
     global_round: int = 0
     client_epoch: int = 3
     client_steps: int = 50
+    max_global_step: int = -1 # 最多进行的global steo
     client_evaluate_freq: int = 10  # 几个Step上报一次
     client_per_round: float = 1.0
     split_point_1: int = 2

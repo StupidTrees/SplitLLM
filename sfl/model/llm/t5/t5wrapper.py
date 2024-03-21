@@ -79,6 +79,10 @@ class T5SplitWrapper(SplitWrapperModel):
         self.encoder.config_sfl(config, param_keeper, b2tr_hooks)
         self.decoder.config_sfl(config, param_keeper, b2tr_hooks)
 
+    def change_noise(self, scale, mode=None):
+        self.encoder.change_noise(scale, mode)
+        self.decoder.change_noise(scale, mode)
+
 
 class T5ForConditionalGenerationSplitModel(T5ForConditionalGeneration, T5SplitWrapper):
 

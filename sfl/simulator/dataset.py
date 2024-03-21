@@ -93,7 +93,6 @@ class CombinedDataLoader:
                 del iterators[idx]
 
 
-
 class MixtureFedDataset(FedDataset):
 
     def _format(self, example):
@@ -117,10 +116,11 @@ class MixtureFedDataset(FedDataset):
         test_loaders = []
         for nm, ds in zip(self.dataset_names, self.fed_datasets):
             if DRA_train_label[nm] == DRA_test_label[nm]:
-                d1, d2 = ds.get_dataloader_unsliced(batch_size,DRA_train_label[nm], shrink_frac, further_test_split=0.3)
+                d1, d2 = ds.get_dataloader_unsliced(batch_size, DRA_train_label[nm], shrink_frac,
+                                                    further_test_split=0.3)
             else:
-                d1 = ds.get_dataloader_unsliced(batch_size,DRA_train_label[nm], shrink_frac=shrink_frac)
-                d2 = ds.get_dataloader_unsliced(batch_size,DRA_test_label[nm], shrink_frac=shrink_frac)
+                d1 = ds.get_dataloader_unsliced(batch_size, DRA_train_label[nm], shrink_frac=shrink_frac)
+                d2 = ds.get_dataloader_unsliced(batch_size, DRA_test_label[nm], shrink_frac=shrink_frac)
             train_loaders.append(d1)
             test_loaders.append(d2)
         return CombinedDataLoader(*train_loaders), CombinedDataLoader(*test_loaders)
@@ -297,7 +297,7 @@ class WikiTextFedDataset(FedDataset):
         return res
 
 
-class SanitizedFedDataset(FedDataset):
+class SensiMarkedFedDataset(FedDataset):
 
     def _format(self, example):
         return {'input': example['content'], 'entities': ast.literal_eval(example['entity'])}
@@ -315,15 +315,49 @@ class SanitizedFedDataset(FedDataset):
                         mask[sp, i:i + len(subseq)] = 1
 
         return {'input_ids': input['input_ids'],
+                'q_ids': input['input_ids'],
+                'a_ids': input['input_ids'],
+                'q_att_mask': input['attention_mask'],
                 'input_att_mask': input['attention_mask'],
                 'input_text': texts, 'entities': [b['entity'] for b in batch],
                 'input_santi_mask': mask}
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
-        self.df = pd.read_csv('/home/project/SFL-LLM/sanitized_data_marked.csv')
+        self.df = pd.read_csv(config.dataset_cache_dir + 'sensi/sensi.csv')
         dataset = {
             'train': Dataset.from_pandas(self.df[self.df['type'] == 'train']),
-            'val': Dataset.from_pandas(self.df[self.df['type'] == 'val']),
+            'validation': Dataset.from_pandas(self.df[self.df['type'] == 'validation']),
             'test': Dataset.from_pandas(self.df[self.df['type'] == 'test'])
         }
-        super().__init__(tokenizer, client_ids, dataset, ['train', 'val', 'test'], shrink_frac)
+        super().__init__(tokenizer, client_ids, dataset, ['train', 'validation', 'test'], shrink_frac)
+
+
+class SensiReplacedFedDataset(FedDataset):
+
+    def _format(self, example):
+        return {'input': example['sani_gpt4']}
+
+    def _col_fun(self, batch):
+        texts = [b['input'] for b in batch]
+        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt', max_length=300)
+        return {'input_ids': input['input_ids'],
+                'q_ids': input['input_ids'],
+                'a_ids': input['input_ids'],
+                'q_att_mask': input['attention_mask'],
+                'input_att_mask': input['attention_mask'],
+                'input_text': texts}
+
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
+        self.df = pd.read_csv(config.dataset_cache_dir + 'sensi/sensi.csv')
+        dataset = {
+            'train': Dataset.from_pandas(self.df[self.df['type'] == 'train']),
+            'validation': Dataset.from_pandas(self.df[self.df['type'] == 'validation']),
+            'test': Dataset.from_pandas(self.df[self.df['type'] == 'test'])
+        }
+        super().__init__(tokenizer, client_ids, dataset, ['train', 'validation', 'test'], shrink_frac)
+
+
+class SensiMaskedFedDataset(SensiReplacedFedDataset):
+
+    def _format(self, example):
+        return {'input': example['sani_label']}

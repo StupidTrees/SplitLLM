@@ -9,13 +9,14 @@ pip install -r requirements.txt
 
 ## 模型下载
 1. 前往`sfl/config`，修改dataset_cache_dir，model_download_dir，model_cache_dir为本地路径
-2. 运行下载脚本（以GPT2为例），可能需要代理
+2. 运行下载脚本，可能需要代理
 ```shell
-cd experiments/scripts
+cd experiments/script
 python model_download.py --repo_id gpt2-large
 python model_download.py --repo_id FacebookAI/roberta-large
-python model_download.py --repo_id google-bert/bert-base-uncased
+python model_download.py --repo_id google-bert/bert-large-uncased
 python model_download.py --repo_id google/flan-t5-base
+python model_download.py --repo_id daryl149/llama-2-7b-chat-hf
 ```
 
 ## 数据集下载
@@ -30,16 +31,16 @@ git clone https://huggingface.co/datasets/imdb.git
 ```
 
 
+## 运行实验脚本
+- 运行python脚本`experiments/scripts/pipeline/[EXP]XXX.sh` 
 
-## 攻击模型训练
-- 运行python脚本`experiments/scripts/py/train_attacker.py` 进行训练
-- 也可运行脚本 `experiments/scripts/pipeline/run_train_attacker.sh` 进行超参组合的自动运行
+上述过程**需要配置wandb**: 在本地环境使用
 
-上述过程需要配置wandb，在本地环境使用
 ```shell
 wandb login
 ```
 来登陆自己的wandb账号，运行结果将上传至wandb可视化
+
 
 ## SFL模拟
 训练完攻击模型吼，使用sfl_with_attacker相关的notebook/py文件/脚本，进行SFL模拟

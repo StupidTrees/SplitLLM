@@ -126,18 +126,22 @@ class BaseSFLStrategy(FLStrategy):
                 batch_num += 1
                 optimizer.step()
 
-                avg_self_rouge += \
-                    calculate_rouge(self.tokenizer, outputs.logits.argmax(dim=-1), batch['input_text'])['rouge-l'][
-                        'f']
+                if self.task_type == 'lm':
+                    avg_self_rouge += \
+                        calculate_rouge(self.tokenizer, outputs.logits.argmax(dim=-1), batch['input_text'])['rouge-l'][
+                            'f']
                 # if self.args.self_pt_enable:
                 #     outputs_pt = self.simulator.restored_forward('top', input_ids=input_ids, labels=input_ids,
                 #                                                  attention_mask=attention_mask)
                 #     avg_self_rouge_pt += \
                 #         calculate_rouge(self.tokenizer, outputs_pt.logits, batch['input_text'])['rouge-l']['f']
                 self.step_done(client_id, step, batch,
-                               {"step_loss": loss.item(), "avg_loss": float(avg_loss / batch_num), "self": float(avg_self_rouge / batch_num)})
+                               {"step_loss": loss.item(), "avg_loss": float(avg_loss / batch_num),
+                                "self": float(avg_self_rouge / batch_num)})
                 #  "self_pt": float(avg_self_rouge_pt / batch_num)})  # Collect gradients
                 pbar.update(1)
+                if 0 < config.max_global_step <= self.simulator.get_current_step(client_id, step)[1] + 1:
+                    break
 
     def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step,
                                      b2tr_inter: Intermediate, tr2t_inter: Intermediate,
@@ -212,16 +216,16 @@ class BaseSFLStrategy(FLStrategy):
         if self.dlg is not None:
             self.dlg.to(self.simulator.device)
             gt = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
-                          epochs=self.args.dlg_epochs,
-                          adjust=self.args.dlg_adjust,
-                          beta=self.args.dlg_beta,
-                          gt_init=gt_init,
-                          gt_reg=self.args.dlg_dra_reg,
-                          # temp_range=self.args.dlg_temp_range,
-                          # further_ft=self.args.dlg_further_ft,
-                          encoder_inter=None if encoder_inter is None else
-                          encoder_inter.fx.to(self.simulator.device)
-                          )
+                              epochs=self.args.dlg_epochs,
+                              adjust=self.args.dlg_adjust,
+                              beta=self.args.dlg_beta,
+                              gt_init=gt_init,
+                              gt_reg=self.args.dlg_dra_reg,
+                              # temp_range=self.args.dlg_temp_range,
+                              # further_ft=self.args.dlg_further_ft,
+                              encoder_inter=None if encoder_inter is None else
+                              encoder_inter.fx.to(self.simulator.device)
+                              )
             if self.llm.type == 'encoder-decoder':
                 # replace the latter half of attacked to gt
                 attacked[:, -gt.shape[1]:, :] = gt
@@ -230,4 +234,3 @@ class BaseSFLStrategy(FLStrategy):
                 rouge = calculate_rouge(self.tokenizer, gt, batch['input_text'])
             self.log_to_sample_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
             self.log_to_all_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
-

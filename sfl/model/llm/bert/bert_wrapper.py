@@ -8,11 +8,11 @@ from transformers.modeling_outputs import SequenceClassifierOutput
 
 from sfl.config import FLConfig
 from sfl.model.llm.bert.bert_split import BertSplitModel
-from sfl.model.llm.split_model import SplitModel
+from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.param_keeper import ParameterKeeper
 
 
-class BertSplitWrapper(SplitModel):
+class BertSplitWrapper(SplitWrapperModel):
     """
     最外层模型，需要重写get_all_inter(), config_sfl()两个方法
     """
@@ -32,7 +32,7 @@ class BertSplitWrapper(SplitModel):
             if self.fl_config.use_lora_at_trunk:
                 blocks += [str(i) for i in range(self.fl_config.split_point_1, self.fl_config.split_point_2)]
             if self.fl_config.use_lora_at_top:
-                blocks += [str(i) for i in range(self.fl_config.split_point_2, self.config.n_layer)]
+                blocks += [str(i) for i in range(self.fl_config.split_point_2, self.config.num_hidden_layers)]
             reg = rf".*\.layer\.({'|'.join(blocks)})\..*(.+query|key|value|dense)$"
             return reg
         return ""
@@ -43,6 +43,9 @@ class BertSplitWrapper(SplitModel):
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks=None):
         super(BertSplitWrapper, self).config_sfl(config, param_keeper, b2tr_hooks)
         self.bert.config_sfl(config, param_keeper, b2tr_hooks)
+
+    def change_noise(self, noise_scale, noise_mode=None):
+        self.bert.change_noise(noise_scale, noise_mode)
 
 
 class BertForSequenceClassificationSplitModel(BertForSequenceClassification, BertSplitWrapper):
