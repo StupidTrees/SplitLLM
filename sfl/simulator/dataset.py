@@ -132,7 +132,11 @@ class PIQAFedDataset(FedDataset):
     """
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
-        super().__init__(tokenizer, client_ids, dataset=load_dataset('piqa', cache_dir=config.dataset_cache_dir),
+        super().__init__(tokenizer, client_ids, 
+                        # dataset=load_dataset('piqa', cache_dir=config.dataset_cache_dir),
+                         dataset=load_dataset('json', data_files={'train': config.dataset_cache_dir + 'piqa/train.jsonl', 
+                                                                     'test': config.dataset_cache_dir + 'piqa/test.jsonl', 
+                                                                     'validation': config.dataset_cache_dir + 'piqa/dev.jsonl'}),
                          types=['train', 'test', 'validation'],
                          shrink_frac=shrink_frac)
 

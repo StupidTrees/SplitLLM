@@ -1,0 +1,111 @@
+
+==================================Global Round 0=================================
+/opt/conda/envs/sfl/lib/python3.11/site-packages/transformers/optimization.py:411: FutureWarning: This implementation of AdamW is deprecated and will be removed in a future version. Use the PyTorch implementation torch.optim.AdamW instead, or set `no_deprecation_warning=True` to disable this warning
+  warnings.warn(
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Client 0 Epoch 0 Step (599, 599) Loss 1.993: 100%|██████████████████████████████████████████████████████████████████████████| 600/600 [01:15<00:00,  7.91it/s]
+600 1200
+Client 0 communication overhead: uplink:599.30 MB, downlink:599.30 MB
+SERVER: AGGREGATION
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Client 0 Epoch 0 Step (947, 947) Loss 2.360:  58%|██████████████████████████████████████████▉                               | 348/600 [00:43<00:31,  8.06it/s]
+Traceback (most recent call last):
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/../py/evaluate_tag_methods.py", line 134, in <module>
+    sfl_with_attacker(args)
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/../py/evaluate_tag_methods.py", line 126, in sfl_with_attacker
+    simulator.simulate()
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/simulator/simulator.py", line 150, in simulate
+    self._client_step(client_id, i, self.local_epochs[client_id], itt)
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/simulator/simulator.py", line 235, in _client_step
+    self.strategy.client_step(client_id, global_round, local_epoch, self.llm, iterator, self.config)
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/simulator/strategy.py", line 99, in client_step
+    outputs = llm(input_ids=input_ids, labels=labels, attention_mask=attention_mask)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/peft/peft_model.py", line 537, in forward
+    return self.get_base_model()(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/model/llm/gpt2/gpt2_wrapper.py", line 82, in forward
+    transformer_outputs = self.transformer(
+                          ^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/model/llm/gpt2/gpt2_split.py", line 178, in forward
+    outputs = block(
+              ^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/transformers/models/gpt2/modeling_gpt2.py", line 428, in forward
+    feed_forward_hidden_states = self.mlp(hidden_states)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/transformers/models/gpt2/modeling_gpt2.py", line 355, in forward
+    hidden_states = self.c_fc(hidden_states)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1494, in _call_impl
+    def _call_impl(self, *args, **kwargs):
+KeyboardInterrupt

@@ -2,11 +2,11 @@ from dataclasses import dataclass
 
 from transformers import PretrainedConfig
 
-dataset_cache_dir = '/root/autodl-tmp/sfl/datasets/'
-model_download_dir = '/root/autodl-tmp/sfl/models/'
-model_cache_dir = '/root/autodl-tmp/sfl/cache/'
-attacker_path = '/root/autodl-tmp/sfl/models/attacker/'
-fsha_path = '/root/autodl-tmp/sfl/models/attacker-fsha/'
+dataset_cache_dir = '/data/BJiao/QWEN/raw_data/'
+model_download_dir = '/model/BJiao/mid-model/mid-model/'
+model_cache_dir = '/code/VulDetectionLLM_local/SFL-LLM/output/cache/'
+attacker_path = '/code/VulDetectionLLM_local/SFL-LLM/output/attacker/'
+fsha_path = '/code/VulDetectionLLM_local/SFL-LLM/output/attacker-fsha/'
 
 DRA_train_label = {
     'codealpaca': 'test',
