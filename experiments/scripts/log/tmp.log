@@ -1,0 +1,30 @@
+Running chatglm-2 train_attacker.py with atk_ds=piqa
+Checking Existing Model @ /code/VulDetectionLLM_local/SFL-LLM/output/attacker/chatglm/piqa/validation*1.000-test*0.100/linear/layer2/normal/
+To mix food coloring with sugar, you can ==> ％。
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+Epoch 9 Test Rouge_l_f1: 0.0
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 
+To mix food coloring with sugar, you can ==> 

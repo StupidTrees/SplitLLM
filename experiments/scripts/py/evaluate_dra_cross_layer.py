@@ -7,7 +7,7 @@ import wandb
 sys.path.append(os.path.abspath('../../..'))
 
 from sfl.simulator.strategy import BaseSFLStrategy
-from sfl.utils.model import calculate_rouge, Intermediate, set_random_seed
+from sfl.utils.model import calculate_rouge, Intermediate, set_random_seed, evaluate_attacker_rouge
 from sfl.simulator.simulator import SFLSimulator
 from sfl.utils.exp import *
 
@@ -27,7 +27,7 @@ class MultiLayerDRAFLStrategy(BaseSFLStrategy):
                 # suffix = inter.type
                 self.dra1.to(self.simulator.device)
                 attacked = self.dra1(inter.fx.to(self.dra1.device))
-                rouge_res = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
+                rouge_res = evaluate_attacker_rouge(self.tokenizer, attacked, batch)
                 self.log_to_all_result(client_id, f'DRA_{idx}_RLF', rouge_res['rouge-l']['f'])
                 self.log_to_all_result(client_id, f'DRA_{idx}_R1F', rouge_res['rouge-1']['f'])
                 self.log_to_all_result(client_id, f'DRA_{idx}_R2F', rouge_res['rouge-2']['f'])

@@ -18,11 +18,11 @@ lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
-attack_model='linear'
+# attack_model='linear'
+attack_model='gru'
 batch_size=2
 
-# model_names=('bert-large' 'llama2' 'flan-t5-large' 'roberta-large'  'gpt2-large')
-
+# model_names=('llama2' 'gpt2-large' 'flan-t5-large' 'bert-large' 'roberta-large')
 model_names=('chatglm')
 
 dataset_label='train'
@@ -46,7 +46,8 @@ for model_name in "${model_names[@]}"; do
   fi
 
   if [ "$model_name" = 'chatglm' ]; then
-    split_points=(3 6 9 12 15 18 21 )
+    # split_points=(3 6 9 12 15 18 21 )
+    split_points=(2 4 6 8 9 10 12 14 16 18 20 21)
   fi
 
   if [ "$model_name" = 'bert-large' ] || [ "$model_name" = 'roberta-large' ]; then

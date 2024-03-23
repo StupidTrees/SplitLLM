@@ -26,7 +26,7 @@ class SFLSimulator(object):
         self.client_ids = client_ids
         self.strategy: FLStrategy = strategy
         self.strategy.simulator = self
-        task_type = dataset.task_type
+        task_type = llm.task_type
         if args.task_type is not None:
             task_type = args.task_type
         self.strategy.task_type = task_type

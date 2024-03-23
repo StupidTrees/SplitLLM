@@ -1,0 +1,696 @@
+2024-03-23 13:17:44,014 INFO    StreamThr :8412 [internal.py:wandb_internal():86] W&B internal server running at pid: 8412, started at: 2024-03-23 13:17:44.013241
+2024-03-23 13:17:44,016 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status
+2024-03-23 13:17:44,018 INFO    WriterThread:8412 [datastore.py:open_for_write():87] open: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/run-p27r0lh1.wandb
+2024-03-23 13:17:44,019 DEBUG   SenderThread:8412 [sender.py:send():378] send: header
+2024-03-23 13:17:44,027 DEBUG   SenderThread:8412 [sender.py:send():378] send: run
+2024-03-23 13:17:44,965 INFO    SenderThread:8412 [dir_watcher.py:__init__():211] watching files in: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files
+2024-03-23 13:17:44,965 INFO    SenderThread:8412 [sender.py:_start_run_threads():1099] run started: p27r0lh1 with start time 1711171064.012832
+2024-03-23 13:17:44,972 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: check_version
+2024-03-23 13:17:44,972 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: check_version
+2024-03-23 13:17:49,491 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:17:49,496 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: run_start
+2024-03-23 13:17:49,509 DEBUG   HandlerThread:8412 [system_info.py:__init__():26] System info init
+2024-03-23 13:17:49,509 DEBUG   HandlerThread:8412 [system_info.py:__init__():41] System info init done
+2024-03-23 13:17:49,509 INFO    HandlerThread:8412 [system_monitor.py:start():194] Starting system monitor
+2024-03-23 13:17:49,509 INFO    SystemMonitor:8412 [system_monitor.py:_start():158] Starting system asset monitoring threads
+2024-03-23 13:17:49,510 INFO    HandlerThread:8412 [system_monitor.py:probe():214] Collecting system info
+2024-03-23 13:17:49,510 INFO    SystemMonitor:8412 [interfaces.py:start():190] Started cpu monitoring
+2024-03-23 13:17:49,511 INFO    SystemMonitor:8412 [interfaces.py:start():190] Started disk monitoring
+2024-03-23 13:17:49,512 INFO    SystemMonitor:8412 [interfaces.py:start():190] Started gpu monitoring
+2024-03-23 13:17:49,512 INFO    SystemMonitor:8412 [interfaces.py:start():190] Started memory monitoring
+2024-03-23 13:17:49,513 INFO    SystemMonitor:8412 [interfaces.py:start():190] Started network monitoring
+2024-03-23 13:17:49,599 DEBUG   HandlerThread:8412 [system_info.py:probe():150] Probing system
+2024-03-23 13:17:49,601 DEBUG   HandlerThread:8412 [system_info.py:_probe_git():135] Probing git
+2024-03-23 13:17:49,606 DEBUG   HandlerThread:8412 [system_info.py:_probe_git():143] Probing git done
+2024-03-23 13:17:49,607 DEBUG   HandlerThread:8412 [system_info.py:probe():198] Probing system done
+2024-03-23 13:17:49,607 DEBUG   HandlerThread:8412 [system_monitor.py:probe():223] {'os': 'Linux-3.10.0-1160.el7.x86_64-x86_64-with-glibc2.27', 'python': '3.11.8', 'heartbeatAt': '2024-03-23T05:17:49.599948', 'startedAt': '2024-03-23T05:17:44.000570', 'docker': None, 'cuda': None, 'args': ('--noise_mode', 'dxp', '--exp_name', '[EXP]NaMOE_noise_adaption', '--model_name', 'llama2', '--global_round', '1', '--seed', '42', '--dataset', 'sensimarked', '--dataset_label', 'train', '--data_shrink_frac', '0.08', '--test_data_label', 'test', '--test_data_shrink_frac', '0.3', '--case_name', 'sensimarked[dxp-0.3]<ATKsensireplaced[dxp-0.0]', '--split_points', '6-26', '--attacker_model', 'gru', '--attacker_dataset', 'sensireplaced', '--attacker_b2tr_sp', '6', '--attacker_tr2t_sp', '6', '--self_pt_enable', 'False', '--client_num', '1', '--data_shrink_frac', '0.08', '--evaluate_freq', '300', '--client_steps', '600', '--lora_at_top', 'True', '--lora_at_trunk', 'True', '--lora_at_bottom', 'True', '--attacker_freq', '200', '--attacker_samples', '20', '--attacker_prefix', 'dxp:0.0', '--attacker_train_frac', '0.2', '--collect_all_layers', 'True', '--pre_ft_dataset', '', '--dlg_enable', 'False', '--batch_size', '1', '--noise_scale_dxp', '0.3', '--max_global_step', '1200'), 'state': 'running', 'program': '/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/../py/evaluate_tag_methods.py', 'codePathLocal': None, 'codePath': 'experiments/scripts/py/evaluate_tag_methods.py', 'git': {'remote': 'https://github.com/StupidTrees/SFL-LLM', 'commit': '6ecd6242c212b332ce85ae52703b9c55a03f1f07'}, 'email': None, 'root': '/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM', 'host': 'code-dection-40175-task1-0', 'username': 'root', 'executable': '/opt/conda/envs/sfl/bin/python', 'cpu_count': 128, 'cpu_count_logical': 256, 'cpu_freq': {'current': 1925.390625, 'min': 1500.0, 'max': 2450.0}, 'cpu_freq_per_core': [{'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2000.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 1500.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}, {'current': 2450.0, 'min': 1500.0, 'max': 2450.0}], 'disk': {'/': {'total': 892.5263671875, 'used': 622.3823547363281}}, 'gpu': 'NVIDIA GeForce RTX 4090', 'gpu_count': 1, 'gpu_devices': [{'name': 'NVIDIA GeForce RTX 4090', 'memory_total': 25757220864}], 'memory': {'total': 377.6140670776367}}
+2024-03-23 13:17:49,607 INFO    HandlerThread:8412 [system_monitor.py:probe():224] Finished collecting system info
+2024-03-23 13:17:49,607 INFO    HandlerThread:8412 [system_monitor.py:probe():227] Publishing system info
+2024-03-23 13:17:49,607 DEBUG   HandlerThread:8412 [system_info.py:_save_conda():207] Saving list of conda packages installed into the current environment
+2024-03-23 13:17:49,967 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_created():271] file/dir created: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/conda-environment.yaml
+2024-03-23 13:17:51,215 DEBUG   HandlerThread:8412 [system_info.py:_save_conda():219] Saving conda packages done
+2024-03-23 13:17:51,218 INFO    HandlerThread:8412 [system_monitor.py:probe():229] Finished publishing system info
+2024-03-23 13:17:51,220 DEBUG   SenderThread:8412 [sender.py:send():378] send: files
+2024-03-23 13:17:51,220 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-metadata.json with policy now
+2024-03-23 13:17:51,277 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: python_packages
+2024-03-23 13:17:51,277 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: python_packages
+2024-03-23 13:17:51,279 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:17:51,279 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:17:51,281 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:17:51,967 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/conda-environment.yaml
+2024-03-23 13:17:51,968 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_created():271] file/dir created: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/requirements.txt
+2024-03-23 13:17:51,968 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_created():271] file/dir created: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-metadata.json
+2024-03-23 13:17:52,187 DEBUG   SenderThread:8412 [sender.py:send():378] send: telemetry
+2024-03-23 13:17:52,991 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_created():271] file/dir created: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:17:53,213 INFO    wandb-upload_0:8412 [upload_job.py:push():131] Uploaded file /tmp/tmpm0crzlyowandb/4ccm32u6-wandb-metadata.json
+2024-03-23 13:17:54,992 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:17:55,485 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:17:55,826 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:17:55,828 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:17:55,828 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:17:55,829 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:17:55,992 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_created():271] file/dir created: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:17:56,993 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:17:58,801 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:17:58,801 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:17:58,802 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:17:58,803 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:17:58,995 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:00,807 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:00,996 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:02,163 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:02,163 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:02,164 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:02,165 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:02,996 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:02,997 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:04,691 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:04,692 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:04,692 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:04,693 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:04,997 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:04,997 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:06,278 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:18:06,278 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:18:06,279 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:18:06,660 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:06,998 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:07,296 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:07,297 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:07,297 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:07,298 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:07,999 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:09,085 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:10,305 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:10,305 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:10,306 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:10,306 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:11,105 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:11,106 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:12,385 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:13,705 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:13,706 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:13,706 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:13,708 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:14,199 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:15,388 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:16,681 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:16,682 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:16,682 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:16,683 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:17,391 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:17,688 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:18,394 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/config.yaml
+2024-03-23 13:18:19,024 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:19,025 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:19,025 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:19,026 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:19,393 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:19,393 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:21,285 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:18:21,285 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:18:21,288 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:18:21,394 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:21,801 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:21,802 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:21,802 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:21,803 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:22,394 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:23,394 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:23,803 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:24,726 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:24,727 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:24,728 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:24,728 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:25,395 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:27,466 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:27,467 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:27,467 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:27,468 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:27,490 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:27,490 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:29,494 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:29,740 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:30,537 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:30,538 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:30,538 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:30,539 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:31,585 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:31,586 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:33,457 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:33,458 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:33,459 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:33,460 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:33,588 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:35,585 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:35,595 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:36,279 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:18:36,279 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:18:36,279 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:18:36,449 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:36,589 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:36,589 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:36,591 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:36,595 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:37,595 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:39,485 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:39,485 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:39,486 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:39,486 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:39,596 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:39,596 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:40,495 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:41,598 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:41,824 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:41,825 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:41,825 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:41,826 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:42,600 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:43,688 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:44,418 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:44,419 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:44,419 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:44,420 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:44,718 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:45,730 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:46,485 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:46,914 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:46,915 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:46,915 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:46,915 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:47,721 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:47,722 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:49,413 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:49,413 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:49,414 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:49,414 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:49,535 DEBUG   SystemMonitor:8412 [system_monitor.py:_start():172] Starting system metrics aggregation loop
+2024-03-23 13:18:49,550 DEBUG   SenderThread:8412 [sender.py:send():378] send: stats
+2024-03-23 13:18:49,791 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:51,290 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:18:51,290 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:18:51,291 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:18:51,582 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:51,726 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:51,726 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:51,727 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:51,727 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:51,792 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:51,793 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:54,192 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:55,142 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:55,142 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:55,143 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:55,143 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:55,195 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:18:56,196 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:18:57,149 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:18:57,470 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:18:57,472 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:18:57,472 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:18:57,472 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:18:58,197 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:00,164 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:00,165 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:00,165 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:00,166 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:00,220 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:00,221 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:02,192 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:02,294 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:03,018 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:03,018 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:03,019 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:03,019 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:03,292 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:03,292 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:05,420 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:05,420 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:05,421 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:05,421 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:06,290 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:19:06,290 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:19:06,291 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:19:06,293 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:07,294 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:07,586 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:08,469 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:08,470 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:08,470 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:08,471 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:09,302 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:09,303 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:11,258 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:11,260 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:11,260 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:11,261 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:11,388 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:11,389 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:13,290 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:13,395 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:13,724 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:13,725 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:13,726 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:13,726 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:14,396 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:15,573 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:16,644 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:16,645 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:16,645 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:16,645 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:17,574 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:18,575 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:18,685 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:19,180 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:19,181 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:19,181 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:19,181 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:19,576 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:19,592 DEBUG   SenderThread:8412 [sender.py:send():378] send: stats
+2024-03-23 13:19:20,576 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:21,290 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:19:21,291 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:19:21,292 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:19:21,583 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:21,731 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:21,732 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:21,732 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:22,585 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:23,733 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:24,302 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:24,303 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:24,304 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:24,304 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:24,585 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:24,586 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:26,588 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:26,861 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:26,863 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:26,863 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:26,864 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:27,588 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:28,605 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:28,872 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:29,961 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:29,962 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:29,962 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:29,963 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:30,590 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:32,350 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:32,351 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:32,351 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:32,351 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:32,591 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:32,592 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:34,388 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:34,592 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:35,444 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:35,445 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:35,446 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:35,446 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:35,593 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:36,292 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:19:36,292 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:19:36,295 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:19:36,594 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:38,562 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:38,563 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:38,563 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:38,564 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:38,689 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:38,691 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:39,585 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:40,688 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:41,245 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:41,246 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:41,246 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:41,247 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:41,695 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:42,692 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:43,431 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:43,432 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:43,433 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:43,433 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:43,692 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:44,693 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:45,440 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:45,716 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:45,717 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:45,717 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:45,718 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:46,694 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:46,694 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:48,695 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:49,420 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:49,421 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:49,421 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:49,422 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:49,593 DEBUG   SenderThread:8412 [sender.py:send():378] send: stats
+2024-03-23 13:19:49,695 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:50,594 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:50,741 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:51,291 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:19:51,291 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:19:51,292 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:19:52,531 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:52,532 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:52,532 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:52,533 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:52,795 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:54,796 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:55,290 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:55,291 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:55,291 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:55,292 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:55,797 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:56,485 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:19:56,820 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:57,742 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:19:57,743 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:19:57,743 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:19:57,744 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:19:57,855 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:19:57,855 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:19:59,994 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:00,428 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:00,429 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:00,429 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:00,430 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:00,996 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:01,995 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:02,495 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:02,854 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:02,855 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:02,855 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:02,856 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:02,996 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:04,997 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:05,621 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:05,622 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:05,623 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:05,623 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:05,998 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:06,290 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:20:06,291 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:20:06,292 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:20:07,096 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:08,096 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:08,486 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:08,487 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:08,487 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:08,487 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:09,187 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:10,189 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:11,079 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:11,080 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:11,080 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:11,081 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:11,190 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:12,191 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:13,187 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:13,861 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:13,862 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:13,862 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:13,863 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:14,219 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:14,219 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:16,289 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:16,564 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:16,566 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:16,566 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:16,567 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:17,471 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:18,471 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:18,569 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:19,281 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:19,282 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:19,282 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:19,283 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:19,489 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:19,595 DEBUG   SenderThread:8412 [sender.py:send():378] send: stats
+2024-03-23 13:20:20,488 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:21,291 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:20:21,386 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:20:21,392 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:20:22,221 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:22,222 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:22,222 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:22,222 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:22,489 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:24,285 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:24,491 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:25,097 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:25,098 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:25,098 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:25,098 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:25,551 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:26,551 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:28,031 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:28,032 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:28,033 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:28,033 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:28,587 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:28,587 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:30,037 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:30,301 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:30,302 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:30,302 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:30,303 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:30,590 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:30,590 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:32,592 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:33,141 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:33,142 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:33,142 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:33,143 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:33,592 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:34,597 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:35,185 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:35,508 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:35,508 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:35,509 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:35,509 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:35,597 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:36,292 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:20:36,293 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:20:36,387 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:20:36,689 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:38,179 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:38,180 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:38,180 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:38,181 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:38,700 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:38,701 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:40,285 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:40,654 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:40,654 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:40,655 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:40,655 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:40,690 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:42,787 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:43,356 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:43,357 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:43,357 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:43,357 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:43,787 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:44,799 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:45,364 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:45,827 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:45,827 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:45,828 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:45,828 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:46,885 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:46,886 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:48,442 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:48,443 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:48,443 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:48,444 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:48,890 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:48,890 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:49,605 DEBUG   SenderThread:8412 [sender.py:send():378] send: stats
+2024-03-23 13:20:50,611 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:50,845 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:50,846 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:50,846 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:50,846 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:50,906 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:50,906 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:51,307 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: stop_status
+2024-03-23 13:20:51,308 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: stop_status
+2024-03-23 13:20:51,419 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:20:53,192 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:53,372 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:53,373 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:53,373 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:53,374 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:54,193 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:55,193 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:56,210 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:20:56,377 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:56,378 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:56,378 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:56,378 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:20:57,194 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:20:59,196 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:20:59,640 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:20:59,643 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:20:59,643 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:20:59,644 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:21:00,196 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:21:01,245 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:21:01,685 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:21:02,317 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: partial_history
+2024-03-23 13:21:02,318 DEBUG   SenderThread:8412 [sender.py:send():378] send: history
+2024-03-23 13:21:02,318 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: summary_record
+2024-03-23 13:21:02,318 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:21:02,856 DEBUG   SenderThread:8412 [sender.py:send():378] send: exit
+2024-03-23 13:21:02,856 INFO    SenderThread:8412 [sender.py:send_exit():585] handling exit code: 255
+2024-03-23 13:21:02,857 INFO    SenderThread:8412 [sender.py:send_exit():587] handling runtime: 193
+2024-03-23 13:21:02,857 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:21:02,857 INFO    SenderThread:8412 [sender.py:send_exit():593] send defer
+2024-03-23 13:21:02,858 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:02,858 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 0
+2024-03-23 13:21:02,858 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:02,858 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 0
+2024-03-23 13:21:02,858 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 1
+2024-03-23 13:21:02,858 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:02,858 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 1
+2024-03-23 13:21:02,858 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:02,858 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 1
+2024-03-23 13:21:02,858 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 2
+2024-03-23 13:21:02,858 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:02,859 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 2
+2024-03-23 13:21:02,859 INFO    HandlerThread:8412 [system_monitor.py:finish():203] Stopping system monitor
+2024-03-23 13:21:02,859 DEBUG   SystemMonitor:8412 [system_monitor.py:_start():179] Finished system metrics aggregation loop
+2024-03-23 13:21:02,860 INFO    HandlerThread:8412 [interfaces.py:finish():202] Joined cpu monitor
+2024-03-23 13:21:02,861 DEBUG   SystemMonitor:8412 [system_monitor.py:_start():183] Publishing last batch of metrics
+2024-03-23 13:21:02,861 INFO    HandlerThread:8412 [interfaces.py:finish():202] Joined disk monitor
+2024-03-23 13:21:02,872 INFO    HandlerThread:8412 [interfaces.py:finish():202] Joined gpu monitor
+2024-03-23 13:21:02,872 INFO    HandlerThread:8412 [interfaces.py:finish():202] Joined memory monitor
+2024-03-23 13:21:02,872 INFO    HandlerThread:8412 [interfaces.py:finish():202] Joined network monitor
+2024-03-23 13:21:02,873 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:02,873 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 2
+2024-03-23 13:21:02,873 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 3
+2024-03-23 13:21:02,873 DEBUG   SenderThread:8412 [sender.py:send():378] send: stats
+2024-03-23 13:21:02,873 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:02,874 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 3
+2024-03-23 13:21:02,874 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:02,874 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 3
+2024-03-23 13:21:02,874 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 4
+2024-03-23 13:21:02,875 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:02,875 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 4
+2024-03-23 13:21:02,875 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:02,875 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 4
+2024-03-23 13:21:02,875 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 5
+2024-03-23 13:21:02,875 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:02,875 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 5
+2024-03-23 13:21:02,875 DEBUG   SenderThread:8412 [sender.py:send():378] send: summary
+2024-03-23 13:21:02,876 INFO    SenderThread:8412 [sender.py:_save_file():1365] saving file wandb-summary.json with policy end
+2024-03-23 13:21:02,876 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:02,876 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 5
+2024-03-23 13:21:02,876 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 6
+2024-03-23 13:21:02,876 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:02,876 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 6
+2024-03-23 13:21:02,876 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:02,876 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 6
+2024-03-23 13:21:02,876 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 7
+2024-03-23 13:21:02,876 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:21:02,876 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:02,876 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 7
+2024-03-23 13:21:02,877 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:02,877 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 7
+2024-03-23 13:21:03,246 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:21:03,246 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:21:03,856 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: poll_exit
+2024-03-23 13:21:05,247 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:21:06,604 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 8
+2024-03-23 13:21:06,604 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: poll_exit
+2024-03-23 13:21:06,605 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:06,605 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 8
+2024-03-23 13:21:06,605 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:06,605 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 8
+2024-03-23 13:21:06,605 INFO    SenderThread:8412 [job_builder.py:build():298] Attempting to build job artifact
+2024-03-23 13:21:06,606 INFO    SenderThread:8412 [job_builder.py:_get_source_type():428] is repo sourced job
+2024-03-23 13:21:06,626 INFO    SenderThread:8412 [job_builder.py:build():404] adding wandb-job metadata file
+2024-03-23 13:21:06,629 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 9
+2024-03-23 13:21:06,629 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:06,629 DEBUG   SenderThread:8412 [sender.py:send():378] send: artifact
+2024-03-23 13:21:06,629 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 9
+2024-03-23 13:21:06,857 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: poll_exit
+2024-03-23 13:21:07,248 INFO    Thread-12 :8412 [dir_watcher.py:_on_file_modified():288] file/dir modified: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:21:09,371 INFO    wandb-upload_1:8412 [upload_job.py:push():89] Uploaded file /root/.local/share/wandb/artifacts/staging/tmpv6xnra_o
+2024-03-23 13:21:09,539 INFO    wandb-upload_0:8412 [upload_job.py:push():89] Uploaded file /root/.local/share/wandb/artifacts/staging/tmpa8jic7s5
+2024-03-23 13:21:11,070 INFO    SenderThread:8412 [sender.py:send_artifact():1443] sent artifact job-https___github.com_StupidTrees_SFL-LLM_experiments_scripts_py_evaluate_tag_methods.py - {'id': 'QXJ0aWZhY3Q6NzY3NjM1MDY4', 'state': 'PENDING', 'artifactSequence': {'id': 'QXJ0aWZhY3RDb2xsZWN0aW9uOjE1MTY4MzA4OQ==', 'latestArtifact': None}}
+2024-03-23 13:21:11,071 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:11,071 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 9
+2024-03-23 13:21:11,071 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: status_report
+2024-03-23 13:21:11,071 INFO    SenderThread:8412 [dir_watcher.py:finish():358] shutting down directory watcher
+2024-03-23 13:21:11,250 INFO    SenderThread:8412 [dir_watcher.py:finish():388] scan: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files
+2024-03-23 13:21:11,251 INFO    SenderThread:8412 [dir_watcher.py:finish():402] scan save: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/conda-environment.yaml conda-environment.yaml
+2024-03-23 13:21:11,251 INFO    SenderThread:8412 [dir_watcher.py:finish():402] scan save: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-metadata.json wandb-metadata.json
+2024-03-23 13:21:11,251 INFO    SenderThread:8412 [dir_watcher.py:finish():402] scan save: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/config.yaml config.yaml
+2024-03-23 13:21:11,252 INFO    SenderThread:8412 [dir_watcher.py:finish():402] scan save: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/requirements.txt requirements.txt
+2024-03-23 13:21:11,254 INFO    SenderThread:8412 [dir_watcher.py:finish():402] scan save: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json wandb-summary.json
+2024-03-23 13:21:11,255 INFO    SenderThread:8412 [dir_watcher.py:finish():402] scan save: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log output.log
+2024-03-23 13:21:11,255 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 10
+2024-03-23 13:21:11,257 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: poll_exit
+2024-03-23 13:21:11,260 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:11,262 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 10
+2024-03-23 13:21:11,263 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:11,265 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 10
+2024-03-23 13:21:11,265 INFO    SenderThread:8412 [file_pusher.py:finish():172] shutting down file pusher
+2024-03-23 13:21:11,817 INFO    wandb-upload_2:8412 [upload_job.py:push():131] Uploaded file /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/config.yaml
+2024-03-23 13:21:11,851 INFO    wandb-upload_1:8412 [upload_job.py:push():131] Uploaded file /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/conda-environment.yaml
+2024-03-23 13:21:11,859 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: keepalive
+2024-03-23 13:21:11,859 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: poll_exit
+2024-03-23 13:21:11,860 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: poll_exit
+2024-03-23 13:21:12,174 INFO    wandb-upload_4:8412 [upload_job.py:push():131] Uploaded file /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/output.log
+2024-03-23 13:21:12,318 INFO    wandb-upload_0:8412 [upload_job.py:push():131] Uploaded file /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/requirements.txt
+2024-03-23 13:21:12,657 INFO    wandb-upload_3:8412 [upload_job.py:push():131] Uploaded file /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/files/wandb-summary.json
+2024-03-23 13:21:12,858 INFO    Thread-11 (_thread_body):8412 [sender.py:transition_state():613] send defer: 11
+2024-03-23 13:21:12,859 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:12,859 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 11
+2024-03-23 13:21:12,860 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:12,860 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 11
+2024-03-23 13:21:12,860 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: poll_exit
+2024-03-23 13:21:12,860 INFO    SenderThread:8412 [file_pusher.py:join():178] waiting for file pusher
+2024-03-23 13:21:12,861 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 12
+2024-03-23 13:21:12,861 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: poll_exit
+2024-03-23 13:21:12,861 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:12,862 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 12
+2024-03-23 13:21:12,862 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:12,862 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 12
+2024-03-23 13:21:12,862 INFO    SenderThread:8412 [file_stream.py:finish():595] file stream finish called
+2024-03-23 13:21:13,085 INFO    SenderThread:8412 [file_stream.py:finish():599] file stream finish is done
+2024-03-23 13:21:13,085 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 13
+2024-03-23 13:21:13,085 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:13,085 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 13
+2024-03-23 13:21:13,085 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:13,085 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 13
+2024-03-23 13:21:13,085 INFO    SenderThread:8412 [sender.py:transition_state():613] send defer: 14
+2024-03-23 13:21:13,085 DEBUG   SenderThread:8412 [sender.py:send():378] send: final
+2024-03-23 13:21:13,085 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: defer
+2024-03-23 13:21:13,085 DEBUG   SenderThread:8412 [sender.py:send():378] send: footer
+2024-03-23 13:21:13,086 INFO    HandlerThread:8412 [handler.py:handle_request_defer():172] handle defer: 14
+2024-03-23 13:21:13,086 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: defer
+2024-03-23 13:21:13,086 INFO    SenderThread:8412 [sender.py:send_request_defer():609] handle sender defer: 14
+2024-03-23 13:21:13,086 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: poll_exit
+2024-03-23 13:21:13,087 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: poll_exit
+2024-03-23 13:21:13,087 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: poll_exit
+2024-03-23 13:21:13,088 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: poll_exit
+2024-03-23 13:21:13,088 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: server_info
+2024-03-23 13:21:13,089 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: get_summary
+2024-03-23 13:21:13,089 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: server_info
+2024-03-23 13:21:13,091 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: sampled_history
+2024-03-23 13:21:13,093 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: internal_messages
+2024-03-23 13:21:13,093 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: job_info
+2024-03-23 13:21:13,304 DEBUG   SenderThread:8412 [sender.py:send_request():405] send_request: job_info
+2024-03-23 13:21:13,304 INFO    MainThread:8412 [wandb_run.py:_footer_history_summary_info():3851] rendering history
+2024-03-23 13:21:13,305 INFO    MainThread:8412 [wandb_run.py:_footer_history_summary_info():3883] rendering summary
+2024-03-23 13:21:13,305 INFO    MainThread:8412 [wandb_run.py:_footer_sync_info():3810] logging synced files
+2024-03-23 13:21:13,306 DEBUG   HandlerThread:8412 [handler.py:handle_request():146] handle_request: shutdown
+2024-03-23 13:21:13,306 INFO    HandlerThread:8412 [handler.py:finish():869] shutting down handler
+2024-03-23 13:21:14,094 INFO    WriterThread:8412 [datastore.py:close():296] close: /code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/wandb/run-20240323_131744-p27r0lh1/run-p27r0lh1.wandb
+2024-03-23 13:21:14,304 INFO    SenderThread:8412 [sender.py:finish():1521] shutting down sender
+2024-03-23 13:21:14,304 INFO    SenderThread:8412 [file_pusher.py:finish():172] shutting down file pusher
+2024-03-23 13:21:14,304 INFO    SenderThread:8412 [file_pusher.py:join():178] waiting for file pusher

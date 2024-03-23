@@ -72,7 +72,7 @@ class BaseSFLStrategy(FLStrategy):
         self.attack_all_performs = {}
 
     def client_evaluate(self, global_round, client_id, log):
-        if self.task_type == 'clsf':
+        if self.task_type == 'classification':
             log['test-acc'] = evaluate_accuracy(self.simulator.llm, self.test_loader)
         elif self.task_type == 'lm':
             ppl = evaluate_perplexity(self.simulator.llm, self.test_loader)
@@ -94,7 +94,7 @@ class BaseSFLStrategy(FLStrategy):
                     input_ids = batch['input_ids'].to(llm.device)
                     attention_mask = batch['input_att_mask'].to(llm.device)
                     labels = input_ids
-                    if 'labels' in batch and self.task_type == 'clsf':
+                    if 'labels' in batch and self.llm.task_type != 'lm':
                         labels = batch['labels'].to(llm.device)
                     outputs = llm(input_ids=input_ids, labels=labels, attention_mask=attention_mask)
 
@@ -196,7 +196,7 @@ class BaseSFLStrategy(FLStrategy):
         """
         encoder_inter = all_inter.get('encoder', None)
         with torch.no_grad():
-            for type, atk in zip(['tr2t', 'b2tr'], [self.dra1, self.dra2]):
+            for type, atk in zip(['tr2t', 'b2tr'], [self.dra2, self.dra1]):
                 if atk is None:
                     continue
                 atk.to(self.simulator.device)
@@ -207,8 +207,8 @@ class BaseSFLStrategy(FLStrategy):
                 else:
                     attacked = atk(inter.fx.to(atk.device))
                 rouge_res = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
-                self.log_to_sample_result(client_id, f'attacker_{type}', rouge_res['rouge-l']['f'])
-                self.log_to_all_result(client_id, f'attacker_{type}', rouge_res['rouge-l']['f'])
+                self.log_to_sample_result(client_id, f'DRA_{type}_rgLf', rouge_res['rouge-l']['f'])
+                self.log_to_all_result(client_id, f'DRA_{type}_rgLf', rouge_res['rouge-l']['f'])
                 logs[f'attacker_{type}_step'] = rouge_res['rouge-l']['f']
         gt_init = None
         if self.args.dlg_init_with_dra:
@@ -229,8 +229,8 @@ class BaseSFLStrategy(FLStrategy):
             if self.llm.type == 'encoder-decoder':
                 # replace the latter half of attacked to gt
                 attacked[:, -gt.shape[1]:, :] = gt
-                rouge = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
+                dlg_rouge = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
             else:
-                rouge = calculate_rouge(self.tokenizer, gt, batch['input_text'])
-            self.log_to_sample_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
-            self.log_to_all_result(client_id, 'tag_rouge_lf', rouge['rouge-l']['f'])
+                dlg_rouge = calculate_rouge(self.tokenizer, gt, batch['input_text'])
+            self.log_to_sample_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
+            self.log_to_all_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])

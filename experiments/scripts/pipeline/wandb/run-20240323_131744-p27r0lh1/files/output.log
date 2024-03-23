@@ -1,0 +1,140 @@
+
+==================================Global Round 0=================================
+/opt/conda/envs/sfl/lib/python3.11/site-packages/transformers/optimization.py:411: FutureWarning: This implementation of AdamW is deprecated and will be removed in a future version. Use the PyTorch implementation torch.optim.AdamW instead, or set `no_deprecation_warning=True` to disable this warning
+  warnings.warn(
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Client 0 Epoch 0 Step (68, 68) Loss 2.505:  12%|█████████                                                                      | 69/600 [03:10<24:24,  2.76s/it]
+Traceback (most recent call last):
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/../py/evaluate_tag_methods.py", line 129, in <module>
+    sfl_with_attacker(args)
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/experiments/scripts/pipeline/../py/evaluate_tag_methods.py", line 121, in sfl_with_attacker
+    simulator.simulate()
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/simulator/simulator.py", line 150, in simulate
+    self._client_step(client_id, i, self.local_epochs[client_id], itt)
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/simulator/simulator.py", line 235, in _client_step
+    self.strategy.client_step(client_id, global_round, local_epoch, self.llm, iterator, self.config)
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/simulator/strategy.py", line 99, in client_step
+    outputs = llm(input_ids=input_ids, labels=labels, attention_mask=attention_mask)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/peft/peft_model.py", line 537, in forward
+    return self.get_base_model()(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/accelerate/hooks.py", line 166, in new_forward
+    output = module._old_forward(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/model/llm/llama2/llama2_wrapper.py", line 76, in forward
+    outputs = self.model(
+              ^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/accelerate/hooks.py", line 166, in new_forward
+    output = module._old_forward(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/model/llm/llama2/llama2_split.py", line 89, in forward
+    inputs_embeds = self.inject_after_embedding(inputs_embeds)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/model/llm/split_model.py", line 68, in inject_after_embedding
+    return self.perturbers['dxp'](inputs_embeds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/code/VulDetectionLLM_local/SFL-LLM/SFL-LLM/sfl/model/llm/noise.py", line 30, in forward
+    normal_dist = MultivariateNormal(torch.zeros(embed_size), covariance_matrix=cov_matrix[0, 0])
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/distributions/multivariate_normal.py", line 150, in __init__
+    super().__init__(batch_shape, event_shape, validate_args=validate_args)
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/distributions/distribution.py", line 60, in __init__
+    valid = constraint.check(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/distributions/constraints.py", line 509, in check
+    sym_check = super().check(value)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/envs/sfl/lib/python3.11/site-packages/torch/distributions/constraints.py", line 490, in check
+    return torch.isclose(value, value.mT, atol=1e-6).all(-2).all(-1)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

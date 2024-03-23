@@ -1,0 +1,79 @@
+
+==================================Global Round 0=================================
+/opt/conda/envs/sfl/lib/python3.11/site-packages/transformers/optimization.py:411: FutureWarning: This implementation of AdamW is deprecated and will be removed in a future version. Use the PyTorch implementation torch.optim.AdamW instead, or set `no_deprecation_warning=True` to disable this warning
+  warnings.warn(
+  0%|                                                                                                                                            | 0/600 [00:00<?, ?it/s]Asking to truncate to max_length but no maximum length is provided and the model has no predefined maximum length. Default to no truncation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Client 0 Epoch 0 Step (599, 599) Loss 2.904: 100%|█████████████████████████████████████████████████████████████████████████████████████| 600/600 [01:05<00:00,  9.11it/s]
+600 1200
+Client 0 communication overhead: uplink:1.02 GB, downlink:1.02 GB
+SERVER: AGGREGATION
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Client 0 Epoch 0 Step (1191, 1191) Loss 3.012:  99%|█████████████████████████████████████████████████████████████████████████████████▉ | 592/600 [01:01<00:00,  9.45it/s]
+1200 1200
+Client 0 communication overhead: uplink:2.03 GB, downlink:2.03 GB
+SERVER: AGGREGATION
+Global Round 0 communication overhead: uplink=2.03 GB, downlink=2.03 GB
+SERVER: AGGREGATION
+
+Client 0 Epoch 0 Step (1199, 1199) Loss 2.826: 100%|███████████████████████████████████████████████████████████████████████████████████| 600/600 [01:02<00:00,  9.59it/s]
