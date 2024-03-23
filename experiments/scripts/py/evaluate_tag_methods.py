@@ -86,14 +86,17 @@ def sfl_with_attacker(args):
     # 加载TAG攻击模型
     model.config_sfl(config, None)
     model.train()
-    print(get_output("test", tokenizer, model))
-    tag = get_dlg_attacker(model)
+    tag = None
+    if args.dlg_enable:
+        print(get_output("test", tokenizer, model))
+        tag = get_dlg_attacker(model)
 
     # 加载DRA攻击模型
     attacker, attacker2 = get_dra_attacker(get_dra_config(args))
 
     # 加载数据集
-    fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
+    fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids,
+                              shrink_frac=args.data_shrink_frac)
     test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[])
     test_loader = test_dataset.get_dataloader_unsliced(args.batch_size, args.test_data_label,
                                                        shrink_frac=args.test_data_shrink_frac)
@@ -108,14 +111,6 @@ def sfl_with_attacker(args):
         pre_ft_loader = pre_ft_dataset.get_dataloader_unsliced(args.batch_size, args.pre_ft_data_label,
                                                                shrink_frac=args.pre_ft_data_shrink_frac)
         simulator.pre_ft(pre_ft_loader, ['bottom', 'top'])
-
-    noise_name = args.noise_mode
-    if args.noise_mode == 'grad':
-        noise_name += f'[{args.noise_scale_grad}]'
-    elif args.noise_mode == 'dxp':
-        noise_name += f'[{args.noise_scale_dxp}]'
-    elif args.noise_mode == 'both':
-        noise_name += f'[{args.noise_scale_dxp},{args.noise_scale_grad}]'
 
     wandb.init(
         project=args.exp_name,

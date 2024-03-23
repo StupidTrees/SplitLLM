@@ -20,7 +20,6 @@ from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_r
 
 from sfl.config import DRA_train_label, DRA_test_label
 
-
 def get_save_path(fl_config, save_dir, args):
     model_name = args.model_name
     cut_layer = fl_config.split_point_1 if fl_config.attack_mode == "b2tr" else fl_config.split_point_2
@@ -200,7 +199,7 @@ def train_attacker(args):
     elif args.attack_model == 'trans-dec':
         attack_model = TransformerDecoderDRAttacker(TransformerDRAttackerConfig(), model.config)
 
-    if 'llama2' not in args.model_name:
+    if 'llama2' not in args.model_name and 'chatglm' not in args.model_name:
         device = get_best_gpu()
         model.to(device)
 
@@ -245,7 +244,8 @@ def train_attacker(args):
                     input_ids = batch['input_ids'].to(model.device)
                     attention_mask = batch['input_att_mask'].to(model.device)
                     intermediate = model(input_ids=input_ids, attention_mask=attention_mask)
-
+                    # print(intermediate)
+                # print(tokenizer.decode(input_ids[0], skip_special_tokens=False))
                 logits = attack_model(intermediate)
                 loss = calc_unshift_loss(logits, input_ids)
                 loss.backward()
@@ -257,6 +257,9 @@ def train_attacker(args):
                 rouge_l_f1 += res['rouge-l']['f']
                 rouge_l_p += res['rouge-l']['p']
                 rouge_l_r += res['rouge-l']['r']
+
+                # print(logits.argmax(dim=-1))
+                # print(tokenizer.decode(logits.argmax(dim=-1)[0], skip_special_tokens=False))
 
                 pbar.set_description(
                     f'Epoch {epc} Loss {loss.item():.5f}, Rouge_Lf1 {rouge_l_f1 / (step + 1):.4f}')

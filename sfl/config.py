@@ -17,10 +17,12 @@ DRA_train_label = {
     'sensireplaced': 'validation',
     'sensimarked': 'validation',
     'sensimasked': 'validation',
-    'imdb': 'unsupervised'
+    'imdb': 'unsupervised',
+    'hc3cn': 'baike',
 }
 
 DRA_test_label = {nm: 'test' for nm in DRA_train_label.keys()}
+DRA_test_label['hc3cn'] = 'finance'
 
 
 @dataclass

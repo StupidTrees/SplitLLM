@@ -122,6 +122,8 @@ class LinearDRAttacker(DRAttacker):
         self.mlp = nn.Linear(self.config.n_embed, self.config.vocab_size)
 
     def forward(self, x):
+        if x.dtype == torch.float16:
+            x = x.float()
         # x[batch_size, seq_len, n_embed]
         # output [batch_size,seq_len, vocab_size]
         return self.mlp(x)
@@ -140,6 +142,8 @@ class LSTMDRAttacker(DRAttacker):
         self.mlp = nn.Linear(self.config.hidden_size, self.config.vocab_size)
 
     def forward(self, x):
+        if x.dtype == torch.float16:
+            x = x.float()
         # x[batch_size, seq_len, n_embed]
         # output [batch_size,seq_len, vocab_size]
         hidden, _ = self.lstm(x)  # hidden [batch_size, seq_len, n_embed]

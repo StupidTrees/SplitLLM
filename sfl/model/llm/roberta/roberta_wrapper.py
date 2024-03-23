@@ -3,7 +3,7 @@ from typing import Optional, Union, Tuple
 import regex
 import torch
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
-from transformers import RobertaForSequenceClassification
+from transformers import RobertaForSequenceClassification, Seq2SeqTrainer, AutoModelForCausalLM, XGLMForCausalLM
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 from sfl.config import FLConfig
@@ -49,6 +49,7 @@ class RobertaForSequenceClassificationSplitModel(RobertaForSequenceClassificatio
     def __init__(self, config):
         super().__init__(config)
         self.roberta = RobertaSplitModel(config, add_pooling_layer=False)
+        self.task_type = 'classification'
 
     def forward(
             self,

@@ -109,6 +109,7 @@ class SplitWrapperModel(SplitModel, ABC):
     def __init__(self, llm_type='decoder-only', *args, **kwargs):
         super(SplitWrapperModel, self).__init__(*args, **kwargs)
         self.type = llm_type
+        self.task_type = 'lm'
 
     @abstractmethod
     def get_adapter_module_regex(self):

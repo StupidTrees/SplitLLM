@@ -16,8 +16,12 @@ python model_download.py --repo_id gpt2-large
 python model_download.py --repo_id FacebookAI/roberta-large
 python model_download.py --repo_id google-bert/bert-large-uncased
 python model_download.py --repo_id google/flan-t5-base
+python model_download.py --repo_id google/flan-ul2-base
 python model_download.py --repo_id daryl149/llama-2-7b-chat-hf
+python model_download.py --repo_id THUDM/chatglm3-6b
+python model_download.py --repo_id google/flan-ul2
 ```
+
 
 ## 数据集下载
 ```shell
@@ -28,6 +32,7 @@ git clone https://huggingface.co/datasets/HuggingFaceH4/CodeAlpaca_20K.git
 git clone https://huggingface.co/datasets/knkarthick/dialogsum.git
 git clone https://huggingface.co/datasets/gsm8k.git
 git clone https://huggingface.co/datasets/imdb.git
+git clone https://huggingface.co/datasets/Hello-SimpleAI/HC3-Chinese.git
 ```
 
 

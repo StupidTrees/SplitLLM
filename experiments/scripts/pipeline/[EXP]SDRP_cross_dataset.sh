@@ -24,9 +24,8 @@ sps='6-26'
 attacker_sp=6
 batch_size=1
 
-attacker_datasets=("sensimasked")
-# 观察不同的模型
-sfl_datasets=("codealpaca" "piqa" "dialogsum" "gsm8k" "wikitext")
+attacker_datasets=("sensimasked" "sensireplaced" "sensimarked")
+sfl_datasets=("sensimarked")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do

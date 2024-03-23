@@ -16,14 +16,13 @@ class FedDataset(ABC):
     联邦数据集
     """
 
-    def __init__(self, tokenizer, client_ids: list[str], dataset, types: list[str], shrink_frac=1.0, task_type='lm',
+    def __init__(self, tokenizer, client_ids: list[str], dataset, types: list[str], shrink_frac=1.0,
                  num_labels=0):
         self.tokenizer = tokenizer
         self.client_ids = client_ids
         self.client_data_indices = {}
         self.all_dataset = dataset
         self.dataset = {}
-        self.task_type = task_type
         self.num_labels = num_labels
         for type in types:
             self.dataset[type] = self.all_dataset[type].select(range(int(len(self.all_dataset[type]) * shrink_frac)))
@@ -132,7 +131,7 @@ class PIQAFedDataset(FedDataset):
     """
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
-        super().__init__(tokenizer, client_ids, dataset=load_dataset('piqa', cache_dir=config.dataset_cache_dir),
+        super().__init__(tokenizer, client_ids, dataset=load_dataset(config.dataset_cache_dir + 'piqa'),
                          types=['train', 'test', 'validation'],
                          shrink_frac=shrink_frac)
 
@@ -149,6 +148,8 @@ class PIQAFedDataset(FedDataset):
         input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
         input_q = self.tokenizer(qs, padding=True, truncation=True, return_tensors='pt')
         input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt')
+        labels = [b['label'] for b in batch]
+        labels = torch.tensor(labels)
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
                 'input_text': texts,
@@ -157,7 +158,7 @@ class PIQAFedDataset(FedDataset):
                 'a_ids': input_a['input_ids'],
                 'a_att_mask': input_a['attention_mask'],
                 'q_text': qs,
-                'a_text': as_}
+                'a_text': as_, 'labels': labels}
 
 
 class GSM8KFedDataset(FedDataset):
@@ -225,7 +226,7 @@ class IMDBFedDataset(FedDataset):
         super().__init__(tokenizer, client_ids,
                          load_dataset(config.dataset_cache_dir + 'imdb'),
                          ['train', 'test', 'unsupervised'],
-                         shrink_frac, task_type='clsf', num_labels=2)
+                         shrink_frac, num_labels=2)
 
     def _format(self, example):
         return {'input': example['text']}
@@ -361,3 +362,12 @@ class SensiMaskedFedDataset(SensiReplacedFedDataset):
 
     def _format(self, example):
         return {'input': example['sani_label']}
+
+
+class HC3CNFedDataset(FedDataset):
+    def __init__(self, tokenizer, client_ids: list[str]):
+        dataset = load_dataset('HC3-Chinese')
+        super().__init__(tokenizer, client_ids, dataset, ['baike','open_qa','finance'])
+
+    def _format(self, example):
+        return {'input': example['question']}

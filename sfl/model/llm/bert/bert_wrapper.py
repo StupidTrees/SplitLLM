@@ -53,6 +53,7 @@ class BertForSequenceClassificationSplitModel(BertForSequenceClassification, Ber
     def __init__(self, config):
         super().__init__(config)
         self.bert = BertSplitModel(config)
+        self.task_type = 'classification'
 
     def forward(
             self,

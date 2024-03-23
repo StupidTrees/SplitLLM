@@ -2,7 +2,7 @@ import argparse
 import os
 
 import torch
-from transformers import AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoTokenizer, BitsAndBytesConfig, OPTForCausalLM
 
 from sfl import config
 from sfl.config import FLConfig, attacker_path, DRAConfig, model_download_dir, DRA_train_label, fsha_path
@@ -11,6 +11,7 @@ from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, Linea
     TransformerEncoderDRAttacker, MOEDRAttacker
 from sfl.model.attacker.fsha_attacker import FSHAAttacker
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
+from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel, GPT2SplitClassificationModel
 from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
 from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificationSplitModel
@@ -18,7 +19,7 @@ from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
 from sfl.simulator.dataset import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
     GSM8KFedDataset, WikiTextFedDataset, FedDataset, MixtureFedDataset, SensiMarkedFedDataset, \
-    SensiReplacedFedDataset, SensiMaskedFedDataset
+    SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset
 
 
 def str2bool(v):
@@ -180,13 +181,17 @@ def get_model_path(model_name):
         path = os.path.join(model_download_dir, f"FacebookAI/{model_name}/")
     elif model_name.startswith('flan-t5'):
         path = os.path.join(model_download_dir, f"google/{model_name}")
+    elif model_name.startswith('flan-ul2'):
+        path = os.path.join(model_download_dir, f"google/{model_name}")
     elif model_name.startswith('llama2'):
         path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
+    elif model_name.startswith('chatglm'):
+        path = os.path.join(model_download_dir, f"THUDM/chatglm3-6b")
     return path
 
 
 def get_tokenizer(model_name='gpt2'):
-    return AutoTokenizer.from_pretrained(get_model_path(model_name))
+    return AutoTokenizer.from_pretrained(get_model_path(model_name), trust_remote_code=True)
 
 
 def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_bits=8, **kwargs):
@@ -200,9 +205,14 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
         clz = BertForSequenceClassificationSplitModel
     elif model_name.startswith('roberta'):
         clz = RobertaForSequenceClassificationSplitModel
-    elif 't5' in model_name:
+    elif 't5' in model_name or 'ul2' in model_name:
         clz = T5ForConditionalGenerationSplitModel
+    elif 'chatglm' in model_name:
+        clz = ChatGLMForConditionalGenerationSplit
     elif 'llama2' in model_name:
+        clz = LLAMA2SplitLMHeadModel
+
+    if 'llama' in model_name or 'chatglm' in model_name:
         if load_bits <= 8:
             bnb_config = BitsAndBytesConfig(
                 load_in_8bit=load_bits == 8,  # load the model into memory using 8-bit precision
@@ -216,12 +226,10 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
             )
             kwargs['quantization_config'] = bnb_config
 
-        clz = LLAMA2SplitLMHeadModel
-
     if task == 'clsf':
         kwargs['num_labels'] = num_labels
     model = clz.from_pretrained(get_model_path(model_name), **kwargs)
-    if tokenizer is not None:
+    if tokenizer is not None and 'chatglm' not in model_name:
         if model.config.pad_token_id is not None:
             tokenizer.pad_token_id = model.config.pad_token_id
         if model.config.eos_token_id is not None:
@@ -266,6 +274,8 @@ def get_dataset_class(dataset_name):
         dataset_cls = SensiReplacedFedDataset
     elif dataset_name == 'sensimasked':
         dataset_cls = SensiMaskedFedDataset
+    elif dataset_name == 'hc3cn':
+        dataset_cls = HC3CNFedDataset
     else:
         raise AttributeError
     return dataset_cls
