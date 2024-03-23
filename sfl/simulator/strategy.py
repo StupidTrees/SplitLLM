@@ -94,7 +94,7 @@ class BaseSFLStrategy(FLStrategy):
                     input_ids = batch['input_ids'].to(llm.device)
                     attention_mask = batch['input_att_mask'].to(llm.device)
                     labels = input_ids
-                    if 'labels' in batch:
+                    if 'labels' in batch and self.llm.task_type != 'lm':
                         labels = batch['labels'].to(llm.device)
                     outputs = llm(input_ids=input_ids, labels=labels, attention_mask=attention_mask)
 

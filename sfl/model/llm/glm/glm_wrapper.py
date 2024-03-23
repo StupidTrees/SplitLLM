@@ -27,7 +27,7 @@ class ChatGLMForConditionalGenerationSplit(ChatGLMForConditionalGeneration, Spli
             if self.fl_config.use_lora_at_trunk:
                 blocks += [str(i) for i in range(self.fl_config.split_point_1, self.fl_config.split_point_2)]
             if self.fl_config.use_lora_at_top:
-                blocks += [str(i) for i in range(self.fl_config.split_point_2, self.config.num_hidden_layers)]
+                blocks += [str(i) for i in range(self.fl_config.split_point_2, self.config.num_layers)]
             reg = rf".*\.layers\.({'|'.join(blocks)})\..*(.+self_attention|dense)$"
             return reg
         return ""

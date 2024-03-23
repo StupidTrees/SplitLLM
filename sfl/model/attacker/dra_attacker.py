@@ -142,6 +142,8 @@ class LSTMDRAttacker(DRAttacker):
         self.mlp = nn.Linear(self.config.hidden_size, self.config.vocab_size)
 
     def forward(self, x):
+        if 'chatglm' in self.config.target_model:
+            x = x.permute(1, 0, 2)
         if x.dtype == torch.float16:
             x = x.float()
         # x[batch_size, seq_len, n_embed]
@@ -164,6 +166,8 @@ class GRUDRAttacker(DRAttacker):
         self.mlp = nn.Linear(hidden_size, self.config.vocab_size)
 
     def forward(self, x):
+        if 'chatglm' in self.config.target_model:
+            x = x.permute(1, 0, 2)
         if x.dtype == torch.float16:
             x = x.float()
         # x[batch_size, seq_len, n_embed]
@@ -201,6 +205,8 @@ class MOEDRAttacker(DRAttacker):
             if inter is None:
                 outputs.append(None)
                 continue
+            if 'chatglm' in self.config.target_model:
+                inter= inter.permute(1, 0, 2)
             hidden = torch.dropout(exp(inter)[0], p=self.config.dropout, train=self.training)
             outputs.append(self.mlp(hidden))
         return outputs
@@ -216,6 +222,8 @@ class MOEDRAttacker(DRAttacker):
             self.gating_mlp2.requires_grad_(not freeze)
 
     def forward(self, x) -> Tensor:
+        if 'chatglm' in self.config.target_model:
+            x = x.permute(1, 0, 2)
         if x.dtype == torch.float16:
             x = x.float()
         exp_outputs = [torch.dropout(exp(x)[0], p=self.config.dropout, train=self.training) for exp in self.experts]

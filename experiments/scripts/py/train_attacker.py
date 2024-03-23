@@ -14,7 +14,7 @@ from sfl.simulator.dataset import MixtureFedDataset
 from sfl.config import FLConfig, DRAttackerConfig
 from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
     TransformerEncoderDRAttacker, TransformerDecoderDRAttacker, LSTMDRAttackerConfig, TransformerDRAttackerConfig
-from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params
+from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_tokenizer
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
     evaluate_attacker_rouge, random_choose_noise
 
@@ -233,7 +233,6 @@ def train_attacker(args):
                         model.change_noise(random_choose_noise({5, 7.5, 10}, noise_mode), noise_mode)
                     else:
                         model.change_noise(random_choose_noise({0.01, 0.02, 0.05}, mode='gaussian'), noise_mode)
-
                 if model.type == 'encoder-decoder':
                     input_args = get_t5_input(batch, tokenizer, model.device)
                     enc_hidden, dec_hidden = model(**input_args)
@@ -245,7 +244,6 @@ def train_attacker(args):
                     attention_mask = batch['input_att_mask'].to(model.device)
                     intermediate = model(input_ids=input_ids, attention_mask=attention_mask)
                     # print(intermediate)
-                # print(tokenizer.decode(input_ids[0], skip_special_tokens=False))
                 logits = attack_model(intermediate)
                 loss = calc_unshift_loss(logits, input_ids)
                 loss.backward()

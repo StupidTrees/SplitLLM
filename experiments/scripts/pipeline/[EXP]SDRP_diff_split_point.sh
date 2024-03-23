@@ -18,7 +18,7 @@ lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
-attack_model='linear'
+attack_model='gru'
 batch_size=2
 
 model_names=('chatglm')
