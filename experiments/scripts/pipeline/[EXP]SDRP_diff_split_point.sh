@@ -18,15 +18,16 @@ lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
-attack_model='gru'
+attack_model='linear'
 batch_size=2
 
 # model_names=('bert-large' 'llama2' 'flan-t5-large' 'roberta-large'  'gpt2-large')
-model_names=('roberta-large')
+
+model_names=('chatglm')
 
 dataset_label='train'
 data_shrink_frac=1.0           # 被攻击数据集的缩减比例
-max_global_step=1200            # 攻击1100个样本
+max_global_step=1200            # 攻击1200个样本
 
 for model_name in "${model_names[@]}"; do
 
@@ -37,16 +38,22 @@ for model_name in "${model_names[@]}"; do
   sfl_dataset="piqa"
 
   if [ "$model_name" = 'llama2' ] || [ "$model_name" = 'gpt2-large' ]; then
-    split_points=(3 6 9 12 15 18 21 24 27 30)
+#    split_points=(3 6 9 12 15 18 21 24 27 30)
+    split_points=(4 7 10 13 16 18 22 25 28)
   fi
   if [ "$model_name" = 'flan-t5-large' ]; then
     split_points=(3 6 9 12 15 18 21)
   fi
+
+  if [ "$model_name" = 'chatglm' ]; then
+    split_points=(3 6 9 12 15 18 21 )
+  fi
+
   if [ "$model_name" = 'bert-large' ] || [ "$model_name" = 'roberta-large' ]; then
-    attacker_dataset="imdb"
-    attacker_training_fraction=0.015 # 攻击模型的训练集比例
-    attacker_test_fraction=0.002
-    sfl_dataset="imdb"
+#    attacker_dataset="imdb"
+#    attacker_training_fraction=0.015 # 攻击模型的训练集比例
+#    attacker_test_fraction=0.002
+#    sfl_dataset="imdb"
     split_points=(3 6 9 12 15 18 21)
   fi
 

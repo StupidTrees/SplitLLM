@@ -1,0 +1,104 @@
+
+==================================Global Round 0=================================
+/opt/conda/envs/sfl/lib/python3.11/site-packages/transformers/optimization.py:411: FutureWarning: This implementation of AdamW is deprecated and will be removed in a future version. Use the PyTorch implementation torch.optim.AdamW instead, or set `no_deprecation_warning=True` to disable this warning
+  warnings.warn(
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Client 0 Epoch 0 Step (596, 596) Loss 0.596: 100%|████████████████████████████████████████████████████████████████████████████▌| 597/600 [01:25<00:00,  7.33it/s]
+600 1200
+Client 0 communication overhead: uplink:3.14 GB, downlink:3.14 GB
+
+Client 0 Epoch 0 Step (599, 599) Loss 0.435: 100%|█████████████████████████████████████████████████████████████████████████████| 600/600 [01:26<00:00,  6.95it/s]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Client 0 Epoch 0 Step (1197, 1197) Loss 0.038: 100%|██████████████████████████████████████████████████████████████████████████▋| 597/600 [01:31<00:00,  7.95it/s]
+1200 1200
+Client 0 communication overhead: uplink:6.27 GB, downlink:6.27 GB
+SERVER: AGGREGATION
+Global Round 0 communication overhead: uplink=6.27 GB, downlink=6.27 GB
+SERVER: AGGREGATION
+
+Client 0 Epoch 0 Step (1199, 1199) Loss 1.148: 100%|███████████████████████████████████████████████████████████████████████████| 600/600 [01:31<00:00,  6.53it/s]
