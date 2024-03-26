@@ -17,15 +17,17 @@ self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
-collect_all_layers=True
+collect_all_layers=False
 attack_model='gru'
 batch_size=2
 
-model_names=('chatglm')
+model_names=('llama2')
+#'bert-large' 'roberta-large' 'flan-t5-large')
 
 dataset_label='train'
-data_shrink_frac=1.0           # 被攻击数据集的缩减比例
-max_global_step=1200            # 攻击1200个样本
+data_shrink_frac=1.0 # 被攻击数据集的缩减比例
+max_global_step=1200 # 攻击1200个样本
+sp2=20
 
 for model_name in "${model_names[@]}"; do
 
@@ -36,28 +38,36 @@ for model_name in "${model_names[@]}"; do
   sfl_dataset="piqa"
 
   if [ "$model_name" = 'llama2' ] || [ "$model_name" = 'gpt2-large' ]; then
-#    split_points=(3 6 9 12 15 18 21 24 27 30)
-    split_points=(4 7 10 13 16 18 22 25 28)
+    #    split_points=(3 6 9 12 15 18 21 24 27 30)
+    #    split_points=(4 7 10 13 16 18 22 25 28)
+    split_points=(19)
+    sp2=31
   fi
   if [ "$model_name" = 'flan-t5-large' ]; then
-    split_points=(3 6 9 12 15 18 21)
+    #    split_points=(3 6 9 12 15 18 21)
+    #    split_points=(2 4 6 8 10 14 16 20)
+    sp2=22
   fi
 
   if [ "$model_name" = 'chatglm' ]; then
-    split_points=(3 6 9 12 15 18 21 )
+    split_points=(18 21)
+    sp2=22
   fi
 
   if [ "$model_name" = 'bert-large' ] || [ "$model_name" = 'roberta-large' ]; then
-#    attacker_dataset="imdb"
-#    attacker_training_fraction=0.015 # 攻击模型的训练集比例
-#    attacker_test_fraction=0.002
-#    sfl_dataset="imdb"
-    split_points=(3 6 9 12 15 18 21)
+    #    attacker_dataset="imdb"
+    #    attacker_training_fraction=0.015 # 攻击模型的训练集比例
+    #    attacker_test_fraction=0.002
+    #    sfl_dataset="imdb"
+    #    split_points=(3 6 9 12 15 18 21)
+    split_points=(2 4 8 10 14 16 20)
+    #split_points=(20)
+    sp2=22
   fi
 
   for sp in "${split_points[@]}"; do
 
-    sps="${sp}-20"
+    sps="${sp}-${sp2}"
     case_name="${model_name}-${sp}"
 
     # 先训练攻击模型

@@ -45,10 +45,10 @@ def calculate_rouge(tok, logits, labels, print_comparison=False, is_tokens=False
         for h, r in zip(hyps, refs):
             print(f'{r}==>{h}')
     try:
-        hyps = list('<EMP>' if len(h) == 0 else h for h in hyps)
+        hyps = list('<EMP>' if len(h) == 0 or h =='.' else h for h in hyps)
         result = my_rouge.get_scores(hyps, refs, avg=True, ignore_empty=True)  # 取一个 batch 的平均
     except Exception as e:
-        # print(f'rouge error {e}')
+        print(f'rouge error {e}')
         # print(hyps, refs)
         result = {'rouge-1': {'f': 0.0, 'p': 0.0, 'r': 0.0},
                   'rouge-2': {'f': 0.0, 'p': 0.0, 'r': 0.0},

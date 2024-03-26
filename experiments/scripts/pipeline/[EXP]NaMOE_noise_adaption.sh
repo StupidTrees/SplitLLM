@@ -27,15 +27,15 @@ sps='6-26'
 attacker_sp=6
 
 # 噪声规模
-noise_modes=("dxp")
-sfl_noise_scales_gaussian=(0.02 0.01)
-sfl_noise_scales_dxp=(0.3 0.5 0.7)
-attacker_noises_gaussian=(0.01 0.02 0.0)
+noise_modes=("gaussian")
+sfl_noise_scales_gaussian=(2.0 3.0 5.0)
+sfl_noise_scales_dxp=(0.0 0.3 0.5 0.7)
+attacker_noises_gaussian=(0.0)
 attacker_noises_dxp=(0.0 0.2 0.4 0.6 0.8)
 attacker_train_frac=0.2
 attack_models=('gru')
-datasets=('sensireplaced')
-sfl_dataset='sensimarked'
+datasets=('piqa')
+sfl_dataset='piqa'
 max_steps=1200
 
 for seed in "${seeds[@]}"; do

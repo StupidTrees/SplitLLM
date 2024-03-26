@@ -2,7 +2,7 @@
 seed=42
 
 dataset_label='train'
-exp_name='[EXP]SDRP_cross_dataset'
+exp_name='[EXP]BiSR_cross_dataset'
 client_num=1
 global_round=1
 client_steps=500
@@ -11,22 +11,30 @@ noise_mode="none"
 attacker_prefix='normal'
 data_shrink_frac=0.08
 test_data_shrink_frac=0.3
-evaluate_freq=500
+evaluate_freq=1000
 self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='llama2'
+model_name='gpt2-large'
 attack_model='gru'
 sps='6-26'
 attacker_sp=6
 batch_size=1
+dlg_enable=True
+dlg_adjust=0
+dlg_epochs=18
+dlg_beta=0.85
+dlg_init_with_dra=True
+dlg_raw_enable=True
+attacker_freq=200
+attacker_samples=10
+max_global_step=610
 
-attacker_datasets=("codealpaca" "piqa" "dialogsum" "gsm8k" "wikitext")
-sfl_datasets=("sensimarked")
-
+attacker_datasets=("sensireplaced")
+sfl_datasets=("sensimarked" "piqa" "dialogsum" "gsm8k" "wikitext")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
@@ -47,8 +55,8 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
     case_name="${model_name}-${sfl_dataset}<${attacker_dataset}"
 
     # 将其用于攻击
-    echo "Running evaluate_dra_cross_dataset.py with sfl_ds=$sfl_dataset"
-    python ../py/evaluate_dra_cross_dataset.py \
+    echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
+    python ../py/evaluate_tag_methods.py \
       --noise_mode "$noise_mode" \
       --case_name "$case_name" \
       --model_name "$model_name" \
@@ -73,6 +81,15 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       --collect_all_layers "$collect_all_layers" \
       --dataset_label "$dataset_label" \
       --attacker_dataset "$attacker_dataset" \
-      --batch_size "$batch_size"
+      --batch_size "$batch_size" \
+      --dlg_enable "$dlg_enable" \
+      --dlg_adjust "$dlg_adjust" \
+      --dlg_epochs "$dlg_epochs" \
+      --dlg_beta "$dlg_beta" \
+      --dlg_init_with_dra "$dlg_init_with_dra"\
+      --dlg_raw_enable "$dlg_raw_enable"\
+      --attacker_freq "$attacker_freq"\
+      --attacker_samples "$attacker_samples"\
+      --max_global_step "$max_global_step"
   done
 done

@@ -61,7 +61,7 @@ class QAFLStrategy(BaseSFLStrategy):
             self.log_to_all_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
             if args.dlg_raw_enable:  # 进行不初始化的dlg以作为对比
                 gt2 = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
-                                   epochs=self.args.dlg_epochs * 8,  # 轮次要拉大一点
+                                   epochs=200,  # self.args.dlg_epochs ,  # 轮次要拉大一点
                                    beta=self.args.dlg_beta,
                                    gt_init=None,
                                    encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
@@ -108,9 +108,8 @@ def sfl_with_attacker(args):
     # 加载Pre-FT数据集
     if args.pre_ft_dataset is not None and len(args.pre_ft_dataset) > 0:
         pre_ft_dataset = get_dataset(args.pre_ft_dataset, tokenizer=tokenizer, client_ids=[])
-        pre_ft_loader = pre_ft_dataset.get_dataloader_unsliced(args.batch_size, args.pre_ft_data_label,
-                                                               shrink_frac=args.pre_ft_data_shrink_frac)
-        simulator.pre_ft(pre_ft_loader, ['bottom', 'top'])
+        pre_ft_loader = pre_ft_dataset.get_dataloader_unsliced(args.batch_size, args.pre_ft_data_label)
+        simulator.pre_ft(pre_ft_loader, ['bottom', 'top'], max_steps=args.pre_ft_max_steps)
 
     wandb.init(
         project=args.exp_name,

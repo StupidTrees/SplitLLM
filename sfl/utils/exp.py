@@ -65,7 +65,7 @@ def add_sfl_params(parser):
     parser.add_argument('--model_name', type=str, default='gpt2-large')
     parser.add_argument('--pre_ft_dataset', type=str, default='')
     parser.add_argument('--pre_ft_data_label', type=str, default='train')
-    parser.add_argument('--pre_ft_data_shrink_frac', type=float, default=0.2)
+    parser.add_argument('--pre_ft_max_steps', type=int, default=800)
     parser.add_argument('--dataset', type=str, default='wikitext')
     parser.add_argument('--max_global_step', type=int, default=-1)
     parser.add_argument('--dataset_label', type=str, default='train')
@@ -184,7 +184,8 @@ def get_model_path(model_name):
     elif model_name.startswith('flan-ul2'):
         path = os.path.join(model_download_dir, f"google/{model_name}")
     elif model_name.startswith('llama2'):
-        path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
+        path = os.path.join(model_download_dir, f"meta-llama/Llama-2-7b-chat-hf")
+        # path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
     elif model_name.startswith('chatglm'):
         path = os.path.join(model_download_dir, f"THUDM/chatglm3-6b")
     return path

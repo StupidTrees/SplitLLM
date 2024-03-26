@@ -71,7 +71,7 @@ class SFLSimulator(object):
                 scale = param.data.max() - param.data.min()
                 param.data += torch.randn_like(param.data) * scale * 0.02
 
-    def pre_ft(self, data_loader, parts=None):
+    def pre_ft(self, data_loader, parts=None, max_steps=1000):
         if not hasattr(self.llm.config, 'quantization_config'):
             self.llm.to(self.device)
         self.llm.train()
@@ -97,17 +97,25 @@ class SFLSimulator(object):
         # 微调bottom和top
         tune = [p for p in self.llm.parameters() if p.requires_grad]
         optimizer = AdamW(tune, lr=1e-5)
+        total_step = 0
         with tqdm(total=len(data_loader)) as pbar:
-            for step, batch in enumerate(data_loader):
-                optimizer.zero_grad()
-                input_ids = batch['input_ids'].to(self.llm.device)
-                attention_mask = batch['input_att_mask'].to(self.llm.device)
-                outputs = self.llm(input_ids=input_ids, labels=input_ids, attention_mask=attention_mask)
-                loss = outputs.loss
-                pbar.set_description(f'Pre-FT Loss {loss.item():.3f}')
-                loss.backward()
-                optimizer.step()
-                pbar.update(1)
+            for epc in range(999):
+                for step, batch in enumerate(data_loader):
+                    optimizer.zero_grad()
+                    input_ids = batch['input_ids'].to(self.llm.device)
+                    attention_mask = batch['input_att_mask'].to(self.llm.device)
+                    outputs = self.llm(input_ids=input_ids, labels=input_ids, attention_mask=attention_mask)
+                    loss = outputs.loss
+                    pbar.set_description(f'Pre-FT Loss {loss.item():.3f}')
+                    loss.backward()
+                    optimizer.step()
+                    pbar.update(1)
+                    total_step += 1
+                    if total_step >= max_steps:
+                        break
+                if total_step >= max_steps:
+                    break
+
         # 恢复
         for p, r in zip(frozen_params, frozen_states):
             p.requires_grad = r
