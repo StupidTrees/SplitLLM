@@ -174,6 +174,13 @@ class GSM8KFedDataset(FedDataset):
         return {'q': q, 'a': a,
                 'input': q + "\n" + a}
 
+    def _col_fun(self, batch):
+        texts = [b['input'] for b in batch]
+        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt', max_length=300)
+        return {'input_ids': input['input_ids'],
+                'input_att_mask': input['attention_mask'],
+                'input_text': texts}
+
 
 class DialogSumFedDataset(FedDataset):
 
@@ -191,7 +198,7 @@ class DialogSumFedDataset(FedDataset):
 
     def _col_fun(self, batch):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, max_length=300,
+        input = self.tokenizer(texts, padding=True, truncation=True, max_length=400,
                                return_tensors='pt')
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],

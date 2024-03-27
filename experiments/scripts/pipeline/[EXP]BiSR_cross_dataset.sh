@@ -18,7 +18,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='llama2'
+model_name='chatglm'
 attack_model='gru'
 sps='6-26'
 attacker_sp=6
@@ -34,21 +34,21 @@ attacker_samples=10
 max_global_step=610
 
 attacker_datasets=("sensireplaced")
-sfl_datasets=("gsm8k") #"piqa" "codealpaca"  "sensimarked" "dialogsum" "gsm8k" "wikitext")
+sfl_datasets=("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
 
     if [ "$model_name" == "llama2" ]; then
-      dlg_enable=5
+      dlg_epochs=5
     fi
 
     if [ "$model_name" == "chatglm" ]; then
-      dlg_enable=18
+      dlg_epochs=18
     fi
 
     if [ "$model_name" == "gpt2-large" ]; then
-      dlg_enable=18
+      dlg_epochs=18
     fi
 
     # 先训练攻击模型

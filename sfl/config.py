@@ -80,5 +80,5 @@ class DRAConfig:
     target_model_name: str = None
     target_dataset: str = None
     target_sps: str = None
-    target_model_load_bits: int = 8,
+    target_model_load_bits: int = 8
     larger_better: bool = True
