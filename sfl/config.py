@@ -19,10 +19,12 @@ DRA_train_label = {
     'sensimasked': 'validation',
     'imdb': 'unsupervised',
     'hc3cn': 'baike',
+    'imagewoof': 'validation',
 }
 
 DRA_test_label = {nm: 'test' for nm in DRA_train_label.keys()}
 DRA_test_label['hc3cn'] = 'finance'
+DRA_test_label['imagewoof'] = 'validation'
 
 
 @dataclass
@@ -30,7 +32,7 @@ class FLConfig:
     global_round: int = 0
     client_epoch: int = 3
     client_steps: int = 50
-    max_global_step: int = -1 # 最多进行的global steo
+    max_global_step: int = -1  # 最多进行的global steo
     client_evaluate_freq: int = 10  # 几个Step上报一次
     client_per_round: float = 1.0
     split_point_1: int = 2
@@ -78,4 +80,5 @@ class DRAConfig:
     target_model_name: str = None
     target_dataset: str = None
     target_sps: str = None
-    target_model_load_bits: int = 8
+    target_model_load_bits: int = 8,
+    larger_better: bool = True

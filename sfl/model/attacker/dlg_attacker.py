@@ -8,11 +8,12 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 from transformers.models.t5.modeling_t5 import T5Block, T5LayerNorm
 
 from sfl.config import FLConfig
+from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel
 from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
-from sfl.utils.model import calc_shifted_loss_logits
+from sfl.utils.model import calc_shifted_loss_logits, calc_chatglm_loss
 
 
 class DLGAttacker(nn.Module):
@@ -27,7 +28,10 @@ class DLGAttacker(nn.Module):
         self.model_type = model.type
 
     def fit(self, inter, gradient, epochs=300, adjust=0, beta=0.85, lr=0.09, gt_init=None, gt_reg=0.0, temp_range=0.0,
-            further_ft=10,  **kwargs):
+            further_ft=10, model_name=None, **kwargs):
+        if model_name == 'chatglm':
+            gradient = gradient.permute(1, 0, 2)
+            inter = inter.permute(1, 0, 2)
         batch_size, seq_len = inter.shape[:2]
         vocab_size = self.target_model_config.vocab_size
         dra_attacked = None
@@ -50,6 +54,7 @@ class DLGAttacker(nn.Module):
         for i in range(epochs):
             optimizer.zero_grad()
             x = self.forward(inter, **kwargs)
+            # print(x.shape, gt.shape)
             if self.model_type == 'encoder-decoder':
                 loss = CrossEntropyLoss(ignore_index=-100)(x.view(-1, x.size(-1)),
                                                            torch.softmax(gt, dim=-1).view(-1, gt.size(-1)))
@@ -62,6 +67,7 @@ class DLGAttacker(nn.Module):
             if dra_attacked is not None and gt_reg > 0:
                 grad_diff += gt_reg * (torch.softmax(gt - dra_attacked, dim=-1) ** 2).sum()
             grad_diff.backward()
+            # print(grad_diff.item())
             # gt.grad *= unc_vec.unsqueeze(-1)
             optimizer.step()
 
@@ -129,20 +135,10 @@ class LLAMA2TopDLGAttacker(DLGAttacker):
         num_blocks = model.config.num_hidden_layers - fl_config.split_point_2
         model.config_sfl(fl_config, None)
         self.layers = deepcopy(model.model.layers[-num_blocks:])
-        self.ln = deepcopy(model.model.norm)  # LlamaRMSNorm(model.config.hidden_size, eps=model.config.rms_norm_eps)
+        self.ln = deepcopy(model.model.norm)
         self.head = deepcopy(model.lm_head)
-        # copy the parameters
-        # for (nm1, param1), (nm2, param2) in zip(model.get_top_params(trainable_only=False), self.named_parameters()):
-        #     param2.data = deepcopy(param1.data).float()
-
-        # if model.dtype == float16:
-        #     self.layers.half()
-        #     self.ln.half()
-        #     self.head.half()
 
     def forward(self, x, **kwargs):
-        # if x.dtype == float16:
-        #     x = x.float()
         for block in self.layers:
             x = block(x)[0]
         x = self.ln(x)
@@ -164,8 +160,30 @@ class T5DecoderDLGAttacker(DLGAttacker):
             param2.data = param1.data.clone()
         self.lm_head = deepcopy(model.lm_head)
 
-    def forward(self, decoder_hidden_states, encoder_inter):
+    def forward(self, x, encoder_inter, **kwargs):
         for block in self.blocks:
-            x = block(decoder_hidden_states, encoder_hidden_states=encoder_inter)[0]
+            x = block(x, encoder_hidden_states=encoder_inter)[0]
         x = self.final_layer_norm(x)
         return self.lm_head(x)
+
+
+class ChatGLMDLGAttacker(DLGAttacker):
+
+    def __init__(self, fl_config: FLConfig, model: ChatGLMForConditionalGenerationSplit, *args, **kwargs):
+        super().__init__(fl_config, model, *args, **kwargs)
+        num_blocks = model.config.num_layers - fl_config.split_point_2
+        self.blocks = deepcopy(model.transformer.encoder.layers[-num_blocks:])
+        self.final_ln = deepcopy(model.transformer.encoder.final_layernorm)
+        self.output_layer = deepcopy(model.transformer.output_layer)
+
+    def forward(self, x, attention_mask, rotary_pos_emb, **kwargs):
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(x.device)
+        if rotary_pos_emb is not None:
+            rotary_pos_emb = rotary_pos_emb.to(x.device)
+        x = x.permute(1, 0, 2)
+        for block in self.blocks:
+            x = block(x, attention_mask=attention_mask,
+                      rotary_pos_emb=rotary_pos_emb)[0]
+        x = self.final_ln(x)
+        return self.output_layer(x).permute(1, 0, 2)

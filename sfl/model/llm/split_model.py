@@ -48,8 +48,8 @@ class SplitModel(nn.Module, ABC):
         bt2tr = None
         tr2t = None
         for idx, v in self.intermediate_fx.items():
-            inter = Intermediate(v.detach().cpu() if detach else v)
-            if v.grad is not None:
+            inter = Intermediate(v.detach().cpu() if detach and v is not None else v)
+            if v is not None and v.grad is not None:
                 inter.grad = v.grad.clone().detach().cpu() if detach else v.grad
             if idx == self.fl_config.split_point_1 - 1:
                 inter.type = 'b2tr'

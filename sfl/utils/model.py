@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 import pynvml
 import torch
+from PIL.Image import fromarray
 from rouge import Rouge
 from torch.nn import CrossEntropyLoss
 
@@ -32,6 +33,10 @@ def evaluate_attacker_rouge(tok, attacker_logits, batch):
         return calculate_rouge(tok, attacker_logits, batch['input_text'])
 
 
+def evaluate_attacker_mse(attacker_outputs, batch):
+    return torch.nn.functional.mse_loss(attacker_outputs, batch)
+
+
 def calculate_rouge(tok, logits, labels, print_comparison=False, is_tokens=False):
     my_rouge = Rouge()
     if not is_tokens:
@@ -45,7 +50,7 @@ def calculate_rouge(tok, logits, labels, print_comparison=False, is_tokens=False
         for h, r in zip(hyps, refs):
             print(f'{r}==>{h}')
     try:
-        hyps = list('<EMP>' if len(h) == 0 or h =='.' else h for h in hyps)
+        hyps = list('<EMP>' if len(h) == 0 or h == '.' else h for h in hyps)
         result = my_rouge.get_scores(hyps, refs, avg=True, ignore_empty=True)  # 取一个 batch 的平均
     except Exception as e:
         print(f'rouge error {e}')
@@ -218,6 +223,17 @@ def calc_shifted_loss_logits(lm_logits, label_logits):
     return loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1, shift_labels.size(-1)))
 
 
+def calc_chatglm_loss(lm_logits, label_logits):
+    lm_logits = lm_logits.to(torch.float32)
+
+    # Shift so that tokens < n predict n
+    shift_logits = lm_logits[..., :-1, :].contiguous()
+    shift_labels = label_logits[..., 1:, :].contiguous()
+    # Flatten the tokens
+    loss_fct = CrossEntropyLoss(ignore_index=-100)
+    return loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1,shift_labels.size(-1)))
+
+
 def calc_shifted_loss(lm_logits, labels):
     shift_logits = lm_logits[..., :-1, :].contiguous()
     shift_labels = labels[..., 1:].contiguous()
@@ -327,7 +343,10 @@ def evaluate_accuracy(model, loader):
     acc = 0
     itm = 0
     for batch in loader:
-        input_ids = batch['input_ids'].to(model.device)
+        if 'input_ids' not in batch:
+            input_ids = batch['input'].to(model.device)
+        else:
+            input_ids = batch['input_ids'].to(model.device)
         labels = batch['labels'].to(model.device)  # (batch_size, )
         with torch.no_grad():
             outputs = model(input_ids)
@@ -383,3 +402,8 @@ def random_choose_noise(input_scales=None, mode='dxp'):
     if mode == 'dxp':
         numbers += [plus_one]
     return random.choice(numbers)
+
+
+def convert_to_image(attacker_logits):
+    recovered = (attacker_logits + 1) / 2
+    return fromarray((recovered[0].permute(1, 2, 0).detach().cpu().numpy() * 255).astype(np.uint8))

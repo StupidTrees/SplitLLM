@@ -21,6 +21,8 @@ class QAFLStrategy(BaseSFLStrategy):
                                   all_inter: dict[Any, Intermediate],
                                   batch, logs):
         encoder_inter = all_inter.get('encoder', None)
+        attention_mask = all_inter.get('att_msk', None)
+        rotary_pos_emb = all_inter.get('rot_pos', None)
         with torch.no_grad():
             for type, atk in zip(['tr2t', 'b2tr'], [self.dra2, self.dra1]):
                 if atk is None:
@@ -50,7 +52,10 @@ class QAFLStrategy(BaseSFLStrategy):
                               temp_range=self.args.dlg_temp_range,
                               further_ft=self.args.dlg_further_ft,
                               encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                  self.simulator.device)
+                                  self.simulator.device),
+                              model_name=self.args.model_name,
+                              attention_mask=attention_mask.fx if attention_mask is not None else None,
+                              rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
                               )
             dlg_logits = gt
             if self.llm.type == 'encoder-decoder':
@@ -64,8 +69,11 @@ class QAFLStrategy(BaseSFLStrategy):
                                    epochs=200,  # self.args.dlg_epochs ,  # 轮次要拉大一点
                                    beta=self.args.dlg_beta,
                                    gt_init=None,
+                                   model_name=self.args.model_name,
                                    encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                       self.simulator.device)
+                                       self.simulator.device),
+                                   attention_mask=attention_mask.fx if attention_mask is not None else None,
+                                   rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
                                    )
                 dlg2_logits = gt2
                 if self.llm.type == 'encoder-decoder':

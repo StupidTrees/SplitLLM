@@ -2,13 +2,14 @@ import argparse
 import os
 
 import torch
-from transformers import AutoTokenizer, BitsAndBytesConfig, OPTForCausalLM
+from transformers import AutoTokenizer, BitsAndBytesConfig, OPTForCausalLM, ViTImageProcessor
 
 from sfl import config
 from sfl.config import FLConfig, attacker_path, DRAConfig, model_download_dir, DRA_train_label, fsha_path
-from sfl.model.attacker.dlg_attacker import GPT2TopDLGAttacker, T5DecoderDLGAttacker, LLAMA2TopDLGAttacker
+from sfl.model.attacker.dlg_attacker import GPT2TopDLGAttacker, T5DecoderDLGAttacker, LLAMA2TopDLGAttacker, \
+    ChatGLMDLGAttacker
 from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
-    TransformerEncoderDRAttacker, MOEDRAttacker
+    TransformerEncoderDRAttacker, MOEDRAttacker, ViTDRAttacker
 from sfl.model.attacker.fsha_attacker import FSHAAttacker
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
@@ -17,9 +18,10 @@ from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
 from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificationSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
+from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
 from sfl.simulator.dataset import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
     GSM8KFedDataset, WikiTextFedDataset, FedDataset, MixtureFedDataset, SensiMarkedFedDataset, \
-    SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset
+    SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset
 
 
 def str2bool(v):
@@ -168,6 +170,8 @@ def get_dra_config(args) -> DRAConfig:
     res.target_dataset = args.dataset
     res.target_model_name = args.model_name
     res.target_sps = args.split_points
+    if res.model == 'vit':
+        res.larger_better = False
     return res
 
 
@@ -239,6 +243,11 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
 
 
 def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, **kwargs):
+    if model_name == 'vit':
+        processor = ViTImageProcessor.from_pretrained(os.path.join(model_download_dir, 'google/vit-base-patch16-224'))
+        model = ViTForImageClassificationSplit.from_pretrained(
+            os.path.join(model_download_dir, 'google/vit-base-patch16-224'))
+        return model, processor
     tokenizer = get_tokenizer(model_name)
     model = get_model(model_name, task, num_labels, tokenizer, **kwargs)
 
@@ -277,6 +286,8 @@ def get_dataset_class(dataset_name):
         dataset_cls = SensiMaskedFedDataset
     elif dataset_name == 'hc3cn':
         dataset_cls = HC3CNFedDataset
+    elif dataset_name == 'imagewoof':
+        dataset_cls = ImageWoofFedDataset
     else:
         raise AttributeError
     return dataset_cls
@@ -294,6 +305,8 @@ def get_attacker_class(attack_model):
         attacker_cls = TransformerEncoderDRAttacker
     elif attack_model == 'moe' or attack_model == 'moe2':
         attacker_cls = MOEDRAttacker
+    elif attack_model == 'vit':
+        attacker_cls = ViTDRAttacker
     return attacker_cls
 
 
@@ -324,7 +337,8 @@ def get_dra_attacker(dra_config: DRAConfig):
         if dra_config.b2tr_sp >= 0:
             sp1 = dra_config.b2tr_sp
         attacker_path_1 = attacker_path + f'/layer{sp1}/' + prefix
-        l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[-1]
+        l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[
+            -1 if dra_config.larger_better else 0]
         attacker_path_1 = os.path.join(attacker_path_1, l)
     attacker_path_2 = None
     if dra_config.tr2t_enable:
@@ -387,5 +401,6 @@ def get_dlg_attacker(llm: SplitWrapperModel):
         # print(llm.config)
     elif isinstance(llm, T5ForConditionalGenerationSplitModel):
         mocker = T5DecoderDLGAttacker(llm.fl_config, llm)
-
+    elif isinstance(llm, ChatGLMForConditionalGenerationSplit):
+        mocker = ChatGLMDLGAttacker(llm.fl_config, llm)
     return mocker

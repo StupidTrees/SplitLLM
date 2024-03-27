@@ -18,11 +18,11 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='gpt2-large'
+model_name='llama2'
 attack_model='gru'
 sps='6-26'
 attacker_sp=6
-batch_size=1
+batch_size=2
 dlg_enable=True
 dlg_adjust=0
 dlg_epochs=18
@@ -34,10 +34,22 @@ attacker_samples=10
 max_global_step=610
 
 attacker_datasets=("sensireplaced")
-sfl_datasets=("sensimarked" "piqa" "dialogsum" "gsm8k" "wikitext")
+sfl_datasets=("gsm8k") #"piqa" "codealpaca"  "sensimarked" "dialogsum" "gsm8k" "wikitext")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
+
+    if [ "$model_name" == "llama2" ]; then
+      dlg_enable=5
+    fi
+
+    if [ "$model_name" == "chatglm" ]; then
+      dlg_enable=18
+    fi
+
+    if [ "$model_name" == "gpt2-large" ]; then
+      dlg_enable=18
+    fi
 
     # 先训练攻击模型
     echo "Running train_attacker.py with atk_ds=$attacker_dataset"
@@ -86,10 +98,10 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       --dlg_adjust "$dlg_adjust" \
       --dlg_epochs "$dlg_epochs" \
       --dlg_beta "$dlg_beta" \
-      --dlg_init_with_dra "$dlg_init_with_dra"\
-      --dlg_raw_enable "$dlg_raw_enable"\
-      --attacker_freq "$attacker_freq"\
-      --attacker_samples "$attacker_samples"\
+      --dlg_init_with_dra "$dlg_init_with_dra" \
+      --dlg_raw_enable "$dlg_raw_enable" \
+      --attacker_freq "$attacker_freq" \
+      --attacker_samples "$attacker_samples" \
       --max_global_step "$max_global_step"
   done
 done

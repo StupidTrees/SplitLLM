@@ -20,6 +20,7 @@ python model_download.py --repo_id google/flan-ul2-base
 python model_download.py --repo_id meta-llama/Llama-2-7b-chat-hf
 python model_download.py --repo_id THUDM/chatglm3-6b
 python model_download.py --repo_id google/flan-ul2
+python model_download.py --repo_id google/vit-base-patch16-224
 ```
 
 
@@ -33,6 +34,7 @@ git clone https://huggingface.co/datasets/knkarthick/dialogsum.git
 git clone https://huggingface.co/datasets/gsm8k.git
 git clone https://huggingface.co/datasets/imdb.git
 git clone https://huggingface.co/datasets/Hello-SimpleAI/HC3-Chinese.git
+git clone https://huggingface.co/datasets/frgfm/imagewoof.git
 ```
 
 

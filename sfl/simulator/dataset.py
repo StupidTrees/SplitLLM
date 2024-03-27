@@ -367,7 +367,27 @@ class SensiMaskedFedDataset(SensiReplacedFedDataset):
 class HC3CNFedDataset(FedDataset):
     def __init__(self, tokenizer, client_ids: list[str]):
         dataset = load_dataset('HC3-Chinese')
-        super().__init__(tokenizer, client_ids, dataset, ['baike','open_qa','finance'])
+        super().__init__(tokenizer, client_ids, dataset, ['baike', 'open_qa', 'finance'])
 
     def _format(self, example):
         return {'input': example['question']}
+
+
+class ImageWoofFedDataset(FedDataset):
+
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 1.0):
+        ds = load_dataset(config.dataset_cache_dir + 'imagewoof', '160px')
+        super().__init__(tokenizer, client_ids, ds, ['train', 'validation'], shrink_frac)
+
+    def _col_fun(self, batch):
+        images = [s['image'].convert("RGB") for s in batch]
+        labels = torch.tensor([s['label'] for s in batch])
+        return {'input': self.tokenizer(images, return_tensors='pt', padding=True)['pixel_values'],
+                'labels': labels,
+                'image': images}
+
+    def _format(self, example):
+        return example
+
+    def _pre_process(self, ds, batch_size):
+        return ds

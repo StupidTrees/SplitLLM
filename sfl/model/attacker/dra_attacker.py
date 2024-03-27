@@ -1,4 +1,5 @@
 import dataclasses
+import math
 from collections import OrderedDict
 
 import torch
@@ -111,8 +112,6 @@ class MOEDRAttackerConfig(DRAttackerConfig):
             self.expert_scales = [0, 10.0, 7.5, 5.0]
 
 
-
-
 class LinearDRAttacker(DRAttacker):
     config_class = DRAttackerConfig
 
@@ -206,7 +205,7 @@ class MOEDRAttacker(DRAttacker):
                 outputs.append(None)
                 continue
             if 'chatglm' in self.config.target_model:
-                inter= inter.permute(1, 0, 2)
+                inter = inter.permute(1, 0, 2)
             hidden = torch.dropout(exp(inter)[0], p=self.config.dropout, train=self.training)
             outputs.append(self.mlp(hidden))
         return outputs
@@ -272,3 +271,87 @@ class TransformerEncoderDRAttacker(DRAttacker):
         # output [batch_size,seq_len, vocab_size]
         hidden = self.encoder(x)
         return self.mlp(hidden)
+
+
+@dataclasses.dataclass
+class ViTDRAttackerConfig(DRAttackerConfig):
+    hidden_size: int = 512
+    dropout: float = 0.1
+    bidirectional = False
+
+    patch_num = 0
+    patch_size = 16
+    image_size = 0
+    output_channels = 3
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.model_name = 'gru '
+
+
+class ViTDRAttacker(PreTrainedModel):
+    config_class = ViTDRAttackerConfig
+
+    def __init__(self, config: ViTDRAttackerConfig, target_config: PretrainedConfig = None, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+        self.config = config
+        if target_config:
+            name_or_path = target_config.name_or_path
+            if '/' in name_or_path:
+                if name_or_path.endswith('/'):
+                    name_or_path = name_or_path[:-1]
+                name_or_path = name_or_path.split('/')[-1]
+            self.config.target_model = name_or_path
+            self.config.n_embed = target_config.hidden_size
+            self.config.image_size = target_config.image_size
+            self.config.patch_size = target_config.patch_size
+            self.config.patch_num = target_config.image_size ** 2 // target_config.patch_size ** 2 + 1
+        # GRU layer
+        self.gru = nn.GRU(input_size=self.config.n_embed, hidden_size=self.config.hidden_size, batch_first=True)
+        self.conv_transpose = nn.Sequential(
+            nn.ConvTranspose2d(in_channels=config.hidden_size,
+                               out_channels=128,
+                               kernel_size=5,
+                               stride=2,
+                               padding=2,
+                               output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=128,
+                               out_channels=64,
+                               kernel_size=5,
+                               stride=2,
+                               padding=2,
+                               output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=64,
+                               out_channels=32,
+                               kernel_size=5,
+                               stride=2,
+                               padding=2, output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=32,
+                               out_channels=3,
+                               kernel_size=5,
+                               stride=2,
+                               padding=2, output_padding=1),
+        )
+
+    def forward(self, x):
+        # x: (batch_size, patch_num, hidden_size)
+        batch_size, patch_num, n_embed = x.shape
+        x = x[:, :-1, :]  # 去除最后一个填充token，该维度可被开方
+        # 使用GRU处理输入
+        x, _ = self.gru(x)  # (batch_size, patch_num-1, hidden_size)
+        hidden_size = x.shape[-1]
+        x = torch.dropout(x, self.config.dropout, self.training)
+        x = x.permute(0, 2, 1)  # 转换为 (batch_size, hidden_size, patch_num)
+        # 重塑特征图以适应反卷积层
+        feature_map_size = int(math.sqrt(patch_num))
+        x = x.view(batch_size, hidden_size, feature_map_size, feature_map_size)
+        # 通过反卷积层生成图片
+        # print(x.shape)
+        x = self.conv_transpose(x)  # (batch_size, 3, 224, 224)
+        # x = self.conv(x)
+        # normalize to -1,1
+        x = torch.tanh(x)
+        return x
