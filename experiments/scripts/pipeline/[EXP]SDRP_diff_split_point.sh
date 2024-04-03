@@ -21,9 +21,9 @@ collect_all_layers=False
 attack_model='gru'
 batch_size=2
 
-model_names=('llama2')
+model_names=('gpt2-large')
 #'bert-large' 'roberta-large' 'flan-t5-large')
-
+#，GPT2(2 4 8 10 14 20 22 26 28)
 dataset_label='train'
 data_shrink_frac=1.0 # 被攻击数据集的缩减比例
 max_global_step=1200 # 攻击1200个样本
@@ -40,7 +40,8 @@ for model_name in "${model_names[@]}"; do
   if [ "$model_name" = 'llama2' ] || [ "$model_name" = 'gpt2-large' ]; then
     #    split_points=(3 6 9 12 15 18 21 24 27 30)
     #    split_points=(4 7 10 13 16 18 22 25 28)
-    split_points=(19)
+    split_points=(6 12 18 24 30)
+    #    split_points=(19)
     sp2=31
   fi
   if [ "$model_name" = 'flan-t5-large' ]; then

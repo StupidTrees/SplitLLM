@@ -8,10 +8,12 @@ import wandb
 from torch.optim import Adam
 from tqdm import tqdm
 
+
+
 sys.path.append(os.path.abspath('../../..'))
 from sfl.simulator.dataset import MixtureFedDataset
-
-from sfl.config import FLConfig, DRAttackerConfig
+import sfl
+from sfl.config import FLConfig, DRAttackerConfig, dxp_moe_range, gaussian_moe_range
 from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
     TransformerEncoderDRAttacker, TransformerDecoderDRAttacker, LSTMDRAttackerConfig, TransformerDRAttackerConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_tokenizer
@@ -19,6 +21,7 @@ from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_r
     evaluate_attacker_rouge, random_choose_noise
 
 from sfl.config import DRA_train_label, DRA_test_label
+
 
 def get_save_path(fl_config, save_dir, args):
     model_name = args.model_name
@@ -222,17 +225,17 @@ def train_attacker(args):
                 optimizer.zero_grad()
                 if args.noise_mode == 'dxp' and args.noise_scale_dxp < 0:
                     # 随机生成噪声
-                    model.change_noise(random_choose_noise({5, 7.5, 10}))
+                    model.change_noise(random_choose_noise(sfl.config.dxp_moe_range))
                 elif args.noise_mode == 'gaussian' and args.noise_scale_gaussian < 0:
-                    model.change_noise(random_choose_noise({0.01, 0.02, 0.05}, mode='gaussian'))
+                    model.change_noise(random_choose_noise(sfl.config.gaussian_moe_range, mode='gaussian'))
                 elif args.noise_mode == 'mix':
                     noise_mode = random.choice(['none', 'dxp', 'gaussian'])
                     if noise_mode == 'none':
                         model.change_noise(0, noise_mode)
                     elif noise_mode == 'dxp':
-                        model.change_noise(random_choose_noise({5, 7.5, 10}, noise_mode), noise_mode)
+                        model.change_noise(random_choose_noise(dxp_moe_range, noise_mode), noise_mode)
                     else:
-                        model.change_noise(random_choose_noise({0.01, 0.02, 0.05}, mode='gaussian'), noise_mode)
+                        model.change_noise(random_choose_noise(gaussian_moe_range, mode='gaussian'), noise_mode)
                 if model.type == 'encoder-decoder':
                     input_args = get_t5_input(batch, tokenizer, model.device)
                     enc_hidden, dec_hidden = model(**input_args)

@@ -74,7 +74,7 @@ class SplitModel(nn.Module, ABC):
         if self.fl_config and self.fl_config.attack_mode:
             if i == self.fl_config.split_point_1 - 1 and self.fl_config.attack_mode == 'b2tr':
                 if self.noise_mode == 'gaussian':
-                    return self.perturbers['gaussian'](hidden_states)
+                    return self.perturbers['gaussian'](hidden_states), hidden_states
                 return hidden_states, hidden_states
             elif i == self.fl_config.split_point_2 and self.fl_config.attack_mode == 'tr2t':
                 return hidden_states, hidden_states

@@ -2,7 +2,7 @@
 seed=42
 
 dataset_label='train'
-exp_name='[EXP]BiSR_cross_dataset'
+exp_name='[EXP]BiSR_cross_dataset_dlgs'
 client_num=1
 global_round=1
 client_steps=500
@@ -18,23 +18,24 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='flan-t5-large'
+model_name='llama2'
 attack_model='gru'
-sps='6-20'
+sps='6-26'
 attacker_sp=6
 batch_size=2
 dlg_enable=True
 dlg_adjust=0
-dlg_epochs=18
+dlg_epochs=50
 dlg_beta=0.85
-dlg_init_with_dra=True
-dlg_raw_enable=True
+dlg_init_with_dra=False
+dlg_raw_enable=False
 attacker_freq=200
 attacker_samples=10
 max_global_step=610
 
 attacker_datasets=("sensireplaced")
-sfl_datasets=("dialogsum")
+sfl_datasets=("piqa")
+dlg_method='lamp'
 #("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
@@ -108,6 +109,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       --dlg_raw_enable "$dlg_raw_enable" \
       --attacker_freq "$attacker_freq" \
       --attacker_samples "$attacker_samples" \
-      --max_global_step "$max_global_step"
+      --max_global_step "$max_global_step" \
+      --dlg_method "$dlg_method"
   done
 done

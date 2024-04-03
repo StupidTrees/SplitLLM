@@ -10,6 +10,8 @@ from PIL.Image import fromarray
 from rouge import Rouge
 from torch.nn import CrossEntropyLoss
 
+from sfl.config import dxp_moe_range, gaussian_moe_range, dc_moe_range
+
 
 @dataclass
 class Intermediate:
@@ -163,7 +165,6 @@ def sentence_score_tokens(sent, model):
         scoress.append(scores)
     # wordscores = torch.cat(wordscoress)
     score = torch.cat(scoress)
-    # preds = torch.cat(predss)
     model.train(True)
     return score
 
@@ -388,9 +389,11 @@ def dist_corr(x, y):
 def random_choose_noise(input_scales=None, mode='dxp'):
     if input_scales is None:
         if mode == 'dxp':
-            input_scales = {5, 7.5, 10}
+            input_scales = dxp_moe_range
         elif mode == 'gaussian':
-            input_scales = {0.01, 0.02, 0.05}
+            input_scales = gaussian_moe_range
+        elif mode == 'dc':
+            input_scales = dc_moe_range
     scales = set()
     for s in input_scales:
         if s > 0:
@@ -399,11 +402,14 @@ def random_choose_noise(input_scales=None, mode='dxp'):
                range(len(scales))]
     numbers += [0, 0]
     plus_one = max(scales) * 2
-    if mode == 'dxp':
+    plus_zero = min(scales) / 2
+    if mode == 'dxp' or mode == 'gaussian':
         numbers += [plus_one]
+    if mode == 'dc':
+        numbers += [plus_zero]
     return random.choice(numbers)
 
 
 def convert_to_image(attacker_logits):
     recovered = (attacker_logits + 1) / 2
-    return fromarray((recovered[0].permute(1, 2, 0).detach().cpu().numpy() * 255).astype(np.uint8))
+    return [fromarray((rec.permute(1, 2, 0).detach().cpu().numpy() * 255).astype(np.uint8)) for rec in recovered]

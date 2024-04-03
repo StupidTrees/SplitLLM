@@ -30,7 +30,7 @@ class FLStrategy(ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step,
+    def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step,global_step,
                                      b2tr_inter: Intermediate, tr2t_inter: Intermediate,
                                      all_inter: dict[int, Intermediate],
                                      batch, logs):
@@ -143,7 +143,7 @@ class BaseSFLStrategy(FLStrategy):
                 if 0 < config.max_global_step <= self.simulator.get_current_step(client_id, step)[1] + 1:
                     break
 
-    def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step,
+    def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step,global_step,
                                      b2tr_inter: Intermediate, tr2t_inter: Intermediate,
                                      all_inter: dict[int, Intermediate],
                                      batch, logs
@@ -153,7 +153,7 @@ class BaseSFLStrategy(FLStrategy):
         # 每batch触发攻击
         self.normal_attacker_triggered(global_round, client_id, local_epoch, local_step, b2tr_inter, tr2t_inter,
                                        all_inter, batch, logs)
-        if (local_step + 1) % self.args.attacker_freq == 0:
+        if (global_step + 1) % self.args.attacker_freq == 0:
             self.attack_sample_counter[client_id] = 0
             self.attack_sample_performs[client_id] = {}
 

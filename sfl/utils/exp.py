@@ -21,7 +21,7 @@ from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
 from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
 from sfl.simulator.dataset import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
     GSM8KFedDataset, WikiTextFedDataset, FedDataset, MixtureFedDataset, SensiMarkedFedDataset, \
-    SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset
+    SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset, PIQAMiniFedDataset
 
 
 def str2bool(v):
@@ -110,6 +110,7 @@ def add_sfl_params(parser):
     parser.add_argument('--dlg_epochs', type=int, default=30)
     parser.add_argument('--dlg_adjust', type=int, default=0)
     parser.add_argument('--dlg_beta', type=float, default=0.9)
+    parser.add_argument('--dlg_method', type=str, default='tag')
     parser.add_argument('--dlg_init_with_dra', type=str2bool, default=True,
                         help='initialize GT vector with DRA attacker')
     parser.add_argument('--dlg_dra_reg', type=float, default=0.0,
@@ -243,10 +244,11 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
 
 
 def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, **kwargs):
-    if model_name == 'vit':
-        processor = ViTImageProcessor.from_pretrained(os.path.join(model_download_dir, 'google/vit-base-patch16-224'))
+    if model_name.startswith('vit'):
+        processor = ViTImageProcessor.from_pretrained(
+            os.path.join(model_download_dir, f'google/{model_name}-patch16-224'))
         model = ViTForImageClassificationSplit.from_pretrained(
-            os.path.join(model_download_dir, 'google/vit-base-patch16-224'))
+            os.path.join(model_download_dir, f'google/{model_name}-patch16-224'))
         return model, processor
     tokenizer = get_tokenizer(model_name)
     model = get_model(model_name, task, num_labels, tokenizer, **kwargs)
@@ -268,6 +270,8 @@ def get_dataset(dataset_name, tokenizer, client_ids=None, shrink_frac=1.0) -> Fe
 def get_dataset_class(dataset_name):
     if dataset_name == 'piqa':
         dataset_cls = PIQAFedDataset
+    elif dataset_name == 'piqa-mini':
+        dataset_cls = PIQAMiniFedDataset
     elif dataset_name == 'gsm8k':
         dataset_cls = GSM8KFedDataset
     elif dataset_name == 'wikitext':
@@ -390,17 +394,19 @@ def get_fsha_attacker(dra_config: DRAConfig):
     return attacker
 
 
-def get_dlg_attacker(llm: SplitWrapperModel):
+def get_dlg_attacker(llm: SplitWrapperModel, method='tag'):
     mocker = None
     assert llm.fl_config is not None
+    # if method == 'lamp':
+    #     ppl_llm = llm#get_model_and_tokenizer('gpt2')[0]
     # !需要在LoRA加上去之前进行复制
     if isinstance(llm, GPT2SplitLMHeadModel):
-        mocker = GPT2TopDLGAttacker(llm.fl_config, llm)
+        mocker = GPT2TopDLGAttacker(llm.fl_config, llm, method=method)
     elif isinstance(llm, LLAMA2SplitLMHeadModel):
-        mocker = LLAMA2TopDLGAttacker(llm.fl_config, llm)
+        mocker = LLAMA2TopDLGAttacker(llm.fl_config, llm, method=method)
         # print(llm.config)
     elif isinstance(llm, T5ForConditionalGenerationSplitModel):
-        mocker = T5DecoderDLGAttacker(llm.fl_config, llm)
+        mocker = T5DecoderDLGAttacker(llm.fl_config, llm, method=method)
     elif isinstance(llm, ChatGLMForConditionalGenerationSplit):
-        mocker = ChatGLMDLGAttacker(llm.fl_config, llm)
+        mocker = ChatGLMDLGAttacker(llm.fl_config, llm, method=method)
     return mocker

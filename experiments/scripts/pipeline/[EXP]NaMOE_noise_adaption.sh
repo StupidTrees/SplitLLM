@@ -6,7 +6,7 @@ test_data_label='test'
 data_shrink_frac=0.08
 test_data_shrink_frac=0.3
 
-model_name='llama2'
+model_name='gpt2-large'
 
 exp_name='[EXP]NaMOE_noise_adaption'
 
@@ -21,22 +21,22 @@ lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
 attacker_freq=200
-attacker_samples=20
-batch_size=1
+attacker_samples=10
+batch_size=2
 sps='6-26'
 attacker_sp=6
 
 # 噪声规模
-noise_modes=("gaussian")
-sfl_noise_scales_gaussian=(2.0 3.0 5.0)
-sfl_noise_scales_dxp=(0.0 0.3 0.5 0.7)
+noise_modes=("dxp")
+sfl_noise_scales_gaussian=(1.0)
+sfl_noise_scales_dxp=(0.2)
 attacker_noises_gaussian=(0.0)
-attacker_noises_dxp=(0.0 0.2 0.4 0.6 0.8)
+attacker_noises_dxp=(0.15 0.25 0.35)
 attacker_train_frac=0.2
 attack_models=('gru')
 datasets=('piqa')
 sfl_dataset='piqa'
-max_steps=1200
+max_steps=600
 
 for seed in "${seeds[@]}"; do
   for atk_dataset in "${datasets[@]}"; do

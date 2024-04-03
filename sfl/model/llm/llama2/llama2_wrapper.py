@@ -19,7 +19,6 @@ class LLAMA2SplitLMHeadModel(LlamaForCausalLM, SplitWrapperModel):
     """
 
     def change_noise(self, scale, mode=None):
-        super(LLAMA2SplitLMHeadModel, self).change_noise(scale, mode)
         self.model.change_noise(scale, mode)
 
     def get_adapter_module_regex(self):

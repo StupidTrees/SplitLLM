@@ -12,6 +12,7 @@ DRA_train_label = {
     'codealpaca': 'test',
     'dialogsum': 'validation',
     'piqa': 'validation',
+    'piqa-mini': 'validation',
     'gsm8k': 'test',
     'wikitext': 'validation',
     'sensireplaced': 'validation',
@@ -25,6 +26,10 @@ DRA_train_label = {
 DRA_test_label = {nm: 'test' for nm in DRA_train_label.keys()}
 DRA_test_label['hc3cn'] = 'finance'
 DRA_test_label['imagewoof'] = 'validation'
+
+dxp_moe_range = {0.08, 0.24, 0.42}
+gaussian_moe_range = {0.5, 1.0, 1.5}
+dc_moe_range = {12.0, 24.0, 48.0}
 
 
 @dataclass

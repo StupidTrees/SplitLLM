@@ -1,7 +1,7 @@
 # 实验：如果客户端的Bottom和Top是事先微调过的
 seed=42
 
-exp_name='[EXP]SDRP_pre_ft'
+exp_name='[EXP]BiSR-batch_size'
 client_num=1
 global_round=1
 client_steps=600
@@ -17,7 +17,6 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=False
 attack_model='gru'
-batch_size=2
 
 attacker_freq=200
 attacker_samples=10
@@ -28,7 +27,7 @@ data_shrink_frac=1.0 # 被攻击数据集的缩减比例
 max_global_step=810  # 攻击800个batch
 attacker_dataset="piqa"
 attacker_training_fraction=1.0 # 攻击模型的训练集比例
-sfl_dataset="piqa"
+sfl_dataset="piqa-mini"
 
 dlg_enable=True
 dlg_adjust=0
@@ -36,13 +35,12 @@ dlg_epochs=18
 dlg_beta=0.85
 dlg_init_with_dra=True
 
-pre_ft_dataset='codealpaca'
-pre_ft_steps=(0 2400 4800 7200 9600 12000 14400)
+batch_sizes=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24)
 
-for pre_ft_max_steps in "${pre_ft_steps[@]}"; do
+for batch_size in "${batch_sizes[@]}"; do
 
   sps="6-26"
-  case_name="${model_name}-${sfl_dataset}-pre@${pre_ft_dataset}[${pre_ft_max_steps}]"
+  case_name="${model_name}-${sfl_dataset}-bs=${batch_size}"
 
   # 先训练攻击模型
   echo "Running train_attacker.py with atk_ds=$attacker_dataset"
@@ -90,13 +88,10 @@ for pre_ft_max_steps in "${pre_ft_steps[@]}"; do
     --attacker_freq "$attacker_freq" \
     --attacker_samples "$attacker_samples" \
     --max_global_step "$max_global_step" \
-    --pre_ft_dataset "$pre_ft_dataset" \
-    --pre_ft_max_steps "$pre_ft_max_steps" \
     --dlg_enable "$dlg_enable" \
     --dlg_adjust "$dlg_adjust" \
     --dlg_epochs "$dlg_epochs" \
     --dlg_beta "$dlg_beta" \
     --dlg_init_with_dra "$dlg_init_with_dra" \
     --dlg_raw_enable True
-
 done

@@ -206,6 +206,8 @@ class MOEDRAttacker(DRAttacker):
                 continue
             if 'chatglm' in self.config.target_model:
                 inter = inter.permute(1, 0, 2)
+            if inter.dtype == torch.float16:
+                inter = inter.float()
             hidden = torch.dropout(exp(inter)[0], p=self.config.dropout, train=self.training)
             outputs.append(self.mlp(hidden))
         return outputs

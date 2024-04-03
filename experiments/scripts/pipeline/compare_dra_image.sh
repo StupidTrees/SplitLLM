@@ -2,7 +2,7 @@
 seed=42
 
 dataset_label='train'
-model_name='vit'
+model_name='vit-large'
 exp_name='[TEST]Evaluate_DRA_Image'
 client_num=1
 global_round=10
@@ -10,7 +10,6 @@ client_steps=250
 
 attacker_dataset="imagewoof"
 attacker_prefix='normal'
-attacker_model='vit'
 data_shrink_frac=1.0
 test_data_shrink_frac=0.5
 evaluate_freq=200
@@ -20,7 +19,7 @@ lora_at_bottom=False
 lora_at_top=False
 collect_all_layers=True
 attack_model='vit'
-max_global_step=2400
+max_global_step=2000
 batch_size=32
 
 datasets=('imagewoof')
@@ -29,7 +28,7 @@ search_splits=(6)
 
 for sp in "${search_splits[@]}"; do
   for dataset in "${datasets[@]}"; do
-    sps="$sp-10"
+    sps="$sp-20"
     # 先训练攻击模型
     echo "Running train_attacker_image.py with seed=$seed, dataset=$dataset, model=$attack_model"
     python ../py/train_attacker_image.py \
@@ -68,7 +67,7 @@ for sp in "${search_splits[@]}"; do
       --attacker_dataset "$attacker_dataset" \
       --max_global_step "$max_global_step" \
       --batch_size "$batch_size"\
-      --attacker_model "$attacker_model"\
+      --attacker_model "$attack_model"\
       --test_data_label 'validation'
   done
 done

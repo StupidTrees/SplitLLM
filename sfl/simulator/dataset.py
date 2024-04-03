@@ -145,9 +145,35 @@ class PIQAFedDataset(FedDataset):
         texts = [b['input'] for b in batch]
         qs = [b['q'] for b in batch]
         as_ = [b['a'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
+        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')  # for batch_size testing
         input_q = self.tokenizer(qs, padding=True, truncation=True, return_tensors='pt')
         input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt')
+        labels = [b['label'] for b in batch]
+        labels = torch.tensor(labels)
+        return {'input_ids': input['input_ids'],
+                'input_att_mask': input['attention_mask'],
+                'input_text': texts,
+                'q_ids': input_q['input_ids'],
+                'q_att_mask': input_q['attention_mask'],
+                'a_ids': input_a['input_ids'],
+                'a_att_mask': input_a['attention_mask'],
+                'q_text': qs,
+                'a_text': as_, 'labels': labels}
+
+
+class PIQAMiniFedDataset(PIQAFedDataset):
+    """
+    PIQA数据集
+    """
+
+    def _col_fun(self, batch):
+        texts = [b['input'] for b in batch]
+        qs = [b['q'] for b in batch]
+        as_ = [b['a'] for b in batch]
+        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt',
+                               max_length=128)  # for batch_size testing
+        input_q = self.tokenizer(qs, padding=True, truncation=True, return_tensors='pt', max_length=128)
+        input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt', max_length=128)
         labels = [b['label'] for b in batch]
         labels = torch.tensor(labels)
         return {'input_ids': input['input_ids'],
@@ -176,7 +202,8 @@ class GSM8KFedDataset(FedDataset):
 
     def _col_fun(self, batch):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt', max_length=300)
+        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt',
+                               max_length=300)  # 300, glm 256
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
                 'input_text': texts}
@@ -198,7 +225,7 @@ class DialogSumFedDataset(FedDataset):
 
     def _col_fun(self, batch):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, max_length=400,
+        input = self.tokenizer(texts, padding=True, truncation=True, max_length=400,  # chatglm 256
                                return_tensors='pt')
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
@@ -220,7 +247,7 @@ class CodeAlpacaFedDataset(FedDataset):
 
     def _col_fun(self, batch):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, max_length=400,
+        input = self.tokenizer(texts, padding=True, truncation=True, max_length=400,  # 400, chatglm256
                                return_tensors='pt')
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
@@ -312,7 +339,8 @@ class SensiMarkedFedDataset(FedDataset):
 
     def _col_fun(self, batch):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt', max_length=300)
+        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt',
+                               max_length=300)  # 300, ChatgGLM bs=2时降低
         mask = torch.zeros_like(input['input_ids'])
         for sp, sample in enumerate(batch):
             seq = input['input_ids'][sp].numpy().tolist()

@@ -1,4 +1,5 @@
 import random
+from copy import deepcopy
 from typing import Iterator
 
 import torch
@@ -163,7 +164,6 @@ class SFLSimulator(object):
                         self.local_steps[client_id] = 0
                         if self.local_epochs[client_id] >= self.config.client_epoch:
                             completed.add(client_id)
-                    print(self.global_steps[client_id], self.config.max_global_step)
                     if (self.global_steps[client_id] + 1) >= self.config.max_global_step > 0:
                         completed.add(client_id)
 
@@ -193,7 +193,11 @@ class SFLSimulator(object):
             self.llm.load_trunk_params(backup_params)
         return outputs
 
-    def restored_run(self, func, parts=None, key: str = '', write_back=True, **kwargs):
+    def restored_run(self, func, parts=None, key: str = '', write_back=True, disable_inter_collection=True, **kwargs):
+        cfg_bk = deepcopy(self.llm.fl_config)
+        if disable_inter_collection:
+            self.llm.fl_config.collect_intermediates = False
+
         if key not in self.parameter_keeper.other_params:
             for part in self.parameter_keeper.other_params['pretrained']:
                 self.parameter_keeper.store_other_params(key, part,
@@ -211,7 +215,7 @@ class SFLSimulator(object):
             elif part == 'trunk':
                 backup_params[part] = [p.detach().cpu() for nm, p in self.llm.get_trunk_params()]
                 self.llm.load_trunk_params(self.parameter_keeper.get_other_params(key, part))
-        func(**kwargs)
+        ret = func(**kwargs)
         for part in parts:
             updated_params = []
             if part == 'top':
@@ -225,6 +229,8 @@ class SFLSimulator(object):
                 self.llm.load_trunk_params(backup_params[part])
             if write_back:
                 self.parameter_keeper.store_other_params(key, part, updated_params)
+        self.llm.fl_config = cfg_bk
+        return ret
 
     def get_current_step(self, client_id, mini_step):
         global_step = self.global_steps[client_id] + mini_step
@@ -289,9 +295,10 @@ class SFLSimulator(object):
                                                    client_id,
                                                    local_epoch,
                                                    local_step,
+                                                   global_step,
                                                    b2tr_inter, tr2t_inter, all_inters,
                                                    batch, logs)
-        if (local_step + 1) % self.config.client_evaluate_freq == 0:
+        if (global_step + 1) % self.config.client_evaluate_freq == 0:
             self.strategy.client_evaluate(self.current_global_round, client_id, logs)
         for k, v in logs.items():
             report[f'client{client_id}_{k}'] = v

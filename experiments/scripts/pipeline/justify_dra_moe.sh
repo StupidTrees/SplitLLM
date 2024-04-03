@@ -28,14 +28,14 @@ sps='6-26'
 # 噪声规模
 attacker_noise_mode="mix"
 sfl_noise_modes=("dxp")
-sfl_noise_scales_dxp=(2.0 1.0 0.5 0.1)
+sfl_noise_scales_dxp=(0.3 0.4)
 sfl_noise_scales_gaussian=(0 0.01)
 attacker_train_frac=0.3
-attack_models=('gru' 'moe2')
+attack_models=('gru')
 noise_scale_dxp=-1.0
 noise_scale_gaussian=-1.0
-datasets=('wikitext') # 'gsm8k' 'wikitext' 'dialogsum' 'sanitized')
-attacker_dataset="wikitext"
+datasets=('piqa') # 'gsm8k' 'wikitext' 'dialogsum' 'sanitized')
+attacker_dataset="sensireplaced"
 
 for seed in "${seeds[@]}"; do
   for dataset in "${datasets[@]}"; do

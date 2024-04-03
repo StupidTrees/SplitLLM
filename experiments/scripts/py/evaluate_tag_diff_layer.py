@@ -37,7 +37,7 @@ def sfl_with_attacker(args):
     config = get_fl_config(args)
 
     # 加载TAG攻击模型
-    dlg = get_dlg_attacker(model)
+    dlg = get_dlg_attacker(model, method=args.dlg_method)
 
     # 加载数据集
     fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)

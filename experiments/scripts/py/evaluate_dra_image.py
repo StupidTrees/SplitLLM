@@ -10,13 +10,26 @@ sys.path.append(os.path.abspath('../../..'))
 
 from sfl.simulator.strategy import BaseSFLStrategy
 
-from sfl.utils.model import Intermediate, set_random_seed, evaluate_attacker_mse
+from sfl.utils.model import Intermediate, set_random_seed, evaluate_attacker_mse, convert_to_image, evaluate_accuracy, \
+    evaluate_perplexity
 from sfl.simulator.simulator import SFLSimulator
 from sfl.utils.exp import *
 
 
 # 定义Client本地学习策略
 class ImageFLStrategy(BaseSFLStrategy):
+
+    def __init__(self, args, llm, tokenizer, test_loader, attacker, sample_batch):
+        super().__init__(args, llm, tokenizer, test_loader,attacker)
+        self.sample_batch = sample_batch
+
+    def client_evaluate(self, global_round, client_id, log):
+        if self.task_type == 'classification':
+            log['test-acc'] = evaluate_accuracy(self.simulator.llm, self.test_loader)
+        elif self.task_type == 'lm':
+            ppl = evaluate_perplexity(self.simulator.llm, self.test_loader)
+            log['test-ppl'] = ppl
+        log_sample_image(self.llm, self.dra1, self.sample_batch)
 
     def client_step(self, client_id: str, global_round, client_epoch, llm: SplitWrapperModel, iterator: Iterator,
                     config: FLConfig):
@@ -80,8 +93,9 @@ def sfl_with_attacker(args):
     test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[])
     test_loader = test_dataset.get_dataloader_unsliced(args.batch_size, args.test_data_label,
                                                        shrink_frac=args.test_data_shrink_frac)
+    sample_batch = next(iter(fed_dataset.get_dataloader_unsliced(3, 'train')))
     simulator = SFLSimulator(client_ids=client_ids,
-                             strategy=ImageFLStrategy(args, model, tokenizer, test_loader, attacker, attacker2, None),
+                             strategy=ImageFLStrategy(args, model, tokenizer, test_loader, attacker, sample_batch),
                              llm=model,
                              tokenizer=tokenizer,
                              dataset=fed_dataset, config=config, args=args)
@@ -96,8 +110,23 @@ def sfl_with_attacker(args):
         name=args.case_name,
         config=args
     )
+    log_sample_image(model, attacker, sample_batch)
     model.train()
     simulator.simulate()
+
+
+def log_sample_image(llm, attacker, observe_sample):
+    cfg = llm.fl_config
+    cfg.attack_mode = 'b2tr'
+    llm.config_sfl(cfg, llm.param_keeper)
+    input_tensors = observe_sample['input'].to(llm.device)
+    inter = llm(input_tensors)
+    attacked = attacker(inter.to(llm.device))
+    images = convert_to_image(attacked)
+    wandb.log({'attacked_sample_images': [wandb.Image(img) for img in images]})
+    cfg = llm.fl_config
+    cfg.attack_mode = None
+    llm.config_sfl(cfg, llm.param_keeper)
 
 
 if __name__ == '__main__':
