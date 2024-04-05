@@ -32,7 +32,7 @@ class DLGAttacker(nn.Module):
         self.method = method
         self.simulator: SFLSimulator = None
 
-    def gma_loss(self, inter, gradient, gt, beta=0.85, **kwargs):
+    def gma_loss(self, inter, gradient, gt, beta=0.85, ppl=False, **kwargs):
         # print(inter.shape, gradient.shape, gt.shape, flush=True)
         x = self.forward(inter, **kwargs)
         if self.model_type == 'encoder-decoder':
@@ -47,7 +47,7 @@ class DLGAttacker(nn.Module):
                 grad_diff += ((gx - gy) ** 2).sum()
             else:
                 grad_diff += beta * ((gx - gy) ** 2).sum() + (1 - beta) * (torch.abs(gx - gy)).sum()
-        if self.method == 'lamp':
+        if ppl:
             with torch.no_grad():
                 input_ids = gt.argmax(-1)
                 ci_bk = self.simulator.llm.fl_config.collect_intermediates
@@ -90,61 +90,81 @@ class DLGAttacker(nn.Module):
                 optimizer2.step()
         return gt
 
-    def lamp(self, inter, gradient, gt, beta=0.85, lamp_steps=100):
+    def lamp(self, inter, gradient, gt, beta=0.85, lamp_steps=200):
         inter.requires_grad = True
         print('Attempt swap')
         best_gt, best_loss = None, None
+        init_loss = None
         changed = None
         batch_size, seq_len, vocab_size = gt.shape
-        pbar = tqdm.tqdm(total=batch_size * lamp_steps)
-        for sen_id in range(batch_size):
-            for sample_idx in range(lamp_steps):
-                with torch.no_grad():
-                    perm_ids = np.arange(seq_len)
+        pbar = tqdm.tqdm(total=lamp_steps)
+        for sample_idx in range(lamp_steps):
+            new_gt = gt.clone()
+            with torch.no_grad():
+                for sen_id in range(batch_size):
                     if sample_idx != 0:
-                        if sample_idx % 4 == 0:  # swap two tokens
-                            i, j = 1 + np.random.randint(seq_len - 2), 1 + np.random.randint(seq_len - 2)
-                            perm_ids[i], perm_ids[j] = perm_ids[j], perm_ids[i]
-                        elif sample_idx % 4 == 1:  # move a token to another place
-                            i = 1 + np.random.randint(seq_len - 2)
-                            j = 1 + np.random.randint(seq_len - 1)
-                            if i < j:
-                                perm_ids = np.concatenate(
-                                    [perm_ids[:i], perm_ids[i + 1:j], perm_ids[i:i + 1], perm_ids[j:]])
-                            else:
-                                perm_ids = np.concatenate(
-                                    [perm_ids[:j], perm_ids[i:i + 1], perm_ids[j:i], perm_ids[i + 1:]])
-                        elif sample_idx % 4 == 2:  # move a sequence to another place
-                            b = 1 + np.random.randint(seq_len - 1)
-                            e = 1 + np.random.randint(seq_len - 1)
-                            if b > e:
-                                b, e = e, b
-                            p = 1 + np.random.randint(seq_len - 1 - (e - b))
-                            if p >= b:
-                                p += e - b
-                            if p < b:
-                                perm_ids = np.concatenate([perm_ids[:p], perm_ids[b:e], perm_ids[p:b], perm_ids[e:]])
-                            elif p >= e:
-                                perm_ids = np.concatenate([perm_ids[:b], perm_ids[e:p], perm_ids[b:e], perm_ids[p:]])
-                            else:
-                                assert False
-                        elif sample_idx % 4 == 3:  # take some prefix and put it at the end
-                            i = 1 + np.random.randint(seq_len - 2)
-                            perm_ids = np.concatenate([perm_ids[:1], perm_ids[i:-1], perm_ids[1:i], perm_ids[-1:]])
-                new_gt = gt.clone()
-                new_gt[sen_id] = gt[sen_id, perm_ids, :]
-                new_gt.requires_grad = True
-                loss = self.gma_loss(inter, gradient, new_gt, beta=beta).detach().cpu().item()
-                pbar.set_postfix({'loss': loss})
-                if (best_loss is None) or (loss < best_loss):
-                    best_gt = new_gt
-                    best_loss = loss
-                    if sample_idx != 0:
-                        changed = sample_idx % 4
-                pbar.update()
-            if not (changed is None):
-                change = ['Swapped tokens', 'Moved token', 'Moved sequence', 'Put prefix at the end'][changed]
-                print(change)
+                        # randomly select 1~seq_len*0.1 tokens
+                        num_tokens = np.random.randint(1, int(seq_len * 0.2))
+                        # randomly select the positions of the tokens
+                        token_indexes = np.random.choice(range(seq_len), num_tokens)
+                        # for each position, randomly change the last dimension of the token
+                        for i in token_indexes:
+                            second_idx = np.random.choice([-1, -2, -3])
+                            max_idx = torch.argmax(new_gt[sen_id, i, :])
+                            second_max_idx = torch.argsort(new_gt[sen_id, i, :])[second_idx]
+                            # swap the two tokens
+                            new_gt[sen_id, i, max_idx], new_gt[sen_id, i, second_max_idx] = new_gt[
+                                                                                                sen_id, i, second_max_idx], \
+                                                                                            new_gt[
+                                                                                                sen_id, i, max_idx]
+                    # perm_ids = np.arange(seq_len)
+                    # if sample_idx != 0:
+                    #     if sample_idx % 4 == 0:  # swap two tokens
+                    #         i, j = 1 + np.random.randint(seq_len - 2), 1 + np.random.randint(seq_len - 2)
+                    #         perm_ids[i], perm_ids[j] = perm_ids[j], perm_ids[i]
+                    #     elif sample_idx % 4 == 1:  # move a token to another place
+                    #         i = 1 + np.random.randint(seq_len - 2)
+                    #         j = 1 + np.random.randint(seq_len - 1)
+                    #         if i < j:
+                    #             perm_ids = np.concatenate(
+                    #                 [perm_ids[:i], perm_ids[i + 1:j], perm_ids[i:i + 1], perm_ids[j:]])
+                    #         else:
+                    #             perm_ids = np.concatenate(
+                    #                 [perm_ids[:j], perm_ids[i:i + 1], perm_ids[j:i], perm_ids[i + 1:]])
+                    #     elif sample_idx % 4 == 2:  # move a sequence to another place
+                    #         b = 1 + np.random.randint(seq_len - 1)
+                    #         e = 1 + np.random.randint(seq_len - 1)
+                    #         if b > e:
+                    #             b, e = e, b
+                    #         p = 1 + np.random.randint(seq_len - 1 - (e - b))
+                    #         if p >= b:
+                    #             p += e - b
+                    #         if p < b:
+                    #             perm_ids = np.concatenate([perm_ids[:p], perm_ids[b:e], perm_ids[p:b], perm_ids[e:]])
+                    #         elif p >= e:
+                    #             perm_ids = np.concatenate([perm_ids[:b], perm_ids[e:p], perm_ids[b:e], perm_ids[p:]])
+                    #         else:
+                    #             assert False
+                    #     elif sample_idx % 4 == 3:  # take some prefix and put it at the end
+                    #         i = 1 + np.random.randint(seq_len - 2)
+                    #         perm_ids = np.concatenate([perm_ids[:1], perm_ids[i:-1], perm_ids[1:i], perm_ids[-1:]])
+
+                # new_gt = gt.clone()
+                # new_gt[sen_id] = gt[sen_id, perm_ids, :]
+            new_gt.requires_grad = True
+            loss = self.gma_loss(inter, gradient, new_gt, ppl=True, beta=beta).detach().cpu().item()
+            if sample_idx == 0:
+                init_loss = loss
+            pbar.set_postfix({'loss': loss, 'best_loss': best_loss, 'init_loss': init_loss})
+            if (best_loss is None) or (loss < best_loss):
+                best_gt = new_gt
+                best_loss = loss
+                if sample_idx != 0:
+                    changed = sample_idx % 4
+            pbar.update()
+        if not (changed is None):
+            change = ['Swapped tokens', 'Moved token', 'Moved sequence', 'Put prefix at the end'][changed]
+            print(change)
         return best_gt
 
 

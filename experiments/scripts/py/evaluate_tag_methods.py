@@ -17,6 +17,27 @@ from sfl.utils.exp import *
 # 定义Client本地学习策略
 class QAFLStrategy(BaseSFLStrategy):
 
+    def client_evaluate(self, global_round, client_id, log):
+        super(QAFLStrategy, self).client_evaluate(global_round, client_id, log)
+        self.log_sample_text()
+
+    def log_sample_text(self):
+        llm = self.llm
+        observe_sample = self.sample_batch
+        cfg = llm.fl_config
+        cfg.attack_mode = 'b2tr'
+        llm.config_sfl(cfg, llm.param_keeper)
+        input_tensors = observe_sample['input_ids'].to(llm.device)
+        inter = llm(input_tensors)
+        attacked = self.dra1(inter.to(llm.device))
+        texts = [self.tokenizer.decode(t.argmax(-1), skip_special_tokens=True) for t in attacked]
+        table = wandb.Table(columns=["sample_text", "true_text"],
+                            data=[[txt, gt] for txt, gt in zip(texts, observe_sample['input_text'])])
+        wandb.log({'attacked_sample_text': table})
+        cfg = llm.fl_config
+        cfg.attack_mode = None
+        llm.config_sfl(cfg, llm.param_keeper)
+
     def sample_attacker_triggered(self, global_round, client_id, local_epoch, local_step,
                                   b2tr_inter: Intermediate, tr2t_inter: Intermediate,
                                   all_inter: dict[Any, Intermediate],
@@ -43,6 +64,7 @@ class QAFLStrategy(BaseSFLStrategy):
                 self.log_to_all_result(client_id, f'DRA_{type}_rg1f', rouge_res['rouge-1']['f'])
                 logs[f'attacker_{type}_step'] = rouge_res['rouge-l']['f']
                 attacked_result[type] = attacked
+
         if self.args.dlg_enable:
             gt_init = None
             if self.args.dlg_init_with_dra:
@@ -78,17 +100,17 @@ class QAFLStrategy(BaseSFLStrategy):
             self.log_to_all_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
             if self.dlg.method == 'lamp':
                 # clear torch cache to avoid memory leak
-                torch.cuda.empty_cache()
-                gt = self.simulator.restored_run(self.dlg.lamp, key='pretrained', write_back=False,
-                                                 inter=tr2t_inter.fx.to(self.simulator.device),
-                                                 gradient=tr2t_inter.grad.to(self.simulator.device),
-                                                 gt=deepcopy(gt.detach()),
-                                                 beta=self.args.dlg_beta)
-                dlg_rouge = evaluate_attacker_rouge(self.tokenizer, gt, batch)
-                self.log_to_sample_result(client_id, 'LAMP_rgL_f', dlg_rouge['rouge-l']['f'])
-                self.log_to_sample_result(client_id, 'LAMP_rg1_f', dlg_rouge['rouge-1']['f'])
-                self.log_to_all_result(client_id, 'LAMP_rgL_f', dlg_rouge['rouge-l']['f'])
-                self.log_to_all_result(client_id, 'LAMP_rg1_f', dlg_rouge['rouge-1']['f'])
+                lamp_gt = self.simulator.restored_run(self.dlg.lamp, key='pretrained', write_back=False,
+                                                      inter=tr2t_inter.fx.clone().to(self.simulator.device),
+                                                      gradient=tr2t_inter.grad.clone().to(self.simulator.device),
+                                                      gt=deepcopy(gt.detach()),
+                                                      beta=self.args.dlg_beta,
+                                                      parts=['bottom', 'top', 'trunk'])
+                lamp_rouge = evaluate_attacker_rouge(self.tokenizer, lamp_gt, batch)
+                self.log_to_sample_result(client_id, 'LAMP_rgL_f', lamp_rouge['rouge-l']['f'])
+                self.log_to_sample_result(client_id, 'LAMP_rg1_f', lamp_rouge['rouge-1']['f'])
+                self.log_to_all_result(client_id, 'LAMP_rgL_f', lamp_rouge['rouge-l']['f'])
+                self.log_to_all_result(client_id, 'LAMP_rg1_f', lamp_rouge['rouge-1']['f'])
 
             if args.dlg_raw_enable:  # 进行不初始化的dlg以作为对比
                 gt2 = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
@@ -135,8 +157,14 @@ def sfl_with_attacker(args):
     test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[])
     test_loader = test_dataset.get_dataloader_unsliced(args.batch_size, args.test_data_label,
                                                        shrink_frac=args.test_data_shrink_frac)
+    sample_batch = next(iter(fed_dataset.get_dataloader_unsliced(3, 'train')))
     simulator = SFLSimulator(client_ids=client_ids,
-                             strategy=QAFLStrategy(args, model, tokenizer, test_loader, attacker, attacker2, tag),
+                             strategy=QAFLStrategy(args, model, tokenizer,
+                                                   test_loader=test_loader,
+                                                   sample_batch=sample_batch,
+                                                   dra1=attacker,
+                                                   dra2=attacker2,
+                                                   dlg=tag),
                              llm=model,
                              tokenizer=tokenizer,
                              dataset=fed_dataset, config=config, args=args)

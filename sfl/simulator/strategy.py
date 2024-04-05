@@ -5,6 +5,7 @@ from typing import Any, Iterator
 
 import torch
 from numpy import average
+from torch.optim import Adam
 from tqdm import tqdm
 from transformers import AdamW
 
@@ -58,7 +59,7 @@ class FLStrategy(ABC):
 
 class BaseSFLStrategy(FLStrategy):
 
-    def __init__(self, args, llm, tokenizer, test_loader=None, dra1=None, dra2=None, dlg=None):
+    def __init__(self, args, llm, tokenizer, test_loader=None, dra1=None, dra2=None, dlg=None, sample_batch=None):
         super().__init__()
         self.args = args
         self.tokenizer = tokenizer
@@ -67,6 +68,7 @@ class BaseSFLStrategy(FLStrategy):
         self.test_loader = test_loader
         self.dlg = dlg
         self.llm = llm
+        self.sample_batch = sample_batch
         self.attack_sample_counter = {}
         self.attack_sample_performs = {}
         self.attack_all_performs = {}
@@ -81,6 +83,8 @@ class BaseSFLStrategy(FLStrategy):
     def client_step(self, client_id: str, global_round, client_epoch, llm: SplitWrapperModel, iterator: Iterator,
                     config: FLConfig):
         optimizer = AdamW(llm.parameters(), lr=2e-5)
+        if self.task_type == 'classification':
+            optimizer = Adam(llm.parameters(), lr=1e-4)
         avg_loss = 0
         avg_self_rouge = 0
         # avg_self_rouge_pt = 0

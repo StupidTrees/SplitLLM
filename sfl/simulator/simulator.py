@@ -28,7 +28,7 @@ class SFLSimulator(object):
         self.strategy: FLStrategy = strategy
         self.strategy.simulator = self
         task_type = llm.task_type
-        if args.task_type is not None:
+        if hasattr(args, 'task_type') and args.task_type is not None:
             task_type = args.task_type
         self.strategy.task_type = task_type
         self.llm: SplitWrapperModel = llm
@@ -61,9 +61,10 @@ class SFLSimulator(object):
                                                      [p.detach().cpu() for nm, p in self.llm.get_bottom_params()])
 
         # special initialization
-        # if config.top_and_bottom_from_scratch in ['True', 'Embedding']:
-        #     self.llm.reset_params(self.llm.get_top_params(), config.top_and_bottom_from_scratch)
-        #     self.llm.reset_params(self.llm.get_bottom_params(), config.top_and_bottom_from_scratch)
+        if config.top_and_bottom_from_scratch in ['True', 'Embedding']:
+            # re-initialize llm's params
+            self.llm.init_weights()  # reset_params(self.llm.get_top_params(), config.top_and_bottom_from_scratch)
+            self.llm.init_weights()  # reset_params(self.llm.get_bottom_params(), config.top_and_bottom_from_scratch)
         if config.top_and_bottom_from_scratch == 'Noised':
             for nm, param in self.llm.get_top_params():
                 scale = param.data.max() - param.data.min()

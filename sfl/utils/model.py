@@ -232,7 +232,7 @@ def calc_chatglm_loss(lm_logits, label_logits):
     shift_labels = label_logits[..., 1:, :].contiguous()
     # Flatten the tokens
     loss_fct = CrossEntropyLoss(ignore_index=-100)
-    return loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1,shift_labels.size(-1)))
+    return loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1, shift_labels.size(-1)))
 
 
 def calc_shifted_loss(lm_logits, labels):
@@ -349,6 +349,7 @@ def evaluate_accuracy(model, loader):
         else:
             input_ids = batch['input_ids'].to(model.device)
         labels = batch['labels'].to(model.device)  # (batch_size, )
+
         with torch.no_grad():
             outputs = model(input_ids)
             logits = outputs.logits.view(-1, model.num_labels)  # (, num_labels)
