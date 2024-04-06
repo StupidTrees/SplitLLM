@@ -16,9 +16,9 @@ self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
-collect_all_layers=True
+collect_all_layers=False
 
-model_name='chatglm'
+model_name='llama2'
 attack_model='gru'
 sps='6-26'
 attacker_sp=6
@@ -34,7 +34,7 @@ attacker_samples=10
 max_global_step=610
 
 attacker_datasets=("sensireplaced")
-sfl_datasets=("piqa" "codealpaca" "dialogsum" "sensimarked" "gsm8k" "wikitext")
+sfl_datasets=("dialogsum")
 dlg_method='lamp'
 #("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
 

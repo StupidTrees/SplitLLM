@@ -9,7 +9,7 @@ global_round=10
 client_steps=250
 
 attacker_dataset="imagewoof"
-attacker_prefix='normal'
+
 data_shrink_frac=1.0
 test_data_shrink_frac=0.5
 evaluate_freq=200
@@ -21,6 +21,9 @@ collect_all_layers=True
 attack_model='vit'
 max_global_step=2000
 batch_size=32
+noise_mode='gaussian'
+noise_scale_gaussian=0.000001
+attacker_prefix="gaussian:${noise_scale_gaussian}"
 
 datasets=('imagewoof')
 
@@ -39,7 +42,9 @@ for sp in "${search_splits[@]}"; do
       --attack_mode 'b2tr' \
       --sps "$sps" \
       --save_checkpoint True \
-      --log_to_wandb False
+      --log_to_wandb False \
+      --noise_mode "$noise_mode" \
+      --noise_scale_gaussian "$noise_scale_gaussian"
 
     # 将其用于攻击
     echo "Running evaluate_dra_image.py with seed=$seed, dataset=$dataset"
@@ -66,8 +71,8 @@ for sp in "${search_splits[@]}"; do
       --dataset_label "$dataset_label" \
       --attacker_dataset "$attacker_dataset" \
       --max_global_step "$max_global_step" \
-      --batch_size "$batch_size"\
-      --attacker_model "$attack_model"\
+      --batch_size "$batch_size" \
+      --attacker_model "$attack_model" \
       --test_data_label 'validation'
   done
 done

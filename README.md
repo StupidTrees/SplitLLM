@@ -21,6 +21,7 @@ python model_download.py --repo_id meta-llama/Llama-2-7b-chat-hf
 python model_download.py --repo_id THUDM/chatglm3-6b
 python model_download.py --repo_id google/flan-ul2
 python model_download.py --repo_id google/vit-large-patch16-224
+
 ```
 
 
