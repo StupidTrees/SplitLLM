@@ -100,12 +100,26 @@ class QAFLStrategy(BaseSFLStrategy):
             self.log_to_all_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
             if self.dlg.method == 'lamp':
                 # clear torch cache to avoid memory leak
-                lamp_gt = self.simulator.restored_run(self.dlg.lamp, key='pretrained', write_back=False,
+                lamp_gt = self.simulator.restored_run(self.dlg.fit, key='pretrained', parts=['bottom', 'top', 'trunk'],
+                                                      write_back=False,
+                                                      epochs=500,
                                                       inter=tr2t_inter.fx.clone().to(self.simulator.device),
                                                       gradient=tr2t_inter.grad.clone().to(self.simulator.device),
-                                                      gt=deepcopy(gt.detach()),
                                                       beta=self.args.dlg_beta,
-                                                      parts=['bottom', 'top', 'trunk'])
+                                                      gt_init=None,
+                                                      model_name=self.args.model_name,
+                                                      encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
+                                                          self.simulator.device),
+                                                      attention_mask=attention_mask.fx if attention_mask is not None else None,
+                                                      rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
+                                                      lamp=True
+                                                      )
+                # lamp_gt = self.simulator.restored_run(self.dlg.lamp, key='pretrained', write_back=False,
+                #                                       inter=tr2t_inter.fx.clone().to(self.simulator.device),
+                #                                       gradient=tr2t_inter.grad.clone().to(self.simulator.device),
+                #                                       gt=deepcopy(gt.detach()),
+                #                                       beta=self.args.dlg_beta,
+                #                                       parts=['bottom', 'top', 'trunk'])
                 lamp_rouge = evaluate_attacker_rouge(self.tokenizer, lamp_gt, batch)
                 self.log_to_sample_result(client_id, 'LAMP_rgL_f', lamp_rouge['rouge-l']['f'])
                 self.log_to_sample_result(client_id, 'LAMP_rg1_f', lamp_rouge['rouge-1']['f'])

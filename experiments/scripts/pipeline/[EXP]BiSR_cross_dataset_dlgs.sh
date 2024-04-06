@@ -18,14 +18,14 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='llama2'
+model_name='chatglm'
 attack_model='gru'
 sps='6-26'
 attacker_sp=6
 batch_size=2
 dlg_enable=True
 dlg_adjust=0
-dlg_epochs=200
+dlg_epochs=300
 dlg_beta=0.85
 dlg_init_with_dra=False
 dlg_raw_enable=False
@@ -34,27 +34,27 @@ attacker_samples=10
 max_global_step=610
 
 attacker_datasets=("sensireplaced")
-sfl_datasets=("piqa")
-dlg_method='tag'
+sfl_datasets=("piqa" "codealpaca" "dialogsum" "sensimarked" "gsm8k" "wikitext")
+dlg_method='lamp'
 #("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
 
-#    if [ "$model_name" == "llama2" ]; then
-#      dlg_epochs=5
-#    fi
-#
-#    if [ "$model_name" == "chatglm" ]; then
-#      dlg_epochs=18
-#    fi
-#
-#    if [ "$model_name" == "gpt2-large" ]; then
-##      dlg_epochs=18
-#    fi
+    #    if [ "$model_name" == "llama2" ]; then
+    #      dlg_epochs=5
+    #    fi
+    #
+    if [ "$model_name" == "chatglm" ]; then
+      sps='6-22'
+    fi
+    #
+    #    if [ "$model_name" == "gpt2-large" ]; then
+    ##      dlg_epochs=18
+    #    fi
 
     if [ "$model_name" == "flan-t5-large" ]; then
-#      dlg_epochs=30
+      #      dlg_epochs=30
       sps='6-20'
     fi
 

@@ -197,7 +197,9 @@ class SFLSimulator(object):
     def restored_run(self, func, parts=None, key: str = '', write_back=True, disable_inter_collection=True, **kwargs):
         cfg_bk = deepcopy(self.llm.fl_config)
         if disable_inter_collection:
-            self.llm.fl_config.collect_intermediates = False
+            cfg = self.llm.fl_config
+            cfg.collect_intermediates = False
+            self.llm.config_sfl(cfg, self.parameter_keeper)
 
         if key not in self.parameter_keeper.other_params:
             for part in self.parameter_keeper.other_params['pretrained']:
@@ -230,7 +232,7 @@ class SFLSimulator(object):
                 self.llm.load_trunk_params(backup_params[part])
             if write_back:
                 self.parameter_keeper.store_other_params(key, part, updated_params)
-        self.llm.fl_config = cfg_bk
+        self.llm.config_sfl(cfg_bk, self.parameter_keeper)
         return ret
 
     def get_current_step(self, client_id, mini_step):

@@ -50,15 +50,12 @@ class DLGAttacker(nn.Module):
         if ppl:
             with torch.no_grad():
                 input_ids = gt.argmax(-1)
-                ci_bk = self.simulator.llm.fl_config.collect_intermediates
-                self.simulator.llm.fl_config.collect_intermediates = False
                 ppl = self.simulator.llm(input_ids=input_ids, labels=input_ids).loss
-                self.simulator.llm.fl_config.collect_intermediates = ci_bk
                 grad_diff += 0.2 * ppl
         return grad_diff
 
     def fit(self, inter, gradient, epochs=300, adjust=0, beta=0.85, lr=0.09, gt_init=None, gt_reg=0.0, temp_range=0.0,
-            further_ft=10, model_name=None, **kwargs):
+            further_ft=10, model_name=None, lamp=False, **kwargs):
         if model_name == 'chatglm':
             gradient = gradient.permute(1, 0, 2)
             inter = inter.permute(1, 0, 2)
@@ -77,9 +74,14 @@ class DLGAttacker(nn.Module):
         optimizer = torch.optim.AdamW([gt], lr=lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01)
         for i in range(epochs):
             optimizer.zero_grad()
-            grad_diff = self.gma_loss(inter, gradient, gt, beta=beta)
+            grad_diff = self.gma_loss(inter, gradient, gt, beta=beta, **kwargs)
             grad_diff.backward()
             optimizer.step()
+            if lamp and i % 30 == 0:
+                new_gt = self.lamp(inter, gradient, gt.detach().clone(), beta=beta, **kwargs)
+                with torch.no_grad():
+                    # copy new_gt's data to gt
+                    gt.data = new_gt.data
         if adjust > 0:
             optimizer2 = torch.optim.AdamW(self.parameters(), lr=1e-5)
             for i in range(adjust):
@@ -90,7 +92,7 @@ class DLGAttacker(nn.Module):
                 optimizer2.step()
         return gt
 
-    def lamp(self, inter, gradient, gt, beta=0.85, lamp_steps=200):
+    def lamp(self, inter, gradient, gt, beta=0.85, lamp_steps=50, **kwargs):
         inter.requires_grad = True
         print('Attempt swap')
         best_gt, best_loss = None, None
@@ -149,10 +151,10 @@ class DLGAttacker(nn.Module):
                     #         i = 1 + np.random.randint(seq_len - 2)
                     #         perm_ids = np.concatenate([perm_ids[:1], perm_ids[i:-1], perm_ids[1:i], perm_ids[-1:]])
 
-                # new_gt = gt.clone()
-                # new_gt[sen_id] = gt[sen_id, perm_ids, :]
+            # new_gt = gt.clone()
+            # new_gt[sen_id] = gt[sen_id, perm_ids, :]
             new_gt.requires_grad = True
-            loss = self.gma_loss(inter, gradient, new_gt, ppl=True, beta=beta).detach().cpu().item()
+            loss = self.gma_loss(inter, gradient, new_gt, ppl=True, beta=beta, **kwargs).detach().cpu().item()
             if sample_idx == 0:
                 init_loss = loss
             pbar.set_postfix({'loss': loss, 'best_loss': best_loss, 'init_loss': init_loss})
