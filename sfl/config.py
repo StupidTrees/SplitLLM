@@ -27,7 +27,7 @@ DRA_test_label = {nm: 'test' for nm in DRA_train_label.keys()}
 DRA_test_label['hc3cn'] = 'finance'
 DRA_test_label['imagewoof'] = 'validation'
 
-dxp_moe_range = {0.08, 0.24, 0.42}
+dxp_moe_range = {0.08, 0.21, 0.38}
 gaussian_moe_range = {0.5, 1.0, 1.5}
 dc_moe_range = {12.0, 24.0, 48.0}
 
@@ -45,6 +45,7 @@ class FLConfig:
     use_lora_at_trunk: bool = True
     use_lora_at_bottom: bool = False
     use_lora_at_top: bool = False
+    use_lora_at_embed: bool = False
     collect_intermediates: bool = True  # 是否记录中间结果
     collect_all_layers: bool = False  # 是否记录所有层的中间结果
     trigger_hook: bool = False

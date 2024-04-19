@@ -9,3 +9,4 @@ rouge==1.0.1
 wandb
 bitsandbytes
 sentencepiece
+nltk

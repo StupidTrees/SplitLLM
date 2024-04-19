@@ -8,8 +8,8 @@ from sfl import config
 from sfl.config import FLConfig, attacker_path, DRAConfig, model_download_dir, DRA_train_label, fsha_path
 from sfl.model.attacker.dlg_attacker import GPT2TopDLGAttacker, T5DecoderDLGAttacker, LLAMA2TopDLGAttacker, \
     ChatGLMDLGAttacker
-from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
-    TransformerEncoderDRAttacker, MOEDRAttacker, ViTDRAttacker
+from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, MOEDRAttacker, \
+    ViTDRAttacker, DecoderDRAttacker, AttnGRUDRAttacker, GRUAttnDRAttacker, AttnDRAttacker
 from sfl.model.attacker.fsha_attacker import FSHAAttacker
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
@@ -48,10 +48,13 @@ def add_train_dra_params(parser):
     parser.add_argument('--attack_mode', type=str, default='tr2t', help='b2tr or t2tr')
     parser.add_argument('--load_bits', type=int, default=8, help='load bits for large models')
     parser.add_argument('--epochs', type=int, default=15)
-    parser.add_argument('--epochs_gating', type=int, default=10)
+    parser.add_argument('--epochs_gating', type=int, default=15)
     parser.add_argument('--batch_size', type=int, default=6)
     parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--opt', type=str, default='adam')
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--md_n_layers', type=int, default=2)
+    parser.add_argument('--require_prefix', type=str, default=None, help='default is None, specify for existence check')
     parser.add_argument('--noise_mode', type=str, default='none')
     parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
     parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
@@ -64,11 +67,12 @@ def add_train_dra_params(parser):
 def add_sfl_params(parser):
     parser.add_argument('--exp_name', type=str, default='compare_tag')
     parser.add_argument('--case_name', type=str, default='')
-    parser.add_argument('--model_name', type=str, default='gpt2-large')
+    parser.add_argument('--model_name', type=str, default='llama2')
     parser.add_argument('--pre_ft_dataset', type=str, default='')
     parser.add_argument('--pre_ft_data_label', type=str, default='train')
     parser.add_argument('--pre_ft_max_steps', type=int, default=800)
     parser.add_argument('--dataset', type=str, default='wikitext')
+    parser.add_argument('--dataset_max_seq_len', type=int, default=-1)
     parser.add_argument('--max_global_step', type=int, default=-1)
     parser.add_argument('--dataset_label', type=str, default='train')
     parser.add_argument('--data_shrink_frac', type=float, default=0.15, help='shrink dataset to this fraction')
@@ -81,6 +85,7 @@ def add_sfl_params(parser):
     parser.add_argument('--lora_at_trunk', type=str2bool, default=True, help='use LoRA at trunk part')
     parser.add_argument('--lora_at_bottom', type=str2bool, default=False, help='use LoRA at bottom part')
     parser.add_argument('--lora_at_top', type=str2bool, default=False, help='use LoRA at top part')
+    parser.add_argument('--lora_at_embed', type=str2bool, default=False, help='use LoRA at embedding layer')
     parser.add_argument('--noise_mode', type=str, default='none')
     parser.add_argument('--task_type', type=str, default=None)
     parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
@@ -108,15 +113,20 @@ def add_sfl_params(parser):
     parser.add_argument('--dlg_enable', type=str2bool, default=True)
     parser.add_argument('--dlg_raw_enable', type=str2bool, default=False)
     parser.add_argument('--dlg_epochs', type=int, default=30)
+    parser.add_argument('--dlg_raw_epochs', type=int, default=400)
     parser.add_argument('--dlg_adjust', type=int, default=0)
     parser.add_argument('--dlg_beta', type=float, default=0.9)
+    parser.add_argument('--dlg_lr', type=float, default=0.09)
+    parser.add_argument('--dlg_lamp_freq', type=int, default=30)
     parser.add_argument('--dlg_method', type=str, default='tag')
     parser.add_argument('--dlg_init_with_dra', type=str2bool, default=True,
                         help='initialize GT vector with DRA attacker')
+    parser.add_argument('--dlg_init_temp', type=float, default=1.0)
     parser.add_argument('--dlg_dra_reg', type=float, default=0.0,
                         help='Add regularization term to make GT closer to DRA result')
     parser.add_argument('--dlg_temp_range', type=float, default=0.0)
     parser.add_argument('--dlg_further_ft', type=int, default=0)
+    parser.add_argument('--wba_enable', type=str2bool, default=False)
     parser.add_argument('--self_pt_enable', type=str2bool, default=False)
     parser.add_argument('--client_steps', type=int, default=50)
     parser.add_argument('--client_epoch', type=int, default=1)
@@ -137,6 +147,7 @@ def get_fl_config(args) -> FLConfig:
                       use_lora_at_trunk=args.lora_at_trunk,  # 在trunk部分使用LoRA
                       use_lora_at_top=args.lora_at_top,
                       use_lora_at_bottom=args.lora_at_bottom,
+                      use_lora_at_embed=args.lora_at_embed,
                       top_and_bottom_from_scratch=args.client_from_scratch,  # top和bottom都不采用预训练参数.
                       noise_mode=args.noise_mode,
                       noise_scale_dxp=args.noise_scale_dxp,  # 噪声大小
@@ -191,6 +202,9 @@ def get_model_path(model_name):
     elif model_name.startswith('llama2'):
         path = os.path.join(model_download_dir, f"meta-llama/Llama-2-7b-chat-hf")
         # path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
+    elif model_name.startswith('llama3'):
+        path = os.path.join(model_download_dir, f"meta-llama/Meta-Llama-3-8B")
+        # path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
     elif model_name.startswith('chatglm'):
         path = os.path.join(model_download_dir, f"THUDM/chatglm3-6b")
     return path
@@ -215,9 +229,8 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
         clz = T5ForConditionalGenerationSplitModel
     elif 'chatglm' in model_name:
         clz = ChatGLMForConditionalGenerationSplit
-    elif 'llama2' in model_name:
+    elif 'llama' in model_name:
         clz = LLAMA2SplitLMHeadModel
-
     if 'llama' in model_name or 'chatglm' in model_name:
         if load_bits <= 8:
             bnb_config = BitsAndBytesConfig(
@@ -305,12 +318,18 @@ def get_attacker_class(attack_model):
         attacker_cls = GRUDRAttacker
     elif attack_model == 'linear':
         attacker_cls = LinearDRAttacker
-    elif attack_model == 'trans-enc':
-        attacker_cls = TransformerEncoderDRAttacker
+    elif attack_model == 'dec':
+        attacker_cls = DecoderDRAttacker
     elif attack_model == 'moe' or attack_model == 'moe2':
         attacker_cls = MOEDRAttacker
     elif attack_model == 'vit':
         attacker_cls = ViTDRAttacker
+    elif attack_model == 'attngru':
+        attacker_cls = AttnGRUDRAttacker
+    elif attack_model == 'gruattn':
+        attacker_cls = GRUAttnDRAttacker
+    elif attack_model == 'attn':
+        attacker_cls = AttnDRAttacker
     return attacker_cls
 
 
@@ -321,39 +340,45 @@ def get_dra_attacker(dra_config: DRAConfig):
 
     prefix = dra_config.prefix
     model_name = dra_config.target_model_name
-    if model_name == 'llama2':
+    if 'llama' in model_name:
         model_name += f"-{dra_config.target_model_load_bits}bits"
     attacker_path = dra_config.path + f'{model_name}/{dataset}/'
-    match = False
+    matches = []
     for d in os.listdir(attacker_path):
         pattern = f'{dra_config.train_label}*{dra_config.train_frac:.3f}'
         if ',' in dra_config.dataset:
             pattern = f'Tr{dra_config.train_frac:.3f}'
         if d.startswith(pattern):
             attacker_path = os.path.join(attacker_path, d) + '/'
-            match = True
-            break
-    assert match
-    attacker_path += f'{dra_config.model}'
+            matches.append(attacker_path)
+    assert len(matches) > 0
     attacker_path_1 = None
-    if dra_config.b2tr_enable:
-        sp1 = int(dra_config.target_sps.split('-')[0])
-        if dra_config.b2tr_sp >= 0:
-            sp1 = dra_config.b2tr_sp
-        attacker_path_1 = attacker_path + f'/layer{sp1}/' + prefix
-        l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[
-            -1 if dra_config.larger_better else 0]
-        attacker_path_1 = os.path.join(attacker_path_1, l)
     attacker_path_2 = None
-    if dra_config.tr2t_enable:
-        sp2 = int(dra_config.target_sps.split('-')[1])
-        if dra_config.tr2t_sp >= 0:
-            sp2 = dra_config.tr2t_sp
-        attacker_path_2 = attacker_path + f'/layer{sp2}/' + prefix
-        if not os.path.exists(attacker_path_2):
-            attacker_path_2 = attacker_path_2.replace('tr2t', 'b2tr')
-        l = sorted(list(os.listdir(attacker_path_2)), key=lambda x: float(x.split('_')[-1]))[-1]
-        attacker_path_2 = os.path.join(attacker_path_2, l)
+    for attacker_path in matches:
+        attacker_path += f'{dra_config.model}'
+        if dra_config.b2tr_enable and attacker_path_1 is None:
+            sp1 = int(dra_config.target_sps.split('-')[0])
+            if dra_config.b2tr_sp >= 0:
+                sp1 = dra_config.b2tr_sp
+            attacker_path_1 = attacker_path + f'/layer{sp1}/' + prefix
+            l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[
+                -1 if dra_config.larger_better else 0]
+            attacker_path_1 = os.path.join(attacker_path_1, l)
+            if not os.path.exists(attacker_path_1):
+                attacker_path_1 = None
+
+        if dra_config.tr2t_enable and attacker_path_2 is None:
+            sp2 = int(dra_config.target_sps.split('-')[1])
+            if dra_config.tr2t_sp >= 0:
+                sp2 = dra_config.tr2t_sp
+            attacker_path_2 = attacker_path + f'/layer{sp2}/' + prefix
+            if not os.path.exists(attacker_path_2):
+                attacker_path_2 = attacker_path_2.replace('tr2t', 'b2tr')
+            l = sorted(list(os.listdir(attacker_path_2)), key=lambda x: float(x.split('_')[-1]))[-1]
+            attacker_path_2 = os.path.join(attacker_path_2, l)
+            if not os.path.exists(attacker_path_2):
+                attacker_path_2 = None
+
     attacker, attacker2 = None, None
     if attacker_path_1:
         attacker = get_attacker_class(dra_config.model).from_pretrained(attacker_path_1)

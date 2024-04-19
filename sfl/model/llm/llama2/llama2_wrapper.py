@@ -32,6 +32,8 @@ class LLAMA2SplitLMHeadModel(LlamaForCausalLM, SplitWrapperModel):
         if self.fl_config.use_lora_at_top:
             blocks += [str(i) for i in range(self.fl_config.split_point_2, self.config.num_hidden_layers)]
         reg = rf".*\.layers\.({'|'.join(blocks)})\..*(.+v_proj|q_proj)$"
+        if self.fl_config.use_lora_at_embed:
+            reg = rf"^({reg}|.*embed_tokens.*)$"
         return reg
 
     def get_all_inter(self, detach=True):

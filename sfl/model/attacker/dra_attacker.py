@@ -5,7 +5,7 @@ from collections import OrderedDict
 import torch
 from torch import nn, Tensor
 from torch.nn import TransformerDecoderLayer, TransformerEncoderLayer, ModuleList
-from transformers import PretrainedConfig, PreTrainedModel
+from transformers import PretrainedConfig, PreTrainedModel, GPT2Config
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
 from sfl.config import DRAttackerConfig
@@ -38,7 +38,11 @@ class DRAttacker(PreTrainedModel):
             self.config.target_model = name_or_path
 
     def forward(self, x) -> Tensor:
-        pass
+        if 'chatglm' in self.config.target_model:
+            x = x.permute(1, 0, 2)
+        if x.dtype == torch.float16:
+            x = x.float()
+        return x
 
     def search(self, x, base_model, beam_size=6):
         logits = self.forward(x.to(self.device))
@@ -80,6 +84,7 @@ class DRAttacker(PreTrainedModel):
 class LSTMDRAttackerConfig(DRAttackerConfig):
     hidden_size: int = 256
     dropout: float = 0.1
+    num_layers = 2
     bidirectional = False
 
     def __init__(self, **kwargs):
@@ -90,13 +95,20 @@ class LSTMDRAttackerConfig(DRAttackerConfig):
 @dataclasses.dataclass
 class TransformerDRAttackerConfig(DRAttackerConfig):
     dropout: float = 0.1
-    num_layers = 2
-    nhead = 4
-    dim_feedforward = 64
+    hidden_size: int = 256
+    num_layers = 1
+    nhead = 8
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.model_name = 'trans_decoder'
+
+
+@dataclasses.dataclass
+class TransformerGRUDRAttackerConfig(LSTMDRAttackerConfig, TransformerDRAttackerConfig):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 
 @dataclasses.dataclass
@@ -121,8 +133,7 @@ class LinearDRAttacker(DRAttacker):
         self.mlp = nn.Linear(self.config.n_embed, self.config.vocab_size)
 
     def forward(self, x):
-        if x.dtype == torch.float16:
-            x = x.float()
+        x = super().forward(x)
         # x[batch_size, seq_len, n_embed]
         # output [batch_size,seq_len, vocab_size]
         return self.mlp(x)
@@ -141,10 +152,7 @@ class LSTMDRAttacker(DRAttacker):
         self.mlp = nn.Linear(self.config.hidden_size, self.config.vocab_size)
 
     def forward(self, x):
-        if 'chatglm' in self.config.target_model:
-            x = x.permute(1, 0, 2)
-        if x.dtype == torch.float16:
-            x = x.float()
+        x = super().forward(x)
         # x[batch_size, seq_len, n_embed]
         # output [batch_size,seq_len, vocab_size]
         hidden, _ = self.lstm(x)  # hidden [batch_size, seq_len, n_embed]
@@ -165,10 +173,7 @@ class GRUDRAttacker(DRAttacker):
         self.mlp = nn.Linear(hidden_size, self.config.vocab_size)
 
     def forward(self, x):
-        if 'chatglm' in self.config.target_model:
-            x = x.permute(1, 0, 2)
-        if x.dtype == torch.float16:
-            x = x.float()
+        x = super().forward(x)
         # x[batch_size, seq_len, n_embed]
         # output [batch_size,seq_len, vocab_size]
         hidden, _ = self.gru(x)  # hidden [batch_size, seq_len, n_embed]
@@ -223,10 +228,7 @@ class MOEDRAttacker(DRAttacker):
             self.gating_mlp2.requires_grad_(not freeze)
 
     def forward(self, x) -> Tensor:
-        if 'chatglm' in self.config.target_model:
-            x = x.permute(1, 0, 2)
-        if x.dtype == torch.float16:
-            x = x.float()
+        x = super().forward(x)
         exp_outputs = [torch.dropout(exp(x)[0], p=self.config.dropout, train=self.training) for exp in self.experts]
         exp_outputs = torch.stack(exp_outputs, dim=1)  # [batch_size, len(experts), seq_len, hidden_size]
         qkv = self.gating_mlp(x)
@@ -237,42 +239,111 @@ class MOEDRAttacker(DRAttacker):
         return self.mlp(output)  # [batch_size, seq_len, vocab_size]
 
 
-class TransformerDecoderDRAttacker(DRAttacker):
+class DecoderDRAttacker(DRAttacker):
     config_class = TransformerDRAttackerConfig
 
     def __init__(self, config: TransformerDRAttackerConfig, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
-        layer = TransformerDecoderLayer(d_model=self.config.n_embed, nhead=self.config.nhead,
-                                        dim_feedforward=self.config.dim_feedforward,
-                                        dropout=self.config.dropout)
-        self.decoder = ModuleList([GPT2Block(self.target_config, i) for i in range(
-            self.config.num_layers)])  # nn.TransformerDecoder(layer, self.config.num_layers, norm=nn.LayerNorm(self.config.n_embed))
+        self.decoder = ModuleList(
+            [GPT2Block(GPT2Config(n_embd=config.n_embed, n_head=config.nhead)) for _ in range(config.num_layers)])
         self.mlp = nn.Linear(self.config.n_embed, self.config.vocab_size)
 
     def forward(self, x):
+        x = super().forward(x)
         # x[batch_size, seq_len, n_embed]
         # output [batch_size,seq_len, vocab_size]
-        for md in self.decoder:
-            x = md(x)[0]
+        for layer in self.decoder:
+            x = layer(x)[0]
         return self.mlp(x)
 
 
-class TransformerEncoderDRAttacker(DRAttacker):
+class AttnDRAttacker(DRAttacker):
     config_class = TransformerDRAttackerConfig
 
     def __init__(self, config: TransformerDRAttackerConfig, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
-        layer = TransformerEncoderLayer(d_model=self.config.n_embed, nhead=self.config.nhead,
-                                        dim_feedforward=self.config.dim_feedforward,
-                                        dropout=self.config.dropout)
-        self.encoder = nn.TransformerEncoder(layer, self.config.num_layers, norm=nn.LayerNorm(self.config.n_embed))
+        self.attn = nn.MultiheadAttention(self.config.n_embed, self.config.nhead, dropout=self.config.dropout)
         self.mlp = nn.Linear(self.config.n_embed, self.config.vocab_size)
 
     def forward(self, x):
+        x = super().forward(x)
+        x = self.attn(x, x, x)[0]
+        return self.mlp(x)
+
+
+class AttnGRUDRAttacker(DRAttacker):
+    config_class = TransformerGRUDRAttackerConfig
+
+    def __init__(self, config: TransformerDRAttackerConfig, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+        self.attn = nn.MultiheadAttention(self.config.n_embed, self.config.nhead, dropout=self.config.dropout)
+        # self.decoder = GPT2Block(GPT2Config(n_embd=config.n_embed, n_head=config.nhead))
+        self.gru = nn.GRU(input_size=self.config.n_embed, hidden_size=self.config.hidden_size, batch_first=True,
+                          bidirectional=config.bidirectional)
+        hidden_size = self.config.hidden_size
+        if config.bidirectional:
+            hidden_size *= 2
+        self.mlp = nn.Linear(hidden_size, self.config.vocab_size)
+
+    def forward(self, x):
+        x = super().forward(x)
         # x[batch_size, seq_len, n_embed]
         # output [batch_size,seq_len, vocab_size]
-        hidden = self.encoder(x)
-        return self.mlp(hidden)
+        x = self.attn(x, x, x)[0]  # self.decoder(x)[0]
+        x, _ = self.gru(x)  # hidden [batch_size, seq_len, n_embed]
+        x = torch.dropout(x, p=self.config.dropout, train=self.training)
+        return self.mlp(x)
+
+
+class GRUAttnDRAttacker(DRAttacker):
+    config_class = TransformerGRUDRAttackerConfig
+
+    def __init__(self, config: TransformerGRUDRAttackerConfig, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+        self.gru = nn.GRU(input_size=self.config.n_embed, hidden_size=self.config.hidden_size, batch_first=True,
+                          bidirectional=config.bidirectional)
+        hidden_size = self.config.hidden_size
+        if config.bidirectional:
+            hidden_size *= 2
+        # self.mlp0 = nn.Linear(self.config.n_embed, hidden_size)
+        # self.decoder = GPT2Block(GPT2Config(n_embd=hidden_size, n_head=config.nhead))
+        self.attn = nn.MultiheadAttention(self.config.n_embed, self.config.nhead, dropout=self.config.dropout,
+                                          kdim=hidden_size,
+                                          vdim=hidden_size)
+        self.mlp = nn.Linear(self.config.n_embed, self.config.vocab_size)
+
+    def forward(self, x):
+        x = super().forward(x)
+        # x[batch_size, seq_len, n_embed]
+        # output [batch_size,seq_len, vocab_size]
+        gru_x, _ = self.gru(x)  # hidden [batch_size, seq_len, n_embed]
+        # mlp_x = self.mlp0(x)
+        gru_x = torch.dropout(gru_x, p=self.config.dropout, train=self.training)
+        out = self.attn(x, gru_x, gru_x)[0]
+        return self.mlp(out)
+
+
+# class GRUCrossAttnDRAttacker(DRAttacker):
+#     config_class = TransformerGRUDRAttackerConfig
+#
+#     def __init__(self, config: TransformerGRUDRAttackerConfig, *args, **kwargs):
+#         super().__init__(config, *args, **kwargs)
+#         self.gru = nn.GRU(input_size=self.config.n_embed, hidden_size=self.config.hidden_size, batch_first=True,
+#                           bidirectional=config.bidirectional)
+#         hidden_size = self.config.hidden_size
+#         if config.bidirectional:
+#             hidden_size *= 2
+#         self.decoder = GPT2Block(GPT2Config(n_embd=hidden_size, n_head=config.nhead))
+#         self.mlp = nn.Linear(hidden_size, self.config.vocab_size)
+#
+#     def forward(self, x):
+#         x = super().forward(x)
+#         # x[batch_size, seq_len, n_embed]
+#         # output [batch_size,seq_len, vocab_size]
+#         x, _ = self.gru(x)  # hidden [batch_size, seq_len, n_embed]
+#         x = torch.dropout(x, p=self.config.dropout, train=self.training)
+#         x = self.decoder(x)[0]
+#         return self.mlp(x)
 
 
 @dataclasses.dataclass

@@ -161,21 +161,27 @@ class SplitWrapperModel(SplitModel, ABC):
         print_group(bottom_group)
         print('=============================================')
 
-    def load_top_params(self, params):
+    def load_top_params(self, params, skip_frozen=True, skip_lora=False):
         for (nm, p), p1 in zip(self.get_top_params(), params):
-            if not p.requires_grad:
+            if skip_frozen and not p.requires_grad:
+                continue
+            if skip_lora and 'lora' in nm:
                 continue
             p.data = p1.data.to(self.device)
 
-    def load_bottom_params(self, params):
+    def load_bottom_params(self, params, skip_frozen=True, skip_lora=False):
         for (nm, p), p1 in zip(self.get_bottom_params(), params):
-            if not p.requires_grad:
+            if skip_frozen and not p.requires_grad:
+                continue
+            if skip_lora and 'lora' in nm:
                 continue
             p.data = p1.data.to(self.device)
 
-    def load_trunk_params(self, params):
+    def load_trunk_params(self, params, skip_frozen=True, skip_lora=False):
         for (nm, p), p1 in zip(self.get_trunk_params(), params):
-            if not p.requires_grad:
+            if skip_frozen and not p.requires_grad:
+                continue
+            if skip_lora and 'lora' in nm:
                 continue
             p.data = p1.data.to(self.device)
 
@@ -222,12 +228,15 @@ class SplitWrapperModel(SplitModel, ABC):
             # PEFT会冻结所有模型参数，需要恢复其他部分
             if not self.fl_config.use_lora_at_trunk:
                 for name, param in res.get_trunk_params(trainable_only=False):
-                    param.requires_grad = True
+                    if param.dtype == torch.float32:
+                        param.requires_grad = True
             if not self.fl_config.use_lora_at_top:
                 for name, param in res.get_top_params(trainable_only=False):
-                    param.requires_grad = True
+                    if param.dtype == torch.float32:
+                        param.requires_grad = True
             if not self.fl_config.use_lora_at_bottom:
                 for name, param in res.get_bottom_params(trainable_only=False):
-                    param.requires_grad = True
+                    if param.dtype == torch.float32:
+                        param.requires_grad = True
         self.adapter_added = True
         return res

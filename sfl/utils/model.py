@@ -9,6 +9,7 @@ import torch
 from PIL.Image import fromarray
 from rouge import Rouge
 from torch.nn import CrossEntropyLoss
+from trl import DPOTrainer
 
 from sfl.config import dxp_moe_range, gaussian_moe_range, dc_moe_range
 
@@ -20,6 +21,14 @@ class Intermediate:
     type: str = 'normal'
 
 
+def decode_with_extra_space(tok, sent):
+    strs = []
+    for tid in sent:
+        strs.append(tok.decode(tid, skip_special_tokens=True))
+    # print(' '.join(strs)[:20], tok.decode(sent, skip_special_tokens=True)[:20])
+    return ' '.join(strs)
+
+
 def evaluate_attacker_rouge(tok, attacker_logits, batch):
     if 'input_santi_mask' in batch:  # 只评估敏感词
         mask = batch['input_santi_mask']
@@ -28,11 +37,36 @@ def evaluate_attacker_rouge(tok, attacker_logits, batch):
         masked_atk_ids[zero_indexes] = tok.eos_token_id
         masked_gt_ids = batch['input_ids'].clone()
         masked_gt_ids[zero_indexes] = tok.eos_token_id
-        atk_txts = [tok.decode(s, skip_special_tokens=True) for s in masked_atk_ids]
-        gt_txts = [tok.decode(s, skip_special_tokens=True) for s in masked_gt_ids]
-        return calculate_rouge_text(atk_txts, gt_txts)
+        atk_txts = [decode_with_extra_space(tok, s) for s in masked_atk_ids]
+        gt_txts = [decode_with_extra_space(tok, s) for s in masked_gt_ids]
     else:
-        return calculate_rouge(tok, attacker_logits, batch['input_text'])
+        atk_txts = [decode_with_extra_space(tok, s) for s in attacker_logits.argmax(dim=-1)]
+        gt_txts = [decode_with_extra_space(tok, s) for s in batch['input_ids']]#batch['input_text']
+    rouge = calculate_rouge_text(atk_txts, gt_txts, print_comparison=False)
+    meteor = calculate_meteor(atk_txts, gt_txts)
+    token_acc = calculate_token_acc(tok, atk_txts, gt_txts)
+    return rouge, meteor, token_acc
+
+
+def calculate_token_acc(tok, texts, labels):
+    f1_avg = 0
+    for g, r in zip(texts, labels):
+        generated_tokens = set(tok.tokenize(g))
+        reference_tokens = set(tok.tokenize(r))
+        # calculate overlap number
+        overlap = len(generated_tokens & reference_tokens)
+        # calculate precision and recall
+        precision = overlap / len(generated_tokens)
+        recall = overlap / len(reference_tokens)
+        # calculate f1
+        if precision + recall == 0:
+            f1 = 0
+        else:
+            f1 = 2 * precision * recall / (precision + recall)
+        f1_avg += f1
+    if len(texts) == 0:
+        return 0
+    return f1_avg / len(texts)
 
 
 def evaluate_attacker_mse(attacker_outputs, batch):
@@ -40,27 +74,28 @@ def evaluate_attacker_mse(attacker_outputs, batch):
 
 
 def calculate_rouge(tok, logits, labels, print_comparison=False, is_tokens=False):
-    my_rouge = Rouge()
     if not is_tokens:
         output_texts = [tok.decode(logits.argmax(dim=-1)[i], skip_special_tokens=True) for i in
                         range(len(logits))]
     else:
         output_texts = [tok.decode(s, skip_special_tokens=True) for s in logits]
-    hyps_and_refs = zip(output_texts, labels)
-    hyps, refs = zip(*hyps_and_refs)
-    if print_comparison:
-        for h, r in zip(hyps, refs):
-            print(f'{r}==>{h}')
-    try:
-        hyps = list('<EMP>' if len(h) == 0 or h == '.' else h for h in hyps)
-        result = my_rouge.get_scores(hyps, refs, avg=True, ignore_empty=True)  # 取一个 batch 的平均
-    except Exception as e:
-        print(f'rouge error {e}')
-        # print(hyps, refs)
-        result = {'rouge-1': {'f': 0.0, 'p': 0.0, 'r': 0.0},
-                  'rouge-2': {'f': 0.0, 'p': 0.0, 'r': 0.0},
-                  'rouge-l': {'f': 0.0, 'p': 0.0, 'r': 0.0}}
-    return result
+    return calculate_rouge_text(output_texts, labels, print_comparison=print_comparison)
+
+
+import nltk
+
+nltk.download('wordnet')
+from nltk.translate import meteor_score
+
+
+def calculate_meteor(texts, labels):
+    meteor_sum = 0
+    meteor_num = 0
+    for text, label in zip(texts, labels):
+        meteor = meteor_score.meteor_score( [label.split()], text.split())
+        meteor_sum += meteor
+        meteor_num += 1
+    return meteor_sum / meteor_num
 
 
 def calculate_rouge_text(texts, labels, print_comparison=False):
@@ -166,6 +201,7 @@ def sentence_score_tokens(sent, model):
     # wordscores = torch.cat(wordscoress)
     score = torch.cat(scoress)
     model.train(True)
+    DPOTrainer
     return score
 
 
@@ -401,7 +437,7 @@ def random_choose_noise(input_scales=None, mode='dxp'):
             scales.add(s)
     numbers = [random.uniform(min(scales), max(scales)) for _ in
                range(len(scales))]
-    numbers += [0, 0]
+    numbers += [0, 0, 0, 0]
     plus_one = max(scales) * 2
     plus_zero = min(scales) / 2
     if mode == 'dxp' or mode == 'gaussian':

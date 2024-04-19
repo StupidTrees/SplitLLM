@@ -8,7 +8,6 @@ global_round=1
 client_steps=500
 noise_scale=0.0
 noise_mode="none"
-attacker_prefix='normal'
 data_shrink_frac=0.08
 test_data_shrink_frac=0.3
 evaluate_freq=300
@@ -18,32 +17,38 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='gpt2-large'
+model_name='llama2'
 
-sps='6-26'
+sps='6-27'
 attacker_sp=6
 batch_size=2
-dlg_enable=True
 dlg_adjust=0
-dlg_epochs=30
+dlg_epochs=18
+dlg_raw_epochs=300
+dlg_lr=0.001
 dlg_beta=0.85
 dlg_init_with_dra=True
-dlg_raw_enable=True
+dlg_method='tag'
 attacker_freq=200
 attacker_samples=10
 max_global_step=610
+atk_train_frac=1.0
 
 noise_mode='dxp'
-noise_scale_dxps=(0.05)
+noise_scale_dxps=(0.1)
 attack_models=('moe')
 
-attacker_datasets=("piqa")
+attacker_datasets=("sensireplaced")
 sfl_datasets=("piqa")
 #("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
 
+if [ "$model_name" = "llama2" ]; then
+  dlg_epochs=200
+  dlg_lr=0.08
+fi
+
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
-
     for noise_scale_dxp in "${noise_scale_dxps[@]}"; do
       for attack_model in "${attack_models[@]}"; do
         noise_scale="$noise_scale_dxp"
@@ -53,10 +58,29 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         if [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
           file='train_attacker_moe.py'
         fi
+        if [ "$attack_model" = "nop" ]; then
+          file='train_attacker_no_pretrained.py'
+        fi
 
+        dlg_enable=True
+        dlg_raw_enable=True
         attacker_noise_mode='dxp'
         if [ "$attack_model" = "gru" ]; then
           attacker_noise_mode='none'
+          dlg_raw_enable=False
+        fi
+
+        attacker_prefix="normal"
+        if [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
+          attacker_prefix="${attacker_noise_mode}"
+        fi
+
+
+        if [ "$attack_model" = "nop" ]; then
+          attacker_prefix="nop"
+          attack_model="gru"
+          attacker_noise_mode='none'
+          dlg_enable=False
         fi
 
         echo "Running $file with seed=$seed, dataset=$attacker_dataset"
@@ -72,15 +96,10 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --noise_mode "${attacker_noise_mode}" \
           --epochs 20 \
           --noise_scale_dxp "$noise_scale_dxp" \
-          --dataset_train_frac 1.0\
+          --dataset_train_frac "$atk_train_frac" \
           --dataset_test_frac 0.1
 
-        attacker_prefix="normal"
-        if [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
-          attacker_prefix="${attacker_noise_mode}"
-        fi
-
-        case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale_dxp}<${attack_model}-${attacker_dataset}"
+        case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale_dxp}<${attack_model}-${attacker_dataset}[${attacker_prefix}]"
 
         # 将其用于攻击
         echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -114,7 +133,11 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --dlg_enable "$dlg_enable" \
           --dlg_adjust "$dlg_adjust" \
           --dlg_epochs "$dlg_epochs" \
+          --dlg_raw_epochs "$dlg_raw_epochs"\
           --dlg_beta "$dlg_beta" \
+          --dlg_lr "$dlg_lr"\
+          --dlg_method "$dlg_method" \
+          --attacker_train_frac "$atk_train_frac" \
           --dlg_init_with_dra "$dlg_init_with_dra" \
           --dlg_raw_enable "$dlg_raw_enable" \
           --attacker_freq "$attacker_freq" \

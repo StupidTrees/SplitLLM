@@ -72,6 +72,10 @@ class BaseSFLStrategy(FLStrategy):
         self.attack_sample_counter = {}
         self.attack_sample_performs = {}
         self.attack_all_performs = {}
+        if dra1 is not None:
+            dra1.to(llm.device)
+        if dra2 is not None:
+            dra2.to(llm.device)
 
     def client_evaluate(self, global_round, client_id, log):
         if self.task_type == 'classification':

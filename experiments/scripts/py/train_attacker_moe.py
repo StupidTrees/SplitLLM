@@ -107,7 +107,7 @@ def train_attacker(args):
         print('Model exists, skipping...')
         return
 
-    if 'llama2' not in args.model_name:
+    if 'llama' not in args.model_name:
         device = get_best_gpu()
         model.to(device)
 
@@ -213,16 +213,6 @@ def train_attacker(args):
                         noise_scale = random_choose_noise(expert_scales[2], mode=noise_mode)
                     model.change_noise(noise_scale, mode=noise_mode)
                 input_ids, intermediate = llm_forward(args, model, batch, tokenizer)
-                # if model.type == 'encoder-decoder':
-                #     input_args = get_t5_input(batch, tokenizer, model.device)
-                #     enc_hidden, dec_hidden = model(**input_args)
-                #     intermediate = torch.concat([enc_hidden, dec_hidden], dim=1)
-                #     input_ids = torch.concat([input_args['input_ids'], input_args['decoder_input_ids']], dim=1).to(
-                #         model.device)
-                # else:
-                #     input_ids = batch['input_ids'].to(model.device)
-                #     attention_mask = batch['input_att_mask'].to(model.device)
-                #     intermediate = model(input_ids=input_ids, attention_mask=attention_mask)
                 logits = attack_model(intermediate)
                 loss = calc_unshift_loss(logits, input_ids)
                 res = evaluate_attacker_rouge(tokenizer, logits, batch)
@@ -239,8 +229,8 @@ def train_attacker(args):
                 pbar.update(1)
                 item_count += 1
             # 计算测试集上的ROGUE
-            # if (epc + 1) % 2 == 0:
-            #     evaluate(epc, model, attack_model, tokenizer, dataloader_test, args)
+            if (epc + 1) % 2 == 0:
+                evaluate(epc, model, attack_model, tokenizer, dataloader_test, args)
             if args.log_to_wandb:
                 log_dict = {'epoch': epc, 'Total_RgL': rougeL_total / item_count}
                 wandb.log(log_dict)
@@ -249,7 +239,7 @@ def train_attacker(args):
     attack_model.freeze_parts(experts=True, freeze=False)  # freeze experts
     attack_model.freeze_parts(experts=False, freeze=False)  # freeze gating
     optimizer3 = Adam([p for p in attack_model.parameters() if p.requires_grad], lr=args.lr)
-    epochs_ft = 2
+    epochs_ft = 10
     with tqdm(total=epochs_ft * len(dataloader)) as pbar:
         for epc in range(epochs_ft):
             model.train(True)
@@ -271,17 +261,6 @@ def train_attacker(args):
                         noise_scale = random_choose_noise(expert_scales[2], mode=noise_mode)
                     model.change_noise(noise_scale, mode=noise_mode)
                 input_ids, intermediate = llm_forward(args, model, batch, tokenizer)
-                # if model.type == 'encoder-decoder':
-                #     input_args = get_t5_input(batch, tokenizer, model.device)
-                #     enc_hidden, dec_hidden = model(**input_args)
-                #     intermediate = torch.concat([enc_hidden, dec_hidden], dim=1)
-                #     input_ids = torch.concat([input_args['input_ids'], input_args['decoder_input_ids']], dim=1).to(
-                #         model.device)
-                # else:
-                #     input_ids = batch['input_ids'].to(model.device)
-                #     attention_mask = batch['input_att_mask'].to(model.device)
-                #     intermediate = model(input_ids=input_ids, attention_mask=attention_mask)
-
                 logits = attack_model(intermediate)
                 loss = calc_unshift_loss(logits, input_ids)
                 res = evaluate_attacker_rouge(tokenizer, logits, batch)
@@ -298,8 +277,8 @@ def train_attacker(args):
                 pbar.update(1)
                 item_count += 1
             # 计算测试集上的ROGUE
-            if (epc + 1) % 2 == 0:
-                evaluate(epc, model, attack_model, tokenizer, dataloader_test, args)
+            if (epc + 1) % 1 == 0:
+                evaluate(epc*100, model, attack_model, tokenizer, dataloader_test, args)
             if args.log_to_wandb:
                 log_dict = {'epoch': epc, 'Total_RgL': rougeL_total / item_count}
                 wandb.log(log_dict)

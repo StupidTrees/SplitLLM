@@ -45,11 +45,7 @@ class SFLSimulator(object):
         self.local_epochs = {cid: 0 for cid in self.client_ids}
         self.local_steps = {cid: 0 for cid in self.client_ids}
         self.global_steps = {cid: 0 for cid in self.client_ids}
-
-        if not self.llm.adapter_added:
-            self.llm = self.llm.convert_to_lora_model()
-            self.strategy.llm = llm
-            # store pretrained parameters
+        # store pretrained parameters
         if additional_param_keys is None:
             additional_param_keys = ['mirror']
         for key in ['pretrained'] + additional_param_keys:
@@ -59,12 +55,10 @@ class SFLSimulator(object):
                                                      [p.detach().cpu() for nm, p in self.llm.get_top_params()])
             self.parameter_keeper.store_other_params(key, 'bottom',
                                                      [p.detach().cpu() for nm, p in self.llm.get_bottom_params()])
-
         # special initialization
         if config.top_and_bottom_from_scratch in ['True', 'Embedding']:
             # re-initialize llm's params
             self.llm.init_weights()  # reset_params(self.llm.get_top_params(), config.top_and_bottom_from_scratch)
-            self.llm.init_weights()  # reset_params(self.llm.get_bottom_params(), config.top_and_bottom_from_scratch)
         if config.top_and_bottom_from_scratch == 'Noised':
             for nm, param in self.llm.get_top_params():
                 scale = param.data.max() - param.data.min()
@@ -72,6 +66,17 @@ class SFLSimulator(object):
             for nm, param in self.llm.get_bottom_params():
                 scale = param.data.max() - param.data.min()
                 param.data += torch.randn_like(param.data) * scale * 0.02
+
+        if not self.llm.adapter_added:
+            self.llm = self.llm.convert_to_lora_model()
+            self.strategy.llm = llm
+            for key in ['pretrained'] + additional_param_keys:
+                self.parameter_keeper.store_other_params(key, 'trunk',
+                                                         [p.detach().cpu() for nm, p in self.llm.get_trunk_params()])
+                self.parameter_keeper.store_other_params(key, 'top',
+                                                         [p.detach().cpu() for nm, p in self.llm.get_top_params()])
+                self.parameter_keeper.store_other_params(key, 'bottom',
+                                                         [p.detach().cpu() for nm, p in self.llm.get_bottom_params()])
 
     def pre_ft(self, data_loader, parts=None, max_steps=1000):
         if not hasattr(self.llm.config, 'quantization_config'):
@@ -154,7 +159,8 @@ class SFLSimulator(object):
                         continue
                     loaders.setdefault(client_id,
                                        self.dataset.get_dataloader(client_id, batch_size=self.config.batch_size,
-                                                                   type=self.config.dataset_type))
+                                                                   type=self.config.dataset_type,
+                                                                   max_seq_len=self.args.dataset_max_seq_len))
                     iters.setdefault(client_id, [iter(loaders[client_id])])
                     itt = CircularDataLoaderIterator(iters[client_id], loaders[client_id], self.config.client_steps)
                     self._client_step(client_id, i, self.local_epochs[client_id], itt)

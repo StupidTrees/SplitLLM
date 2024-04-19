@@ -15,8 +15,8 @@ from sfl.simulator.strategy import BaseSFLStrategy
 from sfl.simulator.dataset import MixtureFedDataset
 import sfl
 from sfl.config import FLConfig, DRAttackerConfig, dxp_moe_range, gaussian_moe_range
-from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, \
-    TransformerEncoderDRAttacker, TransformerDecoderDRAttacker, LSTMDRAttackerConfig, TransformerDRAttackerConfig
+from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, LSTMDRAttackerConfig, \
+    TransformerDRAttackerConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_tokenizer
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
     evaluate_attacker_rouge, random_choose_noise
@@ -27,7 +27,7 @@ from sfl.config import DRA_train_label, DRA_test_label
 def get_save_path(fl_config, save_dir, args):
     model_name = args.model_name
     cut_layer = fl_config.split_point_1 if fl_config.attack_mode == "b2tr" else fl_config.split_point_2
-    if model_name == 'llama2':
+    if 'llama' in model_name:
         model_name += f'-{args.load_bits}bits'
     if ',' in args.dataset:
         p = os.path.join(save_dir,
@@ -71,7 +71,7 @@ def evaluate(epc, md, attacker, tok, test_data_loader, args):
                 attention_mask = batch['input_att_mask'].to(md.device)
                 inter = md(input_ids=input_ids, attention_mask=attention_mask)
             logits = attacker(inter)
-            result = evaluate_attacker_rouge(tok, logits, batch)
+            result, _, _ = evaluate_attacker_rouge(tok, logits, batch)
             rouge_1 += result['rouge-1']['f']
             rouge_2 += result['rouge-2']['f']
             rouge_l_f1 += result['rouge-l']['f']
@@ -107,6 +107,8 @@ def train_attacker(args):
                       noise_scale_gaussian=args.noise_scale_gaussian,
                       top_and_bottom_from_scratch='True',
                       use_lora_at_bottom=True,
+                      use_lora_at_trunk=False,
+                      use_lora_at_top=False
                       )
 
     p = get_save_path(config, args.save_dir, args)
@@ -162,12 +164,7 @@ def train_attacker(args):
         attack_model = GRUDRAttacker(LSTMDRAttackerConfig(), model.config)
     elif args.attack_model == 'linear':
         attack_model = LinearDRAttacker(DRAttackerConfig(), model.config)
-    elif args.attack_model == 'trans-enc':
-        attack_model = TransformerEncoderDRAttacker(TransformerDRAttackerConfig(), model.config)
-    elif args.attack_model == 'trans-dec':
-        attack_model = TransformerDecoderDRAttacker(TransformerDRAttackerConfig(), model.config)
-
-    if 'llama2' not in args.model_name and 'chatglm' not in args.model_name:
+    if 'llama' not in args.model_name and 'chatglm' not in args.model_name:
         device = get_best_gpu()
         model.to(device)
 
@@ -217,7 +214,7 @@ def train_attacker(args):
                 loss.backward()
                 optimizer.step()
                 # 计算训练的ROGUE
-                res = evaluate_attacker_rouge(tokenizer, logits, batch)
+                res, _, _ = evaluate_attacker_rouge(tokenizer, logits, batch)
                 rouge_1 += res['rouge-1']['f']
                 rouge_2 += res['rouge-2']['f']
                 rouge_l_f1 += res['rouge-l']['f']

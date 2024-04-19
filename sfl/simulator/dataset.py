@@ -30,33 +30,34 @@ class FedDataset(ABC):
             disable_progress_bar()
             self.client_data_indices[type] = {cid: sliced[i] for i, cid in enumerate(client_ids)}
 
-    def get_dataloader(self, client_id, batch_size=1, type='train'):
+    def get_dataloader(self, client_id, batch_size=1, type='train', max_seq_len=-1):
         ds = self.dataset[type].select(self.client_data_indices[type][client_id])
         return DataLoader(self._pre_process(ds, batch_size),
-                          collate_fn=lambda x: self._col_fun(x),
+                          collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len),
                           batch_size=batch_size,
                           shuffle=True)
 
-    def get_dataloader_unsliced(self, batch_size=2, type='train', shrink_frac=1.0, further_test_split=None):
+    def get_dataloader_unsliced(self, batch_size=2, type='train', shrink_frac=1.0, further_test_split=None,
+                                max_seq_len=-1):
         ds = self.all_dataset[type].select(range(int(len(self.all_dataset[type]) * shrink_frac)))
         if further_test_split is not None:
             ds_split = ds.train_test_split(shuffle=True, test_size=further_test_split)
             return DataLoader(self._pre_process(ds_split['train'], batch_size),
-                              collate_fn=lambda x: self._col_fun(x),
+                              collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len),
                               batch_size=batch_size,
                               shuffle=True), \
                    DataLoader(self._pre_process(ds_split['test'], batch_size),
-                              collate_fn=lambda x: self._col_fun(x),
+                              collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len),
                               batch_size=batch_size, shuffle=True)
         return DataLoader(self._pre_process(ds, batch_size), batch_size=batch_size, shuffle=True,
-                          collate_fn=lambda x: self._col_fun(x))
+                          collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len))
 
     def _pre_process(self, ds, batch_size):
         ds = ds.map(lambda x: self._format(x), batched=False)
         ds.set_format(type="torch")
         return ds
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         texts = [b['input'] for b in batch]
         input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
         return {'input_ids': input['input_ids'],
@@ -107,19 +108,23 @@ class MixtureFedDataset(FedDataset):
         for cls in dataset_classes:
             self.fed_datasets.append(cls(tokenizer, client_ids, shrink_frac))
 
-    def get_dataloader(self, client_id, batch_size=1, type='train'):
-        return CombinedDataLoader(*[ds.get_dataloader(client_id, batch_size, type) for ds in self.fed_datasets])
+    def get_dataloader(self, client_id, batch_size=1, type='train', max_seq_len=-1):
+        return CombinedDataLoader(
+            *[ds.get_dataloader(client_id, batch_size, type, max_seq_len=max_seq_len) for ds in self.fed_datasets])
 
-    def get_dataloader_unsliced(self, batch_size=2, type=None, shrink_frac=1.0, further_test_split=None):
+    def get_dataloader_unsliced(self, batch_size=2, type=None, shrink_frac=1.0, further_test_split=None,
+                                max_seq_len=-1):
         train_loaders = []
         test_loaders = []
         for nm, ds in zip(self.dataset_names, self.fed_datasets):
             if DRA_train_label[nm] == DRA_test_label[nm]:
                 d1, d2 = ds.get_dataloader_unsliced(batch_size, DRA_train_label[nm], shrink_frac,
-                                                    further_test_split=0.3)
+                                                    further_test_split=0.3, max_seq_len=max_seq_len)
             else:
-                d1 = ds.get_dataloader_unsliced(batch_size, DRA_train_label[nm], shrink_frac=shrink_frac)
-                d2 = ds.get_dataloader_unsliced(batch_size, DRA_test_label[nm], shrink_frac=shrink_frac)
+                d1 = ds.get_dataloader_unsliced(batch_size, DRA_train_label[nm], shrink_frac=shrink_frac,
+                                                max_seq_len=max_seq_len)
+                d2 = ds.get_dataloader_unsliced(batch_size, DRA_test_label[nm], shrink_frac=shrink_frac,
+                                                max_seq_len=max_seq_len)
             train_loaders.append(d1)
             test_loaders.append(d2)
         return CombinedDataLoader(*train_loaders), CombinedDataLoader(*test_loaders)
@@ -141,7 +146,7 @@ class PIQAFedDataset(FedDataset):
         return {'q': q, 'a': a,
                 'input': q + a}
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         texts = [b['input'] for b in batch]
         qs = [b['q'] for b in batch]
         as_ = [b['a'] for b in batch]
@@ -166,14 +171,15 @@ class PIQAMiniFedDataset(PIQAFedDataset):
     PIQA数据集
     """
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         texts = [b['input'] for b in batch]
         qs = [b['q'] for b in batch]
         as_ = [b['a'] for b in batch]
+        max_len = 128 if max_seq_len < 0 else max_seq_len
         input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt',
-                               max_length=128)  # for batch_size testing
-        input_q = self.tokenizer(qs, padding=True, truncation=True, return_tensors='pt', max_length=128)
-        input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt', max_length=128)
+                               max_length=max_len)  # for batch_size testing
+        input_q = self.tokenizer(qs, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
+        input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         labels = [b['label'] for b in batch]
         labels = torch.tensor(labels)
         return {'input_ids': input['input_ids'],
@@ -200,10 +206,11 @@ class GSM8KFedDataset(FedDataset):
         return {'q': q, 'a': a,
                 'input': q + "\n" + a}
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         texts = [b['input'] for b in batch]
+        max_len = 300 if max_seq_len < 0 else max_seq_len
         input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt',
-                               max_length=300)  # 300, glm 256
+                               max_length=max_len)  # 300, glm 256
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
                 'input_text': texts}
@@ -223,9 +230,10 @@ class DialogSumFedDataset(FedDataset):
         return {'q': q, 'a': a,
                 'input': q + "\n" + a}
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, max_length=400,  # chatglm 256
+        max_len = 400 if max_seq_len < 0 else max_seq_len
+        input = self.tokenizer(texts, padding=True, truncation=True, max_length=max_len,  # chatglm 256
                                return_tensors='pt')
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
@@ -245,9 +253,10 @@ class CodeAlpacaFedDataset(FedDataset):
         return {'q': q, 'a': a,
                 'input': q + "\n" + a}
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, max_length=400,  # 400, chatglm256
+        max_len = 400 if max_seq_len < 0 else max_seq_len
+        input = self.tokenizer(texts, padding=True, truncation=True, max_length=max_len,  # 400, chatglm256
                                return_tensors='pt')
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
@@ -265,9 +274,10 @@ class IMDBFedDataset(FedDataset):
     def _format(self, example):
         return {'input': example['text']}
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt', max_length=512)
+        max_len = 512 if max_seq_len < 0 else max_seq_len
+        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         # convert labels to tensor
         labels = [b['label'] for b in batch]
         labels = torch.tensor(labels)
@@ -321,7 +331,7 @@ class WikiTextFedDataset(FedDataset):
         lm_datasets.set_format(type="torch")
         return lm_datasets
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         res = {}
         for k in batch[0].keys():
             ls = [x[k] for x in batch]
@@ -337,10 +347,11 @@ class SensiMarkedFedDataset(FedDataset):
     def _format(self, example):
         return {'input': example['content'], 'entities': ast.literal_eval(example['entity'])}
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         texts = [b['input'] for b in batch]
+        max_len = 300 if max_seq_len < 0 else max_seq_len
         input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt',
-                               max_length=300)  # 300, ChatgGLM bs=2时降低
+                               max_length=max_len)  # 300, ChatgGLM bs=2时降低
         mask = torch.zeros_like(input['input_ids'])
         for sp, sample in enumerate(batch):
             seq = input['input_ids'][sp].numpy().tolist()
@@ -373,9 +384,10 @@ class SensiReplacedFedDataset(FedDataset):
     def _format(self, example):
         return {'input': example['sani_gpt4']}
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         texts = [b['input'] for b in batch]
-        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt', max_length=300)
+        max_len = 300 if max_seq_len < 0 else max_seq_len
+        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         return {'input_ids': input['input_ids'],
                 'q_ids': input['input_ids'],
                 'a_ids': input['input_ids'],
@@ -414,7 +426,7 @@ class ImageWoofFedDataset(FedDataset):
         ds = load_dataset(config.dataset_cache_dir + 'imagewoof', '160px')
         super().__init__(tokenizer, client_ids, ds, ['train', 'validation'], shrink_frac)
 
-    def _col_fun(self, batch):
+    def _col_fun(self, batch, max_seq_len=-1):
         images = [s['image'].convert("RGB") for s in batch]
         labels = torch.tensor([s['label'] for s in batch])
         return {'input': self.tokenizer(images, return_tensors='pt', padding=True)['pixel_values'],

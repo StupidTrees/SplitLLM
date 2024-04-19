@@ -54,8 +54,8 @@ class DLGAttacker(nn.Module):
                 grad_diff += 0.2 * ppl
         return grad_diff
 
-    def fit(self, inter, gradient, epochs=300, adjust=0, beta=0.85, lr=0.09, gt_init=None, gt_reg=0.0, temp_range=0.0,
-            further_ft=10, model_name=None, lamp=False, **kwargs):
+    def fit(self, inter, gradient, epochs=300, adjust=0, beta=0.85, lr=0.09, gt_init=None, init_temp=1.0,
+            model_name=None, lamp=False, lamp_freq=30, **kwargs):
         if model_name == 'chatglm':
             gradient = gradient.permute(1, 0, 2)
             inter = inter.permute(1, 0, 2)
@@ -65,7 +65,10 @@ class DLGAttacker(nn.Module):
             if gt_init.shape[1] != gradient.shape[1]:
                 gt_init = gt_init[:, -gradient.shape[1]:, :]
             dra_attacked = gt_init.clone().detach().to(inter.device)  # (batch_size, seq_len, vocab_size)
-            dra_attacked = torch.softmax(dra_attacked, dim=-1)
+            # softmax with temperature
+            dra_attacked = torch.softmax(dra_attacked / init_temp, dim=-1)
+            # dra_attacked = torch.softmax(dra_attacked, dim=-1)
+
             gt = dra_attacked.clone()
         else:
             gt = torch.softmax(torch.randn((batch_size, seq_len, vocab_size)).to(inter.device), dim=-1)
@@ -77,7 +80,7 @@ class DLGAttacker(nn.Module):
             grad_diff = self.gma_loss(inter, gradient, gt, beta=beta, **kwargs)
             grad_diff.backward()
             optimizer.step()
-            if lamp and i % 30 == 0:
+            if lamp and i % lamp_freq == 0:
                 new_gt = self.lamp(inter, gradient, gt.detach().clone(), beta=beta, **kwargs)
                 with torch.no_grad():
                     # copy new_gt's data to gt
@@ -94,7 +97,6 @@ class DLGAttacker(nn.Module):
 
     def lamp(self, inter, gradient, gt, beta=0.85, lamp_steps=50, **kwargs):
         inter.requires_grad = True
-        print('Attempt swap')
         best_gt, best_loss = None, None
         init_loss = None
         changed = None
@@ -105,54 +107,58 @@ class DLGAttacker(nn.Module):
             with torch.no_grad():
                 for sen_id in range(batch_size):
                     if sample_idx != 0:
-                        # randomly select 1~seq_len*0.1 tokens
-                        num_tokens = np.random.randint(1, int(seq_len * 0.2))
-                        # randomly select the positions of the tokens
-                        token_indexes = np.random.choice(range(seq_len), num_tokens)
-                        # for each position, randomly change the last dimension of the token
-                        for i in token_indexes:
-                            second_idx = np.random.choice([-1, -2, -3])
-                            max_idx = torch.argmax(new_gt[sen_id, i, :])
-                            second_max_idx = torch.argsort(new_gt[sen_id, i, :])[second_idx]
-                            # swap the two tokens
-                            new_gt[sen_id, i, max_idx], new_gt[sen_id, i, second_max_idx] = new_gt[
-                                                                                                sen_id, i, second_max_idx], \
-                                                                                            new_gt[
-                                                                                                sen_id, i, max_idx]
-                    # perm_ids = np.arange(seq_len)
-                    # if sample_idx != 0:
-                    #     if sample_idx % 4 == 0:  # swap two tokens
-                    #         i, j = 1 + np.random.randint(seq_len - 2), 1 + np.random.randint(seq_len - 2)
-                    #         perm_ids[i], perm_ids[j] = perm_ids[j], perm_ids[i]
-                    #     elif sample_idx % 4 == 1:  # move a token to another place
-                    #         i = 1 + np.random.randint(seq_len - 2)
-                    #         j = 1 + np.random.randint(seq_len - 1)
-                    #         if i < j:
-                    #             perm_ids = np.concatenate(
-                    #                 [perm_ids[:i], perm_ids[i + 1:j], perm_ids[i:i + 1], perm_ids[j:]])
-                    #         else:
-                    #             perm_ids = np.concatenate(
-                    #                 [perm_ids[:j], perm_ids[i:i + 1], perm_ids[j:i], perm_ids[i + 1:]])
-                    #     elif sample_idx % 4 == 2:  # move a sequence to another place
-                    #         b = 1 + np.random.randint(seq_len - 1)
-                    #         e = 1 + np.random.randint(seq_len - 1)
-                    #         if b > e:
-                    #             b, e = e, b
-                    #         p = 1 + np.random.randint(seq_len - 1 - (e - b))
-                    #         if p >= b:
-                    #             p += e - b
-                    #         if p < b:
-                    #             perm_ids = np.concatenate([perm_ids[:p], perm_ids[b:e], perm_ids[p:b], perm_ids[e:]])
-                    #         elif p >= e:
-                    #             perm_ids = np.concatenate([perm_ids[:b], perm_ids[e:p], perm_ids[b:e], perm_ids[p:]])
-                    #         else:
-                    #             assert False
-                    #     elif sample_idx % 4 == 3:  # take some prefix and put it at the end
-                    #         i = 1 + np.random.randint(seq_len - 2)
-                    #         perm_ids = np.concatenate([perm_ids[:1], perm_ids[i:-1], perm_ids[1:i], perm_ids[-1:]])
+                        if self.method == 'bisr':
+                            # randomly select 1~seq_len*0.1 tokens
+                            num_tokens = np.random.randint(1, int(seq_len * 0.2))
+                            # randomly select the positions of the tokens
+                            token_indexes = np.random.choice(range(seq_len), num_tokens)
+                            # for each position, randomly change the last dimension of the token
+                            for i in token_indexes:
+                                second_idx = np.random.choice([-1, -2, -3])
+                                max_idx = torch.argmax(new_gt[sen_id, i, :])
+                                second_max_idx = torch.argsort(new_gt[sen_id, i, :])[second_idx]
+                                # swap the two tokens
+                                new_gt[sen_id, i, max_idx], new_gt[sen_id, i, second_max_idx] = new_gt[
+                                                                                                    sen_id, i, second_max_idx], \
+                                                                                                new_gt[
+                                                                                                    sen_id, i, max_idx]
+                        else:
+                            perm_ids = np.arange(seq_len)
+                            if sample_idx != 0:
+                                if sample_idx % 4 == 0:  # swap two tokens
+                                    i, j = 1 + np.random.randint(seq_len - 2), 1 + np.random.randint(seq_len - 2)
+                                    perm_ids[i], perm_ids[j] = perm_ids[j], perm_ids[i]
+                                elif sample_idx % 4 == 1:  # move a token to another place
+                                    i = 1 + np.random.randint(seq_len - 2)
+                                    j = 1 + np.random.randint(seq_len - 1)
+                                    if i < j:
+                                        perm_ids = np.concatenate(
+                                            [perm_ids[:i], perm_ids[i + 1:j], perm_ids[i:i + 1], perm_ids[j:]])
+                                    else:
+                                        perm_ids = np.concatenate(
+                                            [perm_ids[:j], perm_ids[i:i + 1], perm_ids[j:i], perm_ids[i + 1:]])
+                                elif sample_idx % 4 == 2:  # move a sequence to another place
+                                    b = 1 + np.random.randint(seq_len - 1)
+                                    e = 1 + np.random.randint(seq_len - 1)
+                                    if b > e:
+                                        b, e = e, b
+                                    p = 1 + np.random.randint(seq_len - 1 - (e - b))
+                                    if p >= b:
+                                        p += e - b
+                                    if p < b:
+                                        perm_ids = np.concatenate(
+                                            [perm_ids[:p], perm_ids[b:e], perm_ids[p:b], perm_ids[e:]])
+                                    elif p >= e:
+                                        perm_ids = np.concatenate(
+                                            [perm_ids[:b], perm_ids[e:p], perm_ids[b:e], perm_ids[p:]])
+                                    else:
+                                        assert False
+                                elif sample_idx % 4 == 3:  # take some prefix and put it at the end
+                                    i = 1 + np.random.randint(seq_len - 2)
+                                    perm_ids = np.concatenate(
+                                        [perm_ids[:1], perm_ids[i:-1], perm_ids[1:i], perm_ids[-1:]])
+                            new_gt[sen_id] = gt[sen_id, perm_ids, :]
 
-            # new_gt = gt.clone()
-            # new_gt[sen_id] = gt[sen_id, perm_ids, :]
             new_gt.requires_grad = True
             loss = self.gma_loss(inter, gradient, new_gt, ppl=True, beta=beta, **kwargs).detach().cpu().item()
             if sample_idx == 0:

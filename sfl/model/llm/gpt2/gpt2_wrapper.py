@@ -41,6 +41,8 @@ class GPT2SplitWrapper(SplitWrapperModel):
         if self.fl_config.use_lora_at_top:
             blocks += [str(i) for i in range(self.fl_config.split_point_2, self.config.n_layer)]
         reg = rf".*\.h\.({'|'.join(blocks)})\..*(.+attn|proj|fc)$"
+        if self.fl_config.use_lora_at_embed:
+            reg = rf"^({reg}|.*(.+wte|wpe).*)$"
         return reg
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks=None):
