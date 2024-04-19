@@ -40,7 +40,7 @@ attacker_samples=10
 max_global_step=610
 
 attacker_datasets=("sensireplaced")
-sfl_datasets=("piqa")
+sfl_datasets=("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
 max_seq_len=-1
 #("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
 
