@@ -1,17 +1,18 @@
 import os
 import sys
-from copy import deepcopy
 from typing import Any
 
+import numpy as np
 import wandb
-
+from matplotlib import pyplot
 
 sys.path.append(os.path.abspath('../../..'))
 
 from sfl.simulator.strategy import BaseSFLStrategy
 from sfl.model.attacker.mia_attacker import WhiteBoxMIAttacker
 
-from sfl.utils.model import Intermediate, set_random_seed, get_output, evaluate_attacker_rouge
+from sfl.utils.model import Intermediate, set_random_seed, get_output, evaluate_attacker_rouge, FLConfigHolder, \
+    saliency_analysis
 from sfl.simulator.simulator import SFLSimulator
 from sfl.utils.exp import *
 
@@ -19,29 +20,69 @@ from sfl.utils.exp import *
 # 定义Client本地学习策略
 class QAFLStrategy(BaseSFLStrategy):
 
+    def __init__(self, args, llm, tokenizer, **kwargs):
+        super().__init__(args, llm, tokenizer, **kwargs)
+        self.token_class_nums = {}
+        self.token_class_hit = {}
+
     def client_evaluate(self, global_round, client_id, log):
-        super(QAFLStrategy, self).client_evaluate(global_round, client_id, log)
+        # super(QAFLStrategy, self).client_evaluate(global_round, client_id, log)
         self.log_sample_text()
 
     def log_sample_text(self):
         llm = self.llm
         observe_sample = self.sample_batch
-        cfg = llm.fl_config
-        cfg.attack_mode = 'b2tr'
-        llm.config_sfl(cfg, llm.param_keeper)
-        input_tensors = observe_sample['input_ids'].to(llm.device)
-        inter = llm(input_tensors)
-        attacked = self.dra1(inter.to(llm.device))
-        ids = [','.join([str(tid.item()) for tid in t.argmax(-1)]) for t in attacked]
-        true_ids = [','.join([str(tid.item()) for tid in t]) for t in observe_sample['input_ids']]
-        texts = [self.tokenizer.decode(t.argmax(-1), skip_special_tokens=True) for t in attacked]
-        table = wandb.Table(columns=["sample_text", "true_text", "sample_ids", "true_ids"],
-                            data=[[txt, gt, ids, tids] for txt, gt, ids, tids in
-                                  zip(texts, observe_sample['input_text'], ids, true_ids)])
+        self.dra1.to(llm.device)
+        with FLConfigHolder(llm) as ch:
+            llm.fl_config.attack_mode = 'b2tr'
+            ch.change_config()
+            input_tensors = observe_sample['input_ids'].to(llm.device)
+            inter = llm(input_tensors)
+            attacked = self.dra1(inter.to(llm.device))
+            # ids = [','.join([str(tid.item()) for tid in t.argmax(-1)]) for t in attacked]
+            # true_ids = [','.join([str(tid.item()) for tid in t]) for t in observe_sample['input_ids']]
+            texts = [self.tokenizer.decode(t.argmax(-1), skip_special_tokens=True) for t in attacked]
+        input_sentence = observe_sample['input_ids']
+        if 'q_ids' in observe_sample:
+            input_sentence = observe_sample['q_ids']
+
+        saliency, next_token_ids, stacks = saliency_analysis(llm, input_sentence)
+        # saliency = saliency.detach().cpu().numpy()
+        images = []
+        for i, (q, a, saliency_matrix) in enumerate(zip(input_sentence, next_token_ids, stacks)):
+            # plot heatmap on saliency_matrix and log to wandb
+            fig, ax = pyplot.subplots()
+            fig.set_size_inches(16, 16)
+            cax = ax.matshow(saliency_matrix, cmap='hot', vmin=0, vmax=1)
+            # scale it to square
+            ax.set_aspect('auto')
+            fig.colorbar(cax)
+            print(len(self.tokenizer.convert_ids_to_tokens(q)),
+                  len(self.tokenizer.convert_ids_to_tokens(a)),
+                  saliency_matrix.shape)
+
+            ax.set_xticks(ticks=range(len(q)), labels=self.tokenizer.convert_ids_to_tokens(q))
+            ax.set_yticks(ticks=range(len(a)), labels=self.tokenizer.convert_ids_to_tokens(a))
+
+            # ax.set_yticklabels(self.tokenizer.convert_ids_to_tokens(a), rotation=45)
+            ax.set_xlabel('Input')
+            ax.set_ylabel('Output')
+            ax.set_title('Saliency Matrix')
+            images.append(wandb.Image(fig))
+        wandb.log({'attacked_sample_saliency_matrix': images})
+
+        table = wandb.Table(
+            columns = ["attacked_text", "true_text", "input_text", "generated_text", "input_tokens", "generated_tokens",
+                       "avg_saliency", "saliency_heatmap"],
+            data = [[txt, gt, self.tokenizer.decode(it, skip_special_tokens=True),
+                     self.tokenizer.decode(nt, skip_special_tokens=True),
+                     self.tokenizer.convert_ids_to_tokens(it),
+                     self.tokenizer.convert_ids_to_tokens(nt),
+                     sa.tolist(), img]
+                    for txt, gt, it, nt, sa, img, stack in
+                    zip(texts, observe_sample['input_text'], input_sentence, next_token_ids, saliency, images, stacks)])
+
         wandb.log({'attacked_sample_text': table})
-        cfg = llm.fl_config
-        cfg.attack_mode = None
-        llm.config_sfl(cfg, llm.param_keeper)
 
     def __log_atk_res(self, attacker_res, client_id, name):
         rouge_res, meteor_res, token_acc = attacker_res
@@ -76,23 +117,34 @@ class QAFLStrategy(BaseSFLStrategy):
                 # logs[f'SIP_{type}_rouge-l_step'] = rouge_res['rouge-l']['f']
                 attacked_result[type] = attacked
 
-        if self.args.wba_enable:
-            atk = WhiteBoxMIAttacker()
-            wba_out = self.simulator.restored_run(atk.fit, key='pretrained', parts=['bottom', 'top'],
-                                                  tok=self.tokenizer,
-                                                  llm=self.llm, b2tr_inter=b2tr_inter, gt=batch)
-            wba_res = evaluate_attacker_rouge(self.tokenizer, wba_out, batch)
-            self.__log_atk_res(wba_res, client_id, f'WBA')
+        if self.args.attacker_b2tr_sp == self.simulator.config.split_point_1:
+            atk_init = attacked_result['b2tr']
+        elif self.args.attacker_tr2t_sp == self.simulator.config.split_point_2:
+            atk_init = attacked_result['tr2t']
+        else:
+            atk_init = attacked_result['b2tr']
+
+        # 分析Entanglement
+        if self.args.entangle_enable:
+            saliency, tokens, _ = saliency_analysis(self.llm, batch['input_ids'])
+            bins = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+            saliency_bins = np.digitize(saliency, bins)
+            tokens_hit = (atk_init.argmax(-1).cpu() == batch['input_ids']).cpu().numpy()
+            for i, (s, h) in enumerate(zip(saliency_bins, tokens_hit)):
+                for cid, hit in zip(s, h):
+                    if cid not in self.token_class_nums:
+                        self.token_class_nums[cid] = 0
+                        self.token_class_hit[cid] = 0
+                    self.token_class_nums[cid] += 1
+                    self.token_class_hit[cid] += hit
+            for cid, hit in self.token_class_hit.items():
+                self.log_to_sample_result(client_id, f'hit_rate_{cid}', hit / self.token_class_nums[cid])
+                self.log_to_all_result(client_id, f'hit_rate_{cid}', hit / self.token_class_nums[cid])
 
         if self.args.dlg_enable:
             gt_init = None
             if self.args.dlg_init_with_dra:
-                if self.args.attacker_b2tr_sp == self.simulator.config.split_point_1:
-                    gt_init = attacked_result['b2tr']
-                elif self.args.attacker_tr2t_sp == self.simulator.config.split_point_2:
-                    gt_init = attacked_result['tr2t']
-                else:
-                    gt_init = attacked_result['b2tr']
+                gt_init = atk_init
             self.dlg.to(self.simulator.device)
             gma_name = 'BiSR'
             if self.dlg.method == 'lamp':
@@ -123,7 +175,7 @@ class QAFLStrategy(BaseSFLStrategy):
                                                  inter=tr2t_inter.fx.clone().to(self.simulator.device),
                                                  gradient=tr2t_inter.grad.clone().to(self.simulator.device),
                                                  beta=self.args.dlg_beta,
-                                                 gt_init=None,
+                                                 gt_init=gt_init,
                                                  model_name=self.args.model_name,
                                                  encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
                                                      self.simulator.device),
@@ -156,6 +208,7 @@ class QAFLStrategy(BaseSFLStrategy):
             if self.llm.type == 'encoder-decoder':
                 dlg_logits = attacked.clone()
                 dlg_logits[:, -gt.shape[1]:, :] = gt
+            atk_init = dlg_logits
             dlg_res = evaluate_attacker_rouge(self.tokenizer, dlg_logits, batch)
             self.__log_atk_res(dlg_res, client_id, gma_name)
 
@@ -177,6 +230,20 @@ class QAFLStrategy(BaseSFLStrategy):
                     dlg2_logits[:, -gt2.shape[1]:, :] = gt2
                 tag_res = evaluate_attacker_rouge(self.tokenizer, dlg2_logits, batch)
                 self.__log_atk_res(tag_res, client_id, 'TAG')
+
+        if self.args.wba_enable:
+            atk = WhiteBoxMIAttacker()
+            spis_out = self.simulator.restored_run(atk.fit, key='pretrained', parts=['bottom', 'top'],
+                                                   tok=self.tokenizer,
+                                                   llm=self.llm, b2tr_inter=b2tr_inter, gt=batch,
+                                                   dummy_init=atk_init, epochs=200)
+            wba_res = evaluate_attacker_rouge(self.tokenizer, spis_out, batch)
+            self.__log_atk_res(wba_res, client_id, f'SIPS')
+            # wba_out = self.simulator.restored_run(atk.fit, key='pretrained', parts=['bottom', 'top'],
+            #                                       tok=self.tokenizer,
+            #                                       llm=self.llm, b2tr_inter=b2tr_inter, gt=batch)
+            # wba_res = evaluate_attacker_rouge(self.tokenizer, wba_out, batch)
+            # self.__log_atk_res(wba_res, client_id, f'WBA')
 
 
 def sfl_with_attacker(args):

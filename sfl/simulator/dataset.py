@@ -211,9 +211,19 @@ class GSM8KFedDataset(FedDataset):
         max_len = 300 if max_seq_len < 0 else max_seq_len
         input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt',
                                max_length=max_len)  # 300, glm 256
+        qs_ = [b['q'] for b in batch]
+        as_ = [b['a'] for b in batch]
+        input_q = self.tokenizer(qs_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
+        input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
-                'input_text': texts}
+                'input_text': texts,
+                'q_ids': input_q['input_ids'],
+                'q_att_mask': input_q['attention_mask'],
+                'a_ids': input_a['input_ids'],
+                'a_att_mask': input_a['attention_mask'],
+                'q_text': qs_,
+                'a_text': as_}
 
 
 class DialogSumFedDataset(FedDataset):
@@ -235,9 +245,19 @@ class DialogSumFedDataset(FedDataset):
         max_len = 400 if max_seq_len < 0 else max_seq_len
         input = self.tokenizer(texts, padding=True, truncation=True, max_length=max_len,  # chatglm 256
                                return_tensors='pt')
+        qs_ = [b['q'] for b in batch]
+        as_ = [b['a'] for b in batch]
+        input_q = self.tokenizer(qs_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
+        input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
-                'input_text': texts}
+                'input_text': texts,
+                'q_ids': input_q['input_ids'],
+                'q_att_mask': input_q['attention_mask'],
+                'a_ids': input_a['input_ids'],
+                'a_att_mask': input_a['attention_mask'],
+                'q_text': qs_,
+                'a_text': as_}
 
 
 class CodeAlpacaFedDataset(FedDataset):
@@ -258,9 +278,19 @@ class CodeAlpacaFedDataset(FedDataset):
         max_len = 400 if max_seq_len < 0 else max_seq_len
         input = self.tokenizer(texts, padding=True, truncation=True, max_length=max_len,  # 400, chatglm256
                                return_tensors='pt')
+        qs_ = [b['q'] for b in batch]
+        as_ = [b['a'] for b in batch]
+        input_q = self.tokenizer(qs_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
+        input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         return {'input_ids': input['input_ids'],
                 'input_att_mask': input['attention_mask'],
-                'input_text': texts}
+                'input_text': texts,
+                'q_ids': input_q['input_ids'],
+                'q_att_mask': input_q['attention_mask'],
+                'a_ids': input_a['input_ids'],
+                'a_att_mask': input_a['attention_mask'],
+                'q_text': qs_,
+                'a_text': as_}
 
 
 class IMDBFedDataset(FedDataset):

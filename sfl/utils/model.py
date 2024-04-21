@@ -1,5 +1,6 @@
 import os
 import random
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,6 +10,7 @@ import torch
 from PIL.Image import fromarray
 from rouge import Rouge
 from torch.nn import CrossEntropyLoss
+from torch.optim import Adam
 from trl import DPOTrainer
 
 from sfl.config import dxp_moe_range, gaussian_moe_range, dc_moe_range
@@ -41,7 +43,7 @@ def evaluate_attacker_rouge(tok, attacker_logits, batch):
         gt_txts = [decode_with_extra_space(tok, s) for s in masked_gt_ids]
     else:
         atk_txts = [decode_with_extra_space(tok, s) for s in attacker_logits.argmax(dim=-1)]
-        gt_txts = [decode_with_extra_space(tok, s) for s in batch['input_ids']]#batch['input_text']
+        gt_txts = [decode_with_extra_space(tok, s) for s in batch['input_ids']]  # batch['input_text']
     rouge = calculate_rouge_text(atk_txts, gt_txts, print_comparison=False)
     meteor = calculate_meteor(atk_txts, gt_txts)
     token_acc = calculate_token_acc(tok, atk_txts, gt_txts)
@@ -92,7 +94,7 @@ def calculate_meteor(texts, labels):
     meteor_sum = 0
     meteor_num = 0
     for text, label in zip(texts, labels):
-        meteor = meteor_score.meteor_score( [label.split()], text.split())
+        meteor = meteor_score.meteor_score([label.split()], text.split())
         meteor_sum += meteor
         meteor_num += 1
     return meteor_sum / meteor_num
@@ -450,3 +452,95 @@ def random_choose_noise(input_scales=None, mode='dxp'):
 def convert_to_image(attacker_logits):
     recovered = (attacker_logits + 1) / 2
     return [fromarray((rec.permute(1, 2, 0).detach().cpu().numpy() * 255).astype(np.uint8)) for rec in recovered]
+
+
+def get_embedding_layer(llm):
+    if hasattr(llm, 'model'):
+        return llm.model.embed_tokens
+    elif hasattr(llm, 'transformer'):
+        return llm.transformer.wte
+    elif hasattr(llm, 'transformer'):
+        return llm.transformer.embedding
+    else:
+        return None
+
+    # def get_embed(self, llm):
+    #     if isinstance(llm, LLAMA2SplitLMHeadModel):
+    #         wte = llm.model.embed_tokens
+    #     elif isinstance(llm, GPT2SplitLMHeadModel):
+    #         wte = llm.transformer.wte
+    #     elif isinstance(llm, ChatGLMForConditionalGenerationSplit):
+    #         wte = llm.transformer.embedding
+    #     return wte
+
+
+class FLConfigHolder:
+
+    def __init__(self, llm):
+        self.llm = llm
+        self.config_bk = deepcopy(llm.fl_config)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.llm.config_sfl(self.config_bk, None)
+
+    def change_config(self):
+        # change self.llm.fl_config's kw to value
+        self.llm.config_sfl(self.llm.fl_config, None)
+        # get an instance of fl_cnfig with its collect_intermediates set to False
+
+
+def saliency_analysis(llm, input_ids, max_length=32):
+    llm.train(False)
+    with FLConfigHolder(llm) as ch:
+        llm.fl_config.collect_intermediates = False
+        ch.change_config()
+        saliency_stacks = []
+        saliency_avgs = []
+        generated = []
+        for batch_iid in input_ids:
+            iids = batch_iid.unsqueeze(0).to(llm.device)  # (1, seq_len)
+            all_saliency = []
+            cnt = 0
+            while True:
+                input_embeds = get_embedding_layer(llm)(iids)
+                input_embeds.requires_grad = True
+                outputs = llm(inputs_embeds=input_embeds)
+                logits = outputs.logits  # (1,seq_len,vocab_size)
+                next_token_id = logits.argmax(dim=-1)[:, -1]  # (1,)
+                # logits = torch.max(logits[:, -1, :], dim=-1)
+                # loss = logits.values.mean()
+                loss = torch.max(logits[:, 1:, :], dim=-1).values.mean()
+                # loss = outputs.loss
+                loss.backward()
+                iids = torch.cat([iids, next_token_id.unsqueeze(0)], dim=-1)
+                saliency = input_embeds.grad  # (1, seq_len, embed_size)
+                # sum over the embedding dimension
+                saliency = torch.abs(saliency).sum(dim=-1)  # (1, seq_len)
+                # normalize on the last dimension
+                saliency = saliency / saliency.max(dim=-1).values.unsqueeze(-1)
+                all_saliency.append(saliency)
+                cnt += 1
+                if next_token_id.item() == llm.config.eos_token_id or cnt > max_length:
+                    break
+            # make all saliency the same length
+            all_saliency = [s[0, :batch_iid.size(-1)] for s in all_saliency]  # (1, seq_len)
+            saliency_stack = torch.stack(all_saliency)  # (all, seq_len)
+            saliency_stacks.append(saliency_stack.detach().cpu().numpy())
+            saliency_avgs.append(saliency_stack.mean(dim=0))
+            generated.append(iids[0, input_ids.size(1):])
+        batch_saliency_avg = torch.stack(saliency_avgs)  # (batch_size, seq_len)
+        # grads = input_embeds.grad  # (batch_size, seq_len, embed_size)
+
+        # 获得重要性权重
+        # pooled_grads = grads.mean(dim=1)  # (batch_size, embed_size)
+        # features = input_embeds  # (batch_size, seq_len, embed_size)
+        # # multiply the pooled gradients with the features on the last axis
+        # saliency = torch.einsum("bse,be->bs", features, pooled_grads)  # (batch_size, seq_len)
+        # saliency = saliency / saliency.max(dim=-1).values.unsqueeze(-1)
+        # return weights
+        llm.train(True)
+    saliency = batch_saliency_avg.detach().cpu().numpy()
+    return saliency, generated, saliency_stacks

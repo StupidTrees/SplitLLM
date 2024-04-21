@@ -128,6 +128,7 @@ def add_sfl_params(parser):
     parser.add_argument('--dlg_further_ft', type=int, default=0)
     parser.add_argument('--wba_enable', type=str2bool, default=False)
     parser.add_argument('--self_pt_enable', type=str2bool, default=False)
+    parser.add_argument('--entangle_enable', type=str2bool, default=False)
     parser.add_argument('--client_steps', type=int, default=50)
     parser.add_argument('--client_epoch', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=2)

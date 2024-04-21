@@ -63,7 +63,7 @@ def evaluate_ae(epc, llm, attacker, tok, test_data_loader, args):
 @dataclasses.dataclass
 class AutoEncoderConfig(PretrainedConfig):
     vocab_size: int = 0
-    n_embed:int = 0
+    n_embed: int = 0
     d_hidden_size: int = 256
     f_hidden_size: int = 256
     f_dropout: float = 0.1
@@ -78,14 +78,14 @@ class FSHAAttacker(PreTrainedModel):
     def __init__(self, config: AutoEncoderConfig = None, target_config=None, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         self.f_inv = GRUDRAttacker(LSTMDRAttackerConfig(hidden_size=config.f_hidden_size, dropout=config.f_dropout,
-                                                        vocab_size=config.vocab_size, n_embed=config.n_embed),
+                                                        vocab_size=config.vocab_size, n_embed=config.n_embed,),
                                    target_config)
         self.config.vocab_size = self.f_inv.config.vocab_size
         self.config.n_embed = self.f_inv.config.n_embed
         self.f = GRUDRAttacker(
             LSTMDRAttackerConfig(vocab_size=self.config.n_embed, n_embed=self.config.vocab_size,
                                  hidden_size=self.config.f_hidden_size,
-                                 dropout=self.config.f_dropout))
+                                 dropout=self.config.f_dropout),target_config)
         self.d = torch.nn.GRU(self.config.n_embed, self.config.d_hidden_size, batch_first=True)
         self.d_mlp = torch.nn.Sequential(
             torch.nn.Linear(self.config.d_hidden_size, 1),
@@ -115,7 +115,7 @@ class FSHAAttacker(PreTrainedModel):
 
     def fit_auto_encoder(self, llm, tokenizer, data_loader, test_loader, epochs=50, args=None):
         # assert llm.fl_config is not None and llm.fl_config.attack_mode
-        optimizer = torch.optim.Adam(list(self.f.parameters()) + list(self.f_inv.parameters()), lr=1e-4,
+        optimizer = torch.optim.Adam(list(self.f.parameters()) + list(self.f_inv.parameters()), lr=1e-3,
                                      weight_decay=1e-5)
         with tqdm(total=epochs * len(data_loader)) as pbar:
             for epc in range(epochs):
