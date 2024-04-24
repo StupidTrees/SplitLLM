@@ -458,11 +458,11 @@ def get_embedding_layer(llm):
     if hasattr(llm, 'model'):
         return llm.model.embed_tokens
     elif hasattr(llm, 'transformer'):
-        return llm.transformer.wte
-    elif hasattr(llm, 'transformer'):
-        return llm.transformer.embedding
-    else:
-        return None
+        if hasattr(llm.transformer, 'wte'):
+            return llm.transformer.wte
+        elif hasattr(llm.transformer, 'embedding'):
+            return llm.transformer.embedding
+    return None
 
     # def get_embed(self, llm):
     #     if isinstance(llm, LLAMA2SplitLMHeadModel):
@@ -515,17 +515,13 @@ def saliency_analysis(llm, input_ids, max_length=32):
                 loss = torch.max(logits[:, 1:, :], dim=-1).values.mean()
                 # loss = outputs.loss
                 loss.backward()
-                iids = torch.cat([iids, next_token_id.unsqueeze(0)], dim=-1)
-                saliency = input_embeds.grad  # (1, seq_len, embed_size)
-                # sum over the embedding dimension
-                saliency = torch.abs(saliency).sum(dim=-1)  # (1, seq_len)
-                # normalize on the last dimension
+                saliency = torch.abs(input_embeds.grad).sum(dim=-1)  # (1, seq_len)
                 saliency = saliency / saliency.max(dim=-1).values.unsqueeze(-1)
                 all_saliency.append(saliency)
+                iids = torch.cat([iids, next_token_id.unsqueeze(0)], dim=-1)
                 cnt += 1
                 if next_token_id.item() == llm.config.eos_token_id or cnt > max_length:
                     break
-            # make all saliency the same length
             all_saliency = [s[0, :batch_iid.size(-1)] for s in all_saliency]  # (1, seq_len)
             saliency_stack = torch.stack(all_saliency)  # (all, seq_len)
             saliency_stacks.append(saliency_stack.detach().cpu().numpy())

@@ -3,6 +3,7 @@ import sys
 from typing import Any
 
 import numpy as np
+import torch
 import wandb
 from matplotlib import pyplot
 
@@ -13,7 +14,7 @@ from sfl.model.attacker.mia_attacker import WhiteBoxMIAttacker
 
 from sfl.utils.model import Intermediate, set_random_seed, get_output, evaluate_attacker_rouge, FLConfigHolder, \
     saliency_analysis
-from sfl.simulator.simulator import SFLSimulator
+from sfl.simulator.simulator import SFLSimulator, ParamRestored
 from sfl.utils.exp import *
 
 
@@ -72,15 +73,15 @@ class QAFLStrategy(BaseSFLStrategy):
         wandb.log({'attacked_sample_saliency_matrix': images})
 
         table = wandb.Table(
-            columns = ["attacked_text", "true_text", "input_text", "generated_text", "input_tokens", "generated_tokens",
-                       "avg_saliency", "saliency_heatmap"],
-            data = [[txt, gt, self.tokenizer.decode(it, skip_special_tokens=True),
-                     self.tokenizer.decode(nt, skip_special_tokens=True),
-                     self.tokenizer.convert_ids_to_tokens(it),
-                     self.tokenizer.convert_ids_to_tokens(nt),
-                     sa.tolist(), img]
-                    for txt, gt, it, nt, sa, img, stack in
-                    zip(texts, observe_sample['input_text'], input_sentence, next_token_ids, saliency, images, stacks)])
+            columns=["attacked_text", "true_text", "input_text", "generated_text", "input_tokens", "generated_tokens",
+                     "avg_saliency", "saliency_heatmap"],
+            data=[[txt, gt, self.tokenizer.decode(it, skip_special_tokens=True),
+                   self.tokenizer.decode(nt, skip_special_tokens=True),
+                   self.tokenizer.convert_ids_to_tokens(it),
+                   self.tokenizer.convert_ids_to_tokens(nt),
+                   sa.tolist(), img]
+                  for txt, gt, it, nt, sa, img, stack in
+                  zip(texts, observe_sample['input_text'], input_sentence, next_token_ids, saliency, images, stacks)])
 
         wandb.log({'attacked_sample_text': table})
 
@@ -141,104 +142,156 @@ class QAFLStrategy(BaseSFLStrategy):
                 self.log_to_sample_result(client_id, f'hit_rate_{cid}', hit / self.token_class_nums[cid])
                 self.log_to_all_result(client_id, f'hit_rate_{cid}', hit / self.token_class_nums[cid])
 
-        if self.args.dlg_enable:
-            gt_init = None
-            if self.args.dlg_init_with_dra:
-                gt_init = atk_init
-            self.dlg.to(self.simulator.device)
-            gma_name = 'BiSR'
-            if self.dlg.method == 'lamp':
-                gt = self.simulator.restored_run(self.dlg.fit, key='pretrained', parts=['bottom', 'top', 'trunk'],
-                                                 write_back=False,
-                                                 epochs=self.args.dlg_epochs,
-                                                 lr=args.dlg_lr,
-                                                 inter=tr2t_inter.fx.clone().to(self.simulator.device),
-                                                 gradient=tr2t_inter.grad.clone().to(self.simulator.device),
-                                                 beta=self.args.dlg_beta,
-                                                 gt_init=None,
-                                                 model_name=self.args.model_name,
-                                                 encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                                     self.simulator.device),
-                                                 attention_mask=attention_mask.fx if attention_mask is not None else None,
-                                                 rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
-                                                 lamp=True,
-                                                 lamp_freq=self.args.dlg_lamp_freq
-                                                 )
-                # lamp_res = evaluate_attacker_rouge(self.tokenizer, gt, batch)
-                # self.__log_atk_res(lamp_res, client_id, 'LAMP')
-                gma_name = 'LAMP'
-            elif self.dlg.method == 'bisr':
-                gt = self.simulator.restored_run(self.dlg.fit, key='pretrained', parts=['bottom', 'top'],
-                                                 write_back=False,
-                                                 epochs=self.args.dlg_epochs,
-                                                 lr=args.dlg_lr,
-                                                 inter=tr2t_inter.fx.clone().to(self.simulator.device),
-                                                 gradient=tr2t_inter.grad.clone().to(self.simulator.device),
-                                                 beta=self.args.dlg_beta,
-                                                 gt_init=gt_init,
-                                                 model_name=self.args.model_name,
-                                                 encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                                     self.simulator.device),
-                                                 attention_mask=attention_mask.fx if attention_mask is not None else None,
-                                                 rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
-                                                 lamp=True,
-                                                 lamp_freq=self.args.dlg_lamp_freq
-                                                 )
-                # lamp_res = evaluate_attacker_rouge(self.tokenizer, gt, batch)
-                # self.__log_atk_res(lamp_res, client_id, 'LAMP')
-                gma_name = 'BiSR'
-            else:
-                gt = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
-                                  epochs=self.args.dlg_epochs,
-                                  adjust=args.dlg_adjust,
-                                  beta=self.args.dlg_beta,
-                                  gt_init=gt_init,
-                                  lr=args.dlg_lr,
-                                  init_temp=self.args.dlg_init_temp,
-                                  gt_reg=self.args.dlg_dra_reg,
-                                  temp_range=self.args.dlg_temp_range,
-                                  further_ft=self.args.dlg_further_ft,
-                                  encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                      self.simulator.device),
-                                  model_name=self.args.model_name,
-                                  attention_mask=attention_mask.fx if attention_mask is not None else None,
-                                  rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
-                                  )
-            dlg_logits = gt
+        if self.args.alt_enable:
+            # 交替优化
+            alt_out = atk_init
+            for i in range(self.args.alt_steps):
+                atk = WhiteBoxMIAttacker()
+                with ParamRestored(llm=self.llm, param_keeper=self.simulator.parameter_keeper,
+                                   key='pretrained',
+                                   parts=['bottom']):
+                    alt_out = atk.fit(tok=self.tokenizer,
+                                      llm=self.llm, b2tr_inter=b2tr_inter, gt=batch,
+                                      dummy_init=alt_out, epochs=self.args.alt_fwd_steps)
+                alt_out = alt_out.argmax(-1)
+                # one-hot
+                alt_out = torch.nn.functional.one_hot(alt_out, num_classes=self.llm.config.vocab_size).float()
+                alt_out = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device),
+                                       tr2t_inter.grad.to(self.simulator.device),
+                                       epochs=self.args.alt_bwd_steps,
+                                       beta=self.args.dlg_beta,
+                                       gt_init=alt_out,
+                                       lr=args.dlg_lr,
+                                       init_temp=self.args.dlg_init_temp,
+                                       softmax=True,
+                                       encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
+                                           self.simulator.device),
+                                       model_name=self.args.model_name,
+                                       attention_mask=attention_mask.fx if attention_mask is not None else None,
+                                       rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
+                                       )
+
+            eval_logits = alt_out
             if self.llm.type == 'encoder-decoder':
-                dlg_logits = attacked.clone()
-                dlg_logits[:, -gt.shape[1]:, :] = gt
-            atk_init = dlg_logits
-            dlg_res = evaluate_attacker_rouge(self.tokenizer, dlg_logits, batch)
-            self.__log_atk_res(dlg_res, client_id, gma_name)
-
-            if args.dlg_raw_enable:  # 进行不初始化的dlg以作为对比
-                gt2 = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
-                                   epochs=self.args.dlg_raw_epochs,  # self.args.dlg_epochs ,  # 轮次要拉大一点
-                                   beta=self.args.dlg_beta,
-                                   gt_init=None,
-                                   lr=args.dlg_lr,
-                                   model_name=self.args.model_name,
-                                   encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                       self.simulator.device),
-                                   attention_mask=attention_mask.fx if attention_mask is not None else None,
-                                   rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
-                                   )
-                dlg2_logits = gt2
+                eval_logits = atk_init.clone()
+                eval_logits[:, -alt_out.shape[1]:, :] = alt_out
+            alt_res = evaluate_attacker_rouge(self.tokenizer, eval_logits, batch)
+            self.__log_atk_res(alt_res, client_id, 'BiSR+')
+        else:
+            if self.args.dlg_enable:
+                gt_init = None
+                if self.args.dlg_init_with_dra:
+                    gt_init = atk_init
+                self.dlg.to(self.simulator.device)
+                gma_name = 'BiSR'
+                if self.dlg.method == 'lamp':
+                    gt = self.simulator.restored_run(self.dlg.fit, key='pretrained', parts=['bottom', 'top', 'trunk'],
+                                                     write_back=False,
+                                                     epochs=self.args.dlg_epochs,
+                                                     lr=args.dlg_lr,
+                                                     inter=tr2t_inter.fx.clone().to(self.simulator.device),
+                                                     gradient=tr2t_inter.grad.clone().to(self.simulator.device),
+                                                     beta=self.args.dlg_beta,
+                                                     gt_init=None,
+                                                     model_name=self.args.model_name,
+                                                     encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
+                                                         self.simulator.device),
+                                                     attention_mask=attention_mask.fx if attention_mask is not None else None,
+                                                     rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
+                                                     lamp=True,
+                                                     lamp_freq=self.args.dlg_lamp_freq
+                                                     )
+                    # lamp_res = evaluate_attacker_rouge(self.tokenizer, gt, batch)
+                    # self.__log_atk_res(lamp_res, client_id, 'LAMP')
+                    gma_name = 'LAMP'
+                elif self.dlg.method == 'bisr':
+                    gt = self.simulator.restored_run(self.dlg.fit, key='pretrained', parts=['bottom', 'top'],
+                                                     write_back=False,
+                                                     epochs=self.args.dlg_epochs,
+                                                     lr=args.dlg_lr,
+                                                     inter=tr2t_inter.fx.clone().to(self.simulator.device),
+                                                     gradient=tr2t_inter.grad.clone().to(self.simulator.device),
+                                                     beta=self.args.dlg_beta,
+                                                     gt_init=gt_init,
+                                                     model_name=self.args.model_name,
+                                                     encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
+                                                         self.simulator.device),
+                                                     attention_mask=attention_mask.fx if attention_mask is not None else None,
+                                                     rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
+                                                     lamp=True,
+                                                     lamp_freq=self.args.dlg_lamp_freq
+                                                     )
+                    # lamp_res = evaluate_attacker_rouge(self.tokenizer, gt, batch)
+                    # self.__log_atk_res(lamp_res, client_id, 'LAMP')
+                    gma_name = 'BiSR'
+                else:
+                    gt = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device),
+                                      tr2t_inter.grad.to(self.simulator.device),
+                                      epochs=self.args.dlg_epochs,
+                                      adjust=args.dlg_adjust,
+                                      beta=self.args.dlg_beta,
+                                      gt_init=gt_init,
+                                      lr=args.dlg_lr,
+                                      init_temp=self.args.dlg_init_temp,
+                                      gt_reg=self.args.dlg_dra_reg,
+                                      temp_range=self.args.dlg_temp_range,
+                                      further_ft=self.args.dlg_further_ft,
+                                      encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
+                                          self.simulator.device),
+                                      model_name=self.args.model_name,
+                                      attention_mask=attention_mask.fx if attention_mask is not None else None,
+                                      rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
+                                      )
+                dlg_logits = gt
                 if self.llm.type == 'encoder-decoder':
-                    dlg2_logits = attacked.clone()
-                    dlg2_logits[:, -gt2.shape[1]:, :] = gt2
-                tag_res = evaluate_attacker_rouge(self.tokenizer, dlg2_logits, batch)
-                self.__log_atk_res(tag_res, client_id, 'TAG')
+                    dlg_logits = attacked.clone()
+                    dlg_logits[:, -gt.shape[1]:, :] = gt
+                atk_init = dlg_logits
+                dlg_res = evaluate_attacker_rouge(self.tokenizer, dlg_logits, batch)
+                self.__log_atk_res(dlg_res, client_id, gma_name)
 
-        if self.args.wba_enable:
-            atk = WhiteBoxMIAttacker()
-            spis_out = self.simulator.restored_run(atk.fit, key='pretrained', parts=['bottom', 'top'],
-                                                   tok=self.tokenizer,
-                                                   llm=self.llm, b2tr_inter=b2tr_inter, gt=batch,
-                                                   dummy_init=atk_init, epochs=200)
-            wba_res = evaluate_attacker_rouge(self.tokenizer, spis_out, batch)
-            self.__log_atk_res(wba_res, client_id, f'SIPS')
+                if args.dlg_raw_enable:  # 进行不初始化的dlg以作为对比
+                    gt2 = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device),
+                                       tr2t_inter.grad.to(self.simulator.device),
+                                       epochs=self.args.dlg_raw_epochs,  # self.args.dlg_epochs ,  # 轮次要拉大一点
+                                       beta=self.args.dlg_beta,
+                                       gt_init=None,
+                                       lr=args.dlg_lr,
+                                       model_name=self.args.model_name,
+                                       encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
+                                           self.simulator.device),
+                                       attention_mask=attention_mask.fx if attention_mask is not None else None,
+                                       rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
+                                       )
+                    dlg2_logits = gt2
+                    if self.llm.type == 'encoder-decoder':
+                        dlg2_logits = attacked.clone()
+                        dlg2_logits[:, -gt2.shape[1]:, :] = gt2
+                    tag_res = evaluate_attacker_rouge(self.tokenizer, dlg2_logits, batch)
+                    self.__log_atk_res(tag_res, client_id, 'TAG')
+
+            if self.args.wba_enable:
+                atk = WhiteBoxMIAttacker()
+                with ParamRestored(llm=self.llm, param_keeper=self.simulator.parameter_keeper, key='pretrained',
+                                   parts=['bottom']):
+                    spis_out = atk.fit(tok=self.tokenizer,
+                                       llm=self.llm, b2tr_inter=b2tr_inter, gt=batch,
+                                       dummy_init=atk_init, epochs=self.args.wba_epochs, lr=args.wba_lr, cos_loss=True)
+                wba_res = evaluate_attacker_rouge(self.tokenizer, spis_out, batch)
+                self.__log_atk_res(wba_res, client_id, f'BiSR+')
+            if self.args.wba_raw_enable:
+                atk = WhiteBoxMIAttacker()
+                # wba_raw_out = self.simulator.restored_run(atk.fit, key='pretrained', parts=['bottom', 'top'],
+                #                                           tok=self.tokenizer,
+                #                                           llm=self.llm, b2tr_inter=b2tr_inter, gt=batch, lr=args.wba_lr,
+                #                                           dummy_init=None, epochs=self.args.wba_raw_epochs)
+                with ParamRestored(llm=self.llm, param_keeper=self.simulator.parameter_keeper, key='pretrained',
+                                   parts=['bottom']):
+                    wba_raw_out = atk.fit(tok=self.tokenizer,
+                                          llm=self.llm, b2tr_inter=b2tr_inter, gt=batch, lr=args.wba_lr,
+                                          dummy_init=None, epochs=self.args.wba_raw_epochs, cos_loss=False)
+                wba_raw_res = evaluate_attacker_rouge(self.tokenizer, wba_raw_out, batch)
+                self.__log_atk_res(wba_raw_res, client_id, f'MIA')
             # wba_out = self.simulator.restored_run(atk.fit, key='pretrained', parts=['bottom', 'top'],
             #                                       tok=self.tokenizer,
             #                                       llm=self.llm, b2tr_inter=b2tr_inter, gt=batch)

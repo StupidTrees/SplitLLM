@@ -52,7 +52,7 @@ class ChatGLMForConditionalGenerationSplit(ChatGLMForConditionalGeneration, Spli
         return self.transformer.get_all_inter(detach=detach)
 
     def change_noise(self, scale, mode=None):
-        super(ChatGLMForConditionalGenerationSplit, self).change_noise()
+        super(ChatGLMForConditionalGenerationSplit, self).change_noise(scale,mode)
         self.transformer.change_noise(scale, mode)
 
     def forward(

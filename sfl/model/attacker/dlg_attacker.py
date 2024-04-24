@@ -55,7 +55,7 @@ class DLGAttacker(nn.Module):
         return grad_diff
 
     def fit(self, inter, gradient, epochs=300, adjust=0, beta=0.85, lr=0.09, gt_init=None, init_temp=1.0,
-            model_name=None, lamp=False, lamp_freq=30, **kwargs):
+            model_name=None, lamp=False, lamp_freq=30, softmax=True, **kwargs):
         if model_name == 'chatglm':
             gradient = gradient.permute(1, 0, 2)
             inter = inter.permute(1, 0, 2)
@@ -66,7 +66,8 @@ class DLGAttacker(nn.Module):
                 gt_init = gt_init[:, -gradient.shape[1]:, :]
             dra_attacked = gt_init.clone().detach().to(inter.device)  # (batch_size, seq_len, vocab_size)
             # softmax with temperature
-            dra_attacked = torch.softmax(dra_attacked / init_temp, dim=-1)
+            if softmax:
+                dra_attacked = torch.softmax(dra_attacked / init_temp, dim=-1)
             # dra_attacked = torch.softmax(dra_attacked, dim=-1)
 
             gt = dra_attacked.clone()

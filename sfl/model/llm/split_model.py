@@ -27,7 +27,7 @@ class SplitModel(nn.Module, ABC):
         self.noise_mode = None
         self.perturbers = {'gaussian': GaussianPerturber()}
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks: list = None):
         self.fl_config = config
         self.param_keeper = param_keeper
         self.noise_mode = config.noise_mode

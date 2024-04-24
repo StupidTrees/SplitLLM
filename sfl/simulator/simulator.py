@@ -10,7 +10,7 @@ from transformers import AdamW
 from sfl.config import FLConfig
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.dataset import FedDataset
-from sfl.simulator.param_keeper import InMemoryParameterKeeper
+from sfl.simulator.param_keeper import InMemoryParameterKeeper, ParameterKeeper
 from sfl.simulator.strategy import FLStrategy
 from sfl.utils.data import size_str, tensor_bytes
 from sfl.utils.model import get_best_gpu
@@ -372,3 +372,60 @@ class CircularDataLoaderIterator:
                 return batch_data
             else:
                 raise StopIteration
+
+
+class ParamRestored:
+
+    def __init__(self, llm: SplitWrapperModel, param_keeper: InMemoryParameterKeeper, parts=None, key: str = '',
+                 write_back=True,
+                 disable_inter_collection=True):
+        self.parts = parts
+        self.llm = llm
+        self.pk = param_keeper
+        self.key = key
+        self.write_back = write_back
+        self.disable_inter_collection = disable_inter_collection
+        self.cfg_bk = None
+        self.backup_params = None
+
+    def __enter__(self):
+        self.cfg_bk = deepcopy(self.llm.fl_config)
+        if self.disable_inter_collection:
+            cfg = self.llm.fl_config
+            cfg.collect_intermediates = False
+            self.llm.config_sfl(cfg, self.pk)
+
+        if self.key not in self.pk.other_params:
+            for part in self.pk.other_params['pretrained']:
+                self.pk.store_other_params(self.key, part,
+                                                             self.pk.get_other_params('pretrained',
+                                                                                                        part))
+        if self.parts is None:
+            self.parts = ['top', 'bottom']
+        self.backup_params = {}
+        for part in self.parts:
+            if part == 'top':
+                self.backup_params[part] = [p.detach().cpu() for nm, p in self.llm.get_top_params()]
+                self.llm.load_top_params(self.pk.get_other_params(self.key, part))
+            elif part == 'bottom':
+                self.backup_params[part] = [p.detach().cpu() for nm, p in self.llm.get_bottom_params()]
+                self.llm.load_bottom_params(self.pk.get_other_params(self.key, part))
+            elif part == 'trunk':
+                self.backup_params[part] = [p.detach().cpu() for nm, p in self.llm.get_trunk_params()]
+                self.llm.load_trunk_params(self.pk.get_other_params(self.key, part))
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for part in self.parts:
+            updated_params = []
+            if part == 'top':
+                updated_params = [p.detach().cpu() for nm, p in self.llm.get_top_params()]
+                self.llm.load_top_params(self.backup_params[part])
+            elif part == 'bottom':
+                updated_params = [p.detach().cpu() for nm, p in self.llm.get_bottom_params()]
+                self.llm.load_bottom_params(self.backup_params[part])
+            elif part == 'trunk':
+                updated_params = [p.detach().cpu() for nm, p in self.llm.get_trunk_params()]
+                self.llm.load_trunk_params(self.backup_params[part])
+            if self.write_back:
+                self.pk.store_other_params(self.key, part, updated_params)
+        self.llm.config_sfl(self.cfg_bk, self.pk)

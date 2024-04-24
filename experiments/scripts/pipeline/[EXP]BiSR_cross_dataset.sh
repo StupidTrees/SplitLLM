@@ -2,7 +2,7 @@
 seed=42
 
 dataset_label='train'
-exp_name='[CCS]BIG_TABLE'
+exp_name='[CCS]BIG_TABLE2'
 client_num=1
 global_round=1
 client_steps=500
@@ -18,29 +18,40 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_names=('llama2')
+model_names=('gpt2-large')
 attack_model='gru'
 sps='6-26'
 attacker_sp=6
 batch_size=2
-dlg_enable=True
+dlg_enable=False
 dlg_adjust=0
 dlg_epochs=18
 dlg_beta=0.85
 dlg_lr=0.09
 dlg_init_with_dra=True
-dlg_raw_enable=True
+dlg_raw_enable=False
 dlg_raw_epochs=400
 dlg_method='tag'
 dlg_lamp_freq=30
 
-wba_enable=False
-attacker_freq=20
+wba_enable=True
+wba_raw_enable=False
+wba_lr=0.001
+wba_raw_epochs=1000
+wba_epochs=400
+
+alt_enable=False
+alt_steps=2
+alt_fwd_steps=64
+alt_bwd_steps=18
+
+attacker_freq=200
 attacker_samples=10
 max_global_step=610
 
 attacker_datasets=("sensireplaced")
-sfl_datasets=("piqa" "codealpaca" "dialogsum" "sensimarked" "gsm8k" "wikitext")
+sfl_datasets=("piqa" "codealpaca" "sensimarked" "gsm8k" "wikitext")
+
 max_seq_len=-1
 #("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
 
@@ -50,6 +61,9 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       dataset_test_frac=0.1
       if [ "$model_name" == "llama2" ] || [ "$model_name" == "llama3" ]; then
         dlg_epochs=6
+        wba_lr=0.001
+        wba_epochs=180
+        wba_raw_epochs=2400
         if [ "$sfl_dataset" == "codealpaca" ]; then
           dlg_epochs=30
         fi
@@ -60,22 +74,30 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         fi
       fi
 
-#      if [ "$model_name" == "llama3" ]; then
-#        max_seq_len=256
-#      fi
-
+      #      if [ "$model_name" == "llama3" ]; then
+      #        max_seq_len=256
+      #      fi
 
       if [ "$model_name" == "chatglm" ]; then
         dlg_epochs=18
         max_seq_len=256
         dlg_raw_epochs=500
         dataset_test_frac=1.0
+        wba_lr=0.01
+        wba_epochs=500
+        wba_raw_epochs=2400
       fi
-
-
 
       if [ "$model_name" == "gpt2-large" ]; then
         dlg_epochs=18
+        wba_lr=0.01
+        wba_epochs=600
+        wba_raw_epochs=2400
+        if [ "$sfl_dataset" == "codealpaca" ]; then
+          wba_lr=0.01
+          wba_epochs=200
+          wba_raw_epochs=2400
+        fi
       fi
 
       if [ "$model_name" == "flan-t5-large" ]; then
@@ -109,7 +131,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         --dataset_test_frac "$dataset_test_frac" \
         --save_checkpoint True \
         --log_to_wandb False
-        #        --noise_mode "$noise_mode" \
+      #        --noise_mode "$noise_mode" \
 
       case_name="${model_name}-${sfl_dataset}<${attacker_dataset}-[${tag}]"
 
@@ -155,8 +177,16 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         --attacker_freq "$attacker_freq" \
         --attacker_samples "$attacker_samples" \
         --max_global_step "$max_global_step" \
-        --wba_enable "$wba_enable"\
-        --noise_scale_dxp "$noise_scale"
+        --wba_enable "$wba_enable" \
+        --wba_epochs "$wba_epochs" \
+        --wba_raw_enable "$wba_raw_enable" \
+        --wba_raw_epochs "$wba_raw_epochs" \
+        --noise_scale_dxp "$noise_scale" \
+        --alt_enable "$alt_enable" \
+        --alt_steps "$alt_steps" \
+        --alt_fwd_steps "$alt_fwd_steps" \
+        --alt_bwd_steps "$alt_bwd_steps" \
+        --wba_lr "$wba_lr"
     done
   done
 done

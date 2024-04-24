@@ -145,11 +145,15 @@ class ChatGLMSplitModel(ChatGLMModel, SplitModel):
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        batch_size, seq_length = input_ids.shape
+        if input_ids is not None:
+            batch_size, seq_length = input_ids.shape
+        else:
+            batch_size, seq_length = inputs_embeds.shape[1], inputs_embeds.shape[0]
 
         if inputs_embeds is None:
             inputs_embeds = self.embedding(input_ids)
-            inputs_embeds = self.inject_after_embedding(inputs_embeds)
+
+        inputs_embeds = self.inject_after_embedding(inputs_embeds)
 
         if self.pre_seq_len is not None:
             if past_key_values is None:
