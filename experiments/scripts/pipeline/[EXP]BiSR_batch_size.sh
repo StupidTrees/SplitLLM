@@ -1,7 +1,7 @@
 # 实验：如果客户端的Bottom和Top是事先微调过的
 seed=42
 
-exp_name='[EXP]BiSR-batch_size'
+exp_name='[CCS]BiSR-batch_size'
 client_num=1
 global_round=1
 client_steps=600
@@ -34,6 +34,12 @@ dlg_adjust=0
 dlg_epochs=18
 dlg_beta=0.85
 dlg_init_with_dra=True
+
+wba_enable=True
+wba_raw_enable=True
+wba_lr=0.01
+wba_epochs=600
+wba_raw_epochs=2000
 
 batch_sizes=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24)
 
@@ -93,5 +99,10 @@ for batch_size in "${batch_sizes[@]}"; do
     --dlg_epochs "$dlg_epochs" \
     --dlg_beta "$dlg_beta" \
     --dlg_init_with_dra "$dlg_init_with_dra" \
-    --dlg_raw_enable True
+    --dlg_raw_enable True \
+    --wba_enable "$wba_enable" \
+    --wba_raw_enable "$wba_raw_enable" \
+    --wba_lr "$wba_lr" \
+    --wba_raw_epochs "$wba_raw_epochs" \
+    --wba_epochs "$wba_epochs"
 done

@@ -26,7 +26,7 @@ model_name='gpt2-large'
 dataset_label='train'
 data_shrink_frac=1.0 # 被攻击数据集的缩减比例
 max_global_step=810  # 攻击800个batch
-attacker_dataset="piqa"
+attacker_dataset="sensireplaced"
 attacker_training_fraction=1.0 # 攻击模型的训练集比例
 sfl_dataset="piqa"
 
@@ -35,9 +35,14 @@ dlg_adjust=0
 dlg_epochs=18
 dlg_beta=0.85
 dlg_init_with_dra=True
+wba_enable=True
+wba_raw_enable=True
+wba_lr=0.01
+wba_epochs=600
+wba_raw_epochs=2000
 
 pre_ft_dataset='codealpaca'
-pre_ft_steps=(0 2400 4800 7200 9600 12000 14400)
+pre_ft_steps=(0 2400 4800 7200 9600 12000 14400 16800)
 
 for pre_ft_max_steps in "${pre_ft_steps[@]}"; do
 
@@ -97,6 +102,10 @@ for pre_ft_max_steps in "${pre_ft_steps[@]}"; do
     --dlg_epochs "$dlg_epochs" \
     --dlg_beta "$dlg_beta" \
     --dlg_init_with_dra "$dlg_init_with_dra" \
-    --dlg_raw_enable True
-
+    --dlg_raw_enable True \
+    --wba_enable "$wba_enable" \
+    --wba_raw_enable "$wba_raw_enable" \
+    --wba_lr "$wba_lr" \
+    --wba_raw_epochs "$wba_raw_epochs" \
+    --wba_epochs "$wba_epochs"
 done

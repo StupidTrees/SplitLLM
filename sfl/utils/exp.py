@@ -135,7 +135,6 @@ def add_sfl_params(parser):
     parser.add_argument('--alt_steps', type=int, default=3)
     parser.add_argument('--alt_fwd_steps', type=int, default=64)
     parser.add_argument('--alt_bwd_steps', type=int, default=18)
-
     parser.add_argument('--self_pt_enable', type=str2bool, default=False)
     parser.add_argument('--entangle_enable', type=str2bool, default=False)
     parser.add_argument('--client_steps', type=int, default=50)

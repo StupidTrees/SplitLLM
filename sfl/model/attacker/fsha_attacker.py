@@ -82,10 +82,9 @@ class FSHAAttacker(PreTrainedModel):
                                    target_config)
         self.config.vocab_size = self.f_inv.config.vocab_size
         self.config.n_embed = self.f_inv.config.n_embed
-        self.f = GRUDRAttacker(
-            LSTMDRAttackerConfig(vocab_size=self.config.n_embed, n_embed=self.config.vocab_size,
+        self.f = GRUDRAttacker(LSTMDRAttackerConfig(vocab_size=self.config.n_embed, n_embed=target_config.vocab_size,
                                  hidden_size=self.config.f_hidden_size,
-                                 dropout=self.config.f_dropout),target_config)
+                                 dropout=self.config.f_dropout))
         self.d = torch.nn.GRU(self.config.n_embed, self.config.d_hidden_size, batch_first=True)
         self.d_mlp = torch.nn.Sequential(
             torch.nn.Linear(self.config.d_hidden_size, 1),

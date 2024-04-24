@@ -496,6 +496,7 @@ def saliency_analysis(llm, input_ids, max_length=32):
     llm.train(False)
     with FLConfigHolder(llm) as ch:
         llm.fl_config.collect_intermediates = False
+        llm.fl_config.noise_mode = 'none'
         ch.change_config()
         saliency_stacks = []
         saliency_avgs = []

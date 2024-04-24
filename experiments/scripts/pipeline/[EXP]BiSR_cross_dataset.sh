@@ -18,7 +18,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_names=('gpt2-large')
+model_names=('llama2')
 attack_model='gru'
 sps='6-26'
 attacker_sp=6
@@ -34,8 +34,8 @@ dlg_raw_epochs=400
 dlg_method='tag'
 dlg_lamp_freq=30
 
-wba_enable=True
-wba_raw_enable=False
+wba_enable=False
+wba_raw_enable=True
 wba_lr=0.001
 wba_raw_epochs=1000
 wba_epochs=400
@@ -50,7 +50,7 @@ attacker_samples=10
 max_global_step=610
 
 attacker_datasets=("sensireplaced")
-sfl_datasets=("piqa" "codealpaca" "sensimarked" "gsm8k" "wikitext")
+sfl_datasets=("wikitext")
 
 max_seq_len=-1
 #("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
@@ -65,6 +65,9 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         wba_epochs=180
         wba_raw_epochs=2400
         if [ "$sfl_dataset" == "codealpaca" ]; then
+          dlg_epochs=30
+        fi
+        if [ "$sfl_dataset" == "wikitext" ]; then
           dlg_epochs=30
         fi
         if [ "$dlg_method" == "bisr" ]; then

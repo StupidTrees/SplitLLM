@@ -2,7 +2,7 @@
 seed=42
 
 dataset_label='train'
-exp_name='[TEST]BiSR_diff_noise_dxp'
+exp_name='[TEST2]BiSR_diff_noise_dxp'
 client_num=1
 global_round=1
 client_steps=500
@@ -30,7 +30,7 @@ max_global_step=405
 atk_train_frac=1.0
 
 noise_mode='dxp'
-noise_scale_dxps=(0.2 0.25 0.3 0.35)
+noise_scale_dxps=(0.1 0.15 0.2 0.25 0.3 0.35 0.4)
 attack_models=('moe' 'gru')
 
 attacker_datasets=("sensireplaced")
@@ -45,9 +45,16 @@ dlg_raw_epochs=500
 dlg_lr=0.001
 dlg_beta=0.85
 dlg_method='tag'
-dlg_init_temps=(1.0 2.0 0.8 0.6)
-dlg_epochss=(6 15 30)
-dlg_lrs=(0.04 0.09)
+dlg_init_temps=(1.0)
+dlg_epochss=(12)
+dlg_lrs=(0.04)
+
+
+wba_enable=True
+wba_raw_enable=False
+wba_lr=0.001
+wba_raw_epochs=1000
+wba_epochs=100
 #("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
@@ -112,7 +119,28 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
                 --dataset_train_frac "$atk_train_frac" \
                 --dataset_test_frac 0.1
 
+              # if noise_scale_dxp is 0.1, 0.15, then set lr to 0.08
+              if [ "$noise_scale_dxp" == "0.1" ]; then
+                dlg_epochs=300
+                dlg_lr=0.08
+              fi
+              if [ "$noise_scale_dxp" == "0.15" ]; then
+                dlg_epochs=15
+                dlg_lr=0.08
+              fi
+              if [ "$noise_scale_dxp" == "0.2" ]; then
+                dlg_epochs=15
+                dlg_lr=0.04
+              fi
+              if [ "$noise_scale_dxp" == "0.25" ]; then
+                dlg_epochs=6
+                dlg_lr=0.04
+              fi
+
+
               case_name="Temp[${dlg_init_temp}]-Epochs[${dlg_epochs}]-LR[${dlg_lr}]-Model[${attack_model}]-SFLDXP[${noise_scale}]"
+
+
 
               # 将其用于攻击
               echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -157,7 +185,11 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
                 --attacker_freq "$attacker_freq" \
                 --attacker_samples "$attacker_samples" \
                 --max_global_step "$max_global_step"\
-                --wba_enable "$wba_enable"
+                --wba_enable "$wba_enable"\
+                --wba_raw_enable "$wba_raw_enable"\
+                --wba_lr "$wba_lr"\
+                --wba_raw_epochs "$wba_raw_epochs"\
+                --wba_epochs "$wba_epochs"
             done
           done
         done

@@ -27,7 +27,7 @@ class QAFLStrategy(BaseSFLStrategy):
         self.token_class_hit = {}
 
     def client_evaluate(self, global_round, client_id, log):
-        # super(QAFLStrategy, self).client_evaluate(global_round, client_id, log)
+        super(QAFLStrategy, self).client_evaluate(global_round, client_id, log)
         self.log_sample_text()
 
     def log_sample_text(self):
@@ -47,41 +47,48 @@ class QAFLStrategy(BaseSFLStrategy):
         if 'q_ids' in observe_sample:
             input_sentence = observe_sample['q_ids']
 
-        saliency, next_token_ids, stacks = saliency_analysis(llm, input_sentence)
-        # saliency = saliency.detach().cpu().numpy()
-        images = []
-        for i, (q, a, saliency_matrix) in enumerate(zip(input_sentence, next_token_ids, stacks)):
-            # plot heatmap on saliency_matrix and log to wandb
-            fig, ax = pyplot.subplots()
-            fig.set_size_inches(16, 16)
-            cax = ax.matshow(saliency_matrix, cmap='hot', vmin=0, vmax=1)
-            # scale it to square
-            ax.set_aspect('auto')
-            fig.colorbar(cax)
-            print(len(self.tokenizer.convert_ids_to_tokens(q)),
-                  len(self.tokenizer.convert_ids_to_tokens(a)),
-                  saliency_matrix.shape)
+        if self.args.entangle_enable:
+            saliency, next_token_ids, stacks = saliency_analysis(llm, input_sentence)
+            # saliency = saliency.detach().cpu().numpy()
+            images = []
+            for i, (q, a, saliency_matrix) in enumerate(zip(input_sentence, next_token_ids, stacks)):
+                # plot heatmap on saliency_matrix and log to wandb
+                fig, ax = pyplot.subplots()
+                fig.set_size_inches(16, 16)
+                cax = ax.matshow(saliency_matrix, cmap='hot', vmin=0, vmax=1)
+                # scale it to square
+                ax.set_aspect('auto')
+                fig.colorbar(cax)
 
-            ax.set_xticks(ticks=range(len(q)), labels=self.tokenizer.convert_ids_to_tokens(q))
-            ax.set_yticks(ticks=range(len(a)), labels=self.tokenizer.convert_ids_to_tokens(a))
+                ax.set_xticks(ticks=range(len(q)), labels=self.tokenizer.convert_ids_to_tokens(q))
+                ax.set_yticks(ticks=range(len(a)), labels=self.tokenizer.convert_ids_to_tokens(a))
 
-            # ax.set_yticklabels(self.tokenizer.convert_ids_to_tokens(a), rotation=45)
-            ax.set_xlabel('Input')
-            ax.set_ylabel('Output')
-            ax.set_title('Saliency Matrix')
-            images.append(wandb.Image(fig))
-        wandb.log({'attacked_sample_saliency_matrix': images})
+                # ax.set_yticklabels(self.tokenizer.convert_ids_to_tokens(a), rotation=45)
+                ax.set_xlabel('Input')
+                ax.set_ylabel('Output')
+                ax.set_title('Saliency Matrix')
+                images.append(wandb.Image(fig))
+            wandb.log({'attacked_sample_saliency_matrix': images})
+            table = wandb.Table(
+                columns=["attacked_text", "true_text", "input_text", "generated_text", "input_tokens",
+                         "generated_tokens",
+                         "avg_saliency", "saliency_heatmap"],
+                data=[[txt, gt, self.tokenizer.decode(it, skip_special_tokens=True),
+                       self.tokenizer.decode(nt, skip_special_tokens=True),
+                       self.tokenizer.convert_ids_to_tokens(it),
+                       self.tokenizer.convert_ids_to_tokens(nt),
+                       sa.tolist(), img]
+                      for txt, gt, it, nt, sa, img, stack in
+                      zip(texts, observe_sample['input_text'], input_sentence, next_token_ids, saliency, images,
+                          stacks)])
 
-        table = wandb.Table(
-            columns=["attacked_text", "true_text", "input_text", "generated_text", "input_tokens", "generated_tokens",
-                     "avg_saliency", "saliency_heatmap"],
-            data=[[txt, gt, self.tokenizer.decode(it, skip_special_tokens=True),
-                   self.tokenizer.decode(nt, skip_special_tokens=True),
-                   self.tokenizer.convert_ids_to_tokens(it),
-                   self.tokenizer.convert_ids_to_tokens(nt),
-                   sa.tolist(), img]
-                  for txt, gt, it, nt, sa, img, stack in
-                  zip(texts, observe_sample['input_text'], input_sentence, next_token_ids, saliency, images, stacks)])
+        else:
+            table = wandb.Table(
+                columns=["attacked_text", "true_text", "input_text"],
+                data=[[txt, gt, self.tokenizer.decode(it, skip_special_tokens=True),
+                       ]
+                      for txt, gt, it in
+                      zip(texts, observe_sample['input_text'], input_sentence)])
 
         wandb.log({'attacked_sample_text': table})
 

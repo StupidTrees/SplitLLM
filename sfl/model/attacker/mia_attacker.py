@@ -15,6 +15,7 @@ class WhiteBoxMIAttacker(object):
         with FLConfigHolder(llm) as ch:
             llm.fl_config.attack_mode = 'b2tr'
             llm.fl_config.collect_intermediates = False
+            llm.fl_config.noise_mode = 'none'
             ch.change_config()
 
             if dummy_init is not None:
