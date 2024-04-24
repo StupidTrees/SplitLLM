@@ -1,7 +1,7 @@
 # 实验：如果客户端的Bottom和Top是事先微调过的
 seed=42
 
-exp_name='[EXP]SDRP_pre_ft'
+exp_name='[CCS]SDRP_pre_ft'
 client_num=1
 global_round=1
 client_steps=600
