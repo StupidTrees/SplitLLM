@@ -2,11 +2,14 @@ from dataclasses import dataclass
 
 from transformers import PretrainedConfig
 
-dataset_cache_dir = '/root/autodl-tmp/sfl/datasets/'
-model_download_dir = '/root/autodl-tmp/sfl/models/'
-model_cache_dir = '/root/autodl-tmp/sfl/cache/'
-attacker_path = '/root/autodl-tmp/sfl/models/attacker/'
-fsha_path = '/root/autodl-tmp/sfl/models/attacker-fsha/'
+
+data_root = '/data/stupidtree/data'
+
+dataset_cache_dir = f'{data_root}/sfl/datasets/'
+model_download_dir = f'{data_root}/sfl/models/'
+model_cache_dir = f'{data_root}/sfl/cache/'
+attacker_path = f'{data_root}/sfl/models/attacker/'
+fsha_path = f'{data_root}/sfl/models/attacker-fsha/'
 
 DRA_train_label = {
     'codealpaca': 'test',

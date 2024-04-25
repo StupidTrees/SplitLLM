@@ -31,7 +31,7 @@ atk_train_frac=1.0
 
 noise_mode='dxp'
 noise_scale_dxps=(0.1 0.15 0.2 0.25 0.3 0.35 0.4)
-attack_models=('moe' 'gru')
+attack_models=('gru')
 
 attacker_datasets=("sensireplaced")
 sfl_datasets=("piqa")
@@ -50,8 +50,8 @@ dlg_epochss=(12)
 dlg_lrs=(0.04)
 
 
-wba_enable=True
-wba_raw_enable=False
+wba_enable=False
+wba_raw_enable=True
 wba_lr=0.001
 wba_raw_epochs=1000
 wba_epochs=100
@@ -135,6 +135,9 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
               if [ "$noise_scale_dxp" == "0.25" ]; then
                 dlg_epochs=6
                 dlg_lr=0.04
+              fi
+              if [ "$wba_raw_enable" == "True" ]; then
+                dlg_enable=False
               fi
 
 
