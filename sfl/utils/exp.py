@@ -5,11 +5,13 @@ import torch
 from transformers import AutoTokenizer, BitsAndBytesConfig, OPTForCausalLM, ViTImageProcessor
 
 from sfl import config
-from sfl.config import FLConfig, attacker_path, DRAConfig, model_download_dir, DRA_train_label, fsha_path
+from sfl.config import FLConfig, attacker_path, DRAConfig, model_download_dir, DRA_train_label, fsha_path, mapper_path, \
+    MapperConfig
 from sfl.model.attacker.dlg_attacker import GPT2TopDLGAttacker, T5DecoderDLGAttacker, LLAMA2TopDLGAttacker, \
     ChatGLMDLGAttacker
 from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, MOEDRAttacker, \
     ViTDRAttacker, DecoderDRAttacker, AttnGRUDRAttacker, GRUAttnDRAttacker, AttnDRAttacker
+from sfl.model.attacker.eia_attacker import LMMapper
 from sfl.model.attacker.fsha_attacker import FSHAAttacker
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
@@ -22,6 +24,7 @@ from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
 from sfl.simulator.dataset import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
     GSM8KFedDataset, WikiTextFedDataset, FedDataset, MixtureFedDataset, SensiMarkedFedDataset, \
     SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset, PIQAMiniFedDataset
+from sfl.utils.model import get_best_gpu
 
 
 def str2bool(v):
@@ -60,6 +63,30 @@ def add_train_dra_params(parser):
     parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
     parser.add_argument('--save_checkpoint', type=str2bool, default=False)
     parser.add_argument('--checkpoint_freq', type=int, default=5)
+    parser.add_argument('--save_threshold', type=float, default=0.1)
+    parser.add_argument('--log_to_wandb', type=str2bool, default=False)
+    parser.add_argument('--skip_exists', type=str2bool, default=True)
+
+
+def add_train_mapper_params(parser):
+    parser.add_argument('--exp_name', type=str, default='attacker')
+    parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
+    parser.add_argument('--model_name', type=str, default='gpt2')
+    parser.add_argument('--save_dir', type=str, default=config.mapper_path)
+    parser.add_argument('--dataset', type=str, default='piqa')
+    parser.add_argument('--dataset_train_frac', type=float, default=1.0)
+    parser.add_argument('--dataset_test_frac', type=float, default=1.0)
+    parser.add_argument('--attack_model', type=str, default='moe', help='lstm or ...')
+    parser.add_argument('--load_bits', type=int, default=8, help='load bits for large models')
+    parser.add_argument('--target', type=str, default='6-1', help='mapping target layers')
+    parser.add_argument('--epochs', type=int, default=15)
+    parser.add_argument('--batch_size', type=int, default=6)
+    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--opt', type=str, default='adam')
+    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--save_checkpoint', type=str2bool, default=False)
+    parser.add_argument('--checkpoint_freq', type=int, default=2)
+    parser.add_argument('--save_threshold', type=float, default=0.1)
     parser.add_argument('--log_to_wandb', type=str2bool, default=False)
     parser.add_argument('--skip_exists', type=str2bool, default=True)
 
@@ -105,7 +132,9 @@ def add_sfl_params(parser):
                         help='trained attacker model for b2tr')
     parser.add_argument('--attacker_b2tr_enable', type=str2bool, default=True)
     parser.add_argument('--attacker_b2tr_sp', type=int, default=15)
+    parser.add_argument('--attacker_b2tr_target_sp', type=int, default=-1)
     parser.add_argument('--attacker_tr2t_enable', type=str2bool, default=True)
+    parser.add_argument('--attacker_tr2t_target_sp', type=int, default=-1)
     parser.add_argument('--attacker_tr2t_sp', type=int, default=15)
     parser.add_argument('--client_num', type=int, default=1)
     parser.add_argument('--global_round', type=int, default=4)
@@ -131,6 +160,19 @@ def add_sfl_params(parser):
     parser.add_argument('--wba_lr', type=float, default=0.001)
     parser.add_argument('--wba_raw_enable', type=str2bool, default=False)
     parser.add_argument('--wba_raw_epochs', type=int, default=500)
+    parser.add_argument('--wba_raw_lr', type=float, default=0.09)
+    parser.add_argument('--wba_raw_temp', type=float, default=0.1)
+    parser.add_argument('--wba_raw_wd', type=float, default=0.01)
+    parser.add_argument('--wba_raw_mapped_to', type=int, default=1)
+    parser.add_argument('--wba_at', type=str, default='b2tr')
+    parser.add_argument('--wba_dir_enable', type=str2bool, default=False)
+    parser.add_argument('--mapper_enable', type=str2bool, default=False)
+    parser.add_argument('--mapper_train_frac', type=float, default=1.0)
+    parser.add_argument('--mapper_path', type=str, default=mapper_path)
+    parser.add_argument('--mapper_dataset', type=str,
+                        default='')
+    parser.add_argument('--mapper_target', type=str,
+                        default='')
     parser.add_argument('--alt_enable', type=str2bool, default=False)
     parser.add_argument('--alt_steps', type=int, default=3)
     parser.add_argument('--alt_fwd_steps', type=int, default=64)
@@ -196,6 +238,26 @@ def get_dra_config(args) -> DRAConfig:
     return res
 
 
+def get_mapper_config(args) -> MapperConfig:
+    res = MapperConfig()
+    res.path = args.mapper_path
+    res.dataset = args.mapper_dataset
+    if args.mapper_dataset is None or len(args.mapper_dataset) == 0:
+        res.dataset = args.dataset
+    if ',' in res.dataset:
+        res.train_label = DRA_train_label[res.dataset.split(',')[0]]
+    else:
+        res.train_label = DRA_train_label[res.dataset]
+    res.train_frac = args.mapper_train_frac
+    if args.mapper_target is None or len(args.mapper_target) == 0:
+        args.mapper_target = f'${args.attacker_b2tr_sp}-1'
+    res.from_layer = int(args.mapper_target.split('-')[0])
+    res.to_layer = int(args.mapper_target.split('-')[1])
+    res.target_dataset = args.dataset
+    res.target_model_name = args.model_name
+    return res
+
+
 def get_model_path(model_name):
     path = ''
     if model_name.startswith('gpt2'):
@@ -256,7 +318,7 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
 
     if task == 'clsf':
         kwargs['num_labels'] = num_labels
-    model = clz.from_pretrained(get_model_path(model_name), **kwargs)
+    model = clz.from_pretrained(get_model_path(model_name), device_map=str(get_best_gpu()), **kwargs)
     if tokenizer is not None and 'chatglm' not in model_name:
         if model.config.pad_token_id is not None:
             tokenizer.pad_token_id = model.config.pad_token_id
@@ -343,6 +405,8 @@ def get_attacker_class(attack_model):
 
 
 def get_dra_attacker(dra_config: DRAConfig):
+    if not dra_config.b2tr_enable and not dra_config.tr2t_enable:
+        return None, None
     dataset = dra_config.dataset
     if dataset is None:
         dataset = dra_config.target_dataset
@@ -354,7 +418,7 @@ def get_dra_attacker(dra_config: DRAConfig):
     attacker_path = dra_config.path + f'{model_name}/{dataset}/'
     matches = []
     for d in os.listdir(attacker_path):
-        pattern = f'{dra_config.train_label}*{dra_config.train_frac:.3f}'
+        pattern = f'{DRA_train_label[dataset]}*{dra_config.train_frac:.3f}'
         if ',' in dra_config.dataset:
             pattern = f'Tr{dra_config.train_frac:.3f}'
         if d.startswith(pattern):
@@ -394,6 +458,37 @@ def get_dra_attacker(dra_config: DRAConfig):
     if attacker_path_2:
         attacker2 = get_attacker_class(dra_config.model).from_pretrained(attacker_path_2)
     return attacker, attacker2
+
+
+def get_eia_mapper(mapper_config: MapperConfig):
+    dataset = mapper_config.dataset
+    if dataset is None:
+        dataset = mapper_config.target_dataset
+
+    model_name = mapper_config.target_model_name
+    if 'llama' in model_name or 'chatglm' in model_name:
+        model_name += f"-{mapper_config.target_model_load_bits}bits"
+    mapper_path = mapper_config.path + f'{model_name}/{dataset}/'
+    matches = []
+    for d in os.listdir(mapper_path):
+        pattern = f'{DRA_train_label[dataset]}*{mapper_config.train_frac:.3f}'
+        if ',' in mapper_config.dataset:
+            pattern = f'Tr{mapper_config.train_frac:.3f}'
+        if d.startswith(pattern):
+            mapper_path = os.path.join(mapper_path, d) + '/'
+            matches.append(mapper_path)
+    assert len(matches) > 0
+    mapper_path_1 = None
+    for attacker_path in matches:
+        mapper_path_1 = attacker_path + f'{mapper_config.from_layer}-{mapper_config.to_layer}/'
+        l = sorted(list(os.listdir(mapper_path_1)), key=lambda x: float(x.split('_')[-1]))[
+            -1 if mapper_config.larger_better else 0]
+        mapper_path_1 = os.path.join(mapper_path_1, l)
+        if not os.path.exists(mapper_path_1):
+            mapper_path_1 = None
+    if mapper_path_1:
+        return LMMapper.from_pretrained(mapper_path_1)
+    return None
 
 
 def get_fsha_attacker(dra_config: DRAConfig):

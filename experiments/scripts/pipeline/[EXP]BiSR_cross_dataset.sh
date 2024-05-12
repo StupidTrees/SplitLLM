@@ -16,9 +16,9 @@ self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
-collect_all_layers=True
+collect_all_layers=False
 
-model_names=('llama2')
+model_names=('chatglm')
 attack_model='gru'
 sps='6-26'
 attacker_sp=6
@@ -35,10 +35,11 @@ dlg_method='tag'
 dlg_lamp_freq=30
 
 wba_enable=False
-wba_raw_enable=True
+wba_raw_enable=False
 wba_lr=0.001
 wba_raw_epochs=1000
 wba_epochs=400
+wba_dir_enable=True
 
 alt_enable=False
 alt_steps=2
@@ -49,8 +50,9 @@ attacker_freq=200
 attacker_samples=10
 max_global_step=610
 
+
 attacker_datasets=("sensireplaced")
-sfl_datasets=("wikitext")
+sfl_datasets=( "codealpaca"  "sensimarked")
 
 max_seq_len=-1
 #("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
@@ -62,7 +64,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       if [ "$model_name" == "llama2" ] || [ "$model_name" == "llama3" ]; then
         dlg_epochs=6
         wba_lr=0.001
-        wba_epochs=180
+        wba_epochs=160
         wba_raw_epochs=2400
         if [ "$sfl_dataset" == "codealpaca" ]; then
           dlg_epochs=30
@@ -117,10 +119,16 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
       tag="$dlg_method"
 
       if [ "$wba_enable" == "True" ]; then
-        dlg_enable=True
+#        dlg_enable=True
         dlg_raw_enable=False
         tag="wba"
       fi
+
+
+
+      # !!!!
+      dlg_raw_enable=False
+      wba_raw_enable=False
 
       # 先训练攻击模型
       echo "Running train_attacker.py with atk_ds=$attacker_dataset"
@@ -189,7 +197,8 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         --alt_steps "$alt_steps" \
         --alt_fwd_steps "$alt_fwd_steps" \
         --alt_bwd_steps "$alt_bwd_steps" \
-        --wba_lr "$wba_lr"
+        --wba_lr "$wba_lr"\
+        --wba_dir_enable "$wba_dir_enable"
     done
   done
 done

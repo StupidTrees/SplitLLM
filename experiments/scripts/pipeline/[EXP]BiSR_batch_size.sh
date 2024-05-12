@@ -31,17 +31,18 @@ sfl_dataset="piqa-mini"
 
 dlg_enable=True
 dlg_adjust=0
-dlg_epochs=18
+dlg_epochs=30
 dlg_beta=0.85
 dlg_init_with_dra=True
-
+dlg_raw_enable=False
 wba_enable=True
-wba_raw_enable=True
+wba_raw_enable=False
 wba_lr=0.01
-wba_epochs=600
+wba_dir_enable=True
+wba_epochs=100
 wba_raw_epochs=2000
 
-batch_sizes=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24)
+batch_sizes=(8)
 
 for batch_size in "${batch_sizes[@]}"; do
 
@@ -99,10 +100,11 @@ for batch_size in "${batch_sizes[@]}"; do
     --dlg_epochs "$dlg_epochs" \
     --dlg_beta "$dlg_beta" \
     --dlg_init_with_dra "$dlg_init_with_dra" \
-    --dlg_raw_enable True \
+    --dlg_raw_enable "$dlg_raw_enable" \
     --wba_enable "$wba_enable" \
     --wba_raw_enable "$wba_raw_enable" \
     --wba_lr "$wba_lr" \
     --wba_raw_epochs "$wba_raw_epochs" \
-    --wba_epochs "$wba_epochs"
+    --wba_epochs "$wba_epochs"\
+    --wba_dir_enable "$wba_dir_enable"
 done

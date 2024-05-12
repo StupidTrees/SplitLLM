@@ -37,7 +37,6 @@ def train_attacker(args):
     训练攻击模型
     :param args:
     """
-
     model, tokenizer = get_model_and_tokenizer(args.model_name, load_bits=args.load_bits)
 
     def get_output(text, encoder_model, attack_model):
@@ -165,7 +164,7 @@ def train_attacker(args):
                     if logits is None:
                         continue
                     loss += calc_unshift_loss(logits, input_ids)
-                    res = evaluate_attacker_rouge(tokenizer, logits, batch)
+                    res, _, _ = evaluate_attacker_rouge(tokenizer, logits, batch)
                     rougeLs[i] += res['rouge-l']['f']
                 loss.backward()
                 optimizer.step()
@@ -215,7 +214,7 @@ def train_attacker(args):
                 input_ids, intermediate = llm_forward(args, model, batch, tokenizer)
                 logits = attack_model(intermediate)
                 loss = calc_unshift_loss(logits, input_ids)
-                res = evaluate_attacker_rouge(tokenizer, logits, batch)
+                res, _, _ = evaluate_attacker_rouge(tokenizer, logits, batch)
                 rougeL_total += res['rouge-l']['f']
                 loss.backward()
                 optimizer2.step()
@@ -263,7 +262,7 @@ def train_attacker(args):
                 input_ids, intermediate = llm_forward(args, model, batch, tokenizer)
                 logits = attack_model(intermediate)
                 loss = calc_unshift_loss(logits, input_ids)
-                res = evaluate_attacker_rouge(tokenizer, logits, batch)
+                res, _, _ = evaluate_attacker_rouge(tokenizer, logits, batch)
                 rougeL_total += res['rouge-l']['f']
                 loss.backward()
                 optimizer3.step()
@@ -278,7 +277,7 @@ def train_attacker(args):
                 item_count += 1
             # 计算测试集上的ROGUE
             if (epc + 1) % 1 == 0:
-                evaluate(epc*100, model, attack_model, tokenizer, dataloader_test, args)
+                evaluate(epc * 100, model, attack_model, tokenizer, dataloader_test, args)
             if args.log_to_wandb:
                 log_dict = {'epoch': epc, 'Total_RgL': rougeL_total / item_count}
                 wandb.log(log_dict)

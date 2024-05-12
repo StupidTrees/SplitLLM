@@ -42,7 +42,7 @@ wba_epochs=600
 wba_raw_epochs=2000
 
 pre_ft_dataset='codealpaca'
-pre_ft_steps=(0 2400 4800 7200 9600 12000 14400 16800)
+pre_ft_steps=(12000 14400 16800) # 0 2400 4800 7200 9600
 
 for pre_ft_max_steps in "${pre_ft_steps[@]}"; do
 
@@ -57,6 +57,7 @@ for pre_ft_max_steps in "${pre_ft_steps[@]}"; do
     --dataset "$attacker_dataset" \
     --attack_model "$attack_model" \
     --attack_mode 'b2tr' \
+    --dataset_test_frac 0.1 \
     --noise_mode "$noise_mode" \
     --sps "$sps" \
     --save_checkpoint True \

@@ -29,8 +29,8 @@ attacker_samples=5
 max_global_step=405
 atk_train_frac=1.0
 
-noise_mode='dxp'
-noise_scale_dxps=(0.1 0.15 0.2 0.25 0.3 0.35 0.4)
+noise_mode='none'
+noise_scale_dxps=(10000.0)
 attack_models=('gru')
 
 attacker_datasets=("sensireplaced")
@@ -53,8 +53,9 @@ dlg_lrs=(0.04)
 wba_enable=False
 wba_raw_enable=True
 wba_lr=0.001
-wba_raw_epochs=1000
+wba_raw_epochs=2400
 wba_epochs=100
+wba_dir_enable=True
 #("piqa" "codealpaca" "dialogsum"  "sensimarked" "gsm8k" "wikitext")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
@@ -83,6 +84,8 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
               if [ "$attack_model" = "gru" ]; then
                 attacker_noise_mode='none'
                 dlg_raw_enable=False
+                wba_enable=False
+                wba_raw_enable=False
               fi
               if [ "$raw_tested" = "True" ]; then
                 dlg_raw_enable=False
@@ -101,6 +104,8 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
                 attack_model="gru"
                 attacker_noise_mode='none'
                 dlg_enable=False
+                wba_enable=False
+                wba_raw_enable=False
               fi
 
               echo "Running $file with seed=$seed, dataset=$attacker_dataset"
@@ -110,7 +115,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
                 --dataset "$attacker_dataset" \
                 --attack_model "$attack_model" \
                 --attack_mode "b2tr" \
-                --sps "$sps" \
+                --sps "${attacker_sp}-27" \
                 --save_checkpoint True \
                 --log_to_wandb False \
                 --noise_mode "${attacker_noise_mode}" \
@@ -140,6 +145,12 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
                 dlg_enable=False
               fi
 
+              # !!!!
+              dlg_enable=False
+              wba_enable=False
+              wba_raw_enable=True
+              dlg_raw_enable=False
+              attacker_freq=10
 
               case_name="Temp[${dlg_init_temp}]-Epochs[${dlg_epochs}]-LR[${dlg_lr}]-Model[${attack_model}]-SFLDXP[${noise_scale}]"
 
@@ -192,7 +203,8 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
                 --wba_raw_enable "$wba_raw_enable"\
                 --wba_lr "$wba_lr"\
                 --wba_raw_epochs "$wba_raw_epochs"\
-                --wba_epochs "$wba_epochs"
+                --wba_epochs "$wba_epochs"\
+                --wba_dir_enable "$wba_dir_enable"
             done
           done
         done

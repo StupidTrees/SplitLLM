@@ -2,13 +2,13 @@ from dataclasses import dataclass
 
 from transformers import PretrainedConfig
 
-
 data_root = '/data/stupidtree/data'
 
 dataset_cache_dir = f'{data_root}/sfl/datasets/'
 model_download_dir = f'{data_root}/sfl/models/'
 model_cache_dir = f'{data_root}/sfl/cache/'
 attacker_path = f'{data_root}/sfl/models/attacker/'
+mapper_path = f'{data_root}/sfl/models/mapper/'
 fsha_path = f'{data_root}/sfl/models/attacker-fsha/'
 
 DRA_train_label = {
@@ -31,7 +31,7 @@ DRA_test_label['hc3cn'] = 'finance'
 DRA_test_label['imagewoof'] = 'validation'
 
 dxp_moe_range = {0.08, 0.21, 0.38}
-gaussian_moe_range = {0.5, 1.0, 1.5}
+gaussian_moe_range = {3.0, 5.0, 8.0}
 dc_moe_range = {12.0, 24.0, 48.0}
 
 
@@ -91,3 +91,19 @@ class DRAConfig:
     target_sps: str = None
     target_model_load_bits: int = 8
     larger_better: bool = True
+
+
+
+@dataclass
+class MapperConfig:
+    path: str = mapper_path
+    from_layer: int = 6
+    to_layer: int = 1
+    dataset: str = None  # what dataset the DRAttacker is trained on
+    train_frac: float = 1.0  # percentage of dataset used for training
+    prefix: str = 'normal'
+    target_model_name: str = None
+    target_dataset: str = None
+    # target_sps: str = None
+    target_model_load_bits: int = 8
+    larger_better: bool = False

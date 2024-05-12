@@ -81,7 +81,7 @@ def evaluate(epc, md, attacker, tok, test_data_loader, args):
     print(
         f'Epoch {epc} Test Rouge_l_f1: {rouge_l_f1 / dl_len}')  # , Test2 Rouge_l_f1: {rouge_l_f1_x / dl_len if attacker2 else 0}')
     p = get_save_path(md.fl_config, args.save_dir, args)
-    if rouge_l_f1 / dl_len > 0.1 and args.save_checkpoint:
+    if rouge_l_f1 / dl_len > args.save_threshold and args.save_checkpoint:
         attacker.save_pretrained(p + f'epoch_{epc}_rouge_{rouge_l_f1 / dl_len:.4f}')
     if args.log_to_wandb:
         log_dict = {'epoch': epc, 'test_rouge_1': rouge_1 / dl_len, 'test_rouge_2': rouge_2 / dl_len,

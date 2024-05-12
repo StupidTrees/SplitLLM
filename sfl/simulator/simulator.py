@@ -35,7 +35,10 @@ class SFLSimulator(object):
         self.tokenizer = tokenizer
         self.dataset = dataset
         self.config = config
-        self.device = get_best_gpu() if torch.cuda.is_available() else 'cpu'
+        if hasattr(self.llm.config, 'quantization_config'):
+            self.device = llm.device
+        else:
+            self.device = get_best_gpu() if torch.cuda.is_available() else 'cpu'
         self.parameter_keeper = InMemoryParameterKeeper(client_ids)
         self.llm.config_sfl(config, self.parameter_keeper, b2tr_hooks)
         self.communication_overhead_uplink = {}
@@ -398,8 +401,8 @@ class ParamRestored:
         if self.key not in self.pk.other_params:
             for part in self.pk.other_params['pretrained']:
                 self.pk.store_other_params(self.key, part,
-                                                             self.pk.get_other_params('pretrained',
-                                                                                                        part))
+                                           self.pk.get_other_params('pretrained',
+                                                                    part))
         if self.parts is None:
             self.parts = ['top', 'bottom']
         self.backup_params = {}

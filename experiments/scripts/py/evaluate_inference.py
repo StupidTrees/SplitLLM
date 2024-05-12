@@ -1,14 +1,13 @@
 import os
 import sys
 
-import torch
 import wandb
 from tqdm import tqdm
 from transformers import GenerationConfig, AdamW
 
 sys.path.append(os.path.abspath('../../..'))
 
-from sfl.utils.model import calculate_rouge_text, get_best_gpu, set_random_seed
+from sfl.utils.model import calculate_rouge_text, set_random_seed
 from sfl.utils.exp import *
 
 

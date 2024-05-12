@@ -1,0 +1,111 @@
+# 实验：对Embedding Inversion Attack进行超参搜索
+seed=42
+
+dataset_label='train'
+exp_name='[HPT]EIA'
+global_round=1
+client_steps=500
+noise_scale=0.0
+noise_mode="none"
+data_shrink_frac=0.08
+test_data_shrink_frac=0.3
+evaluate_freq=300
+self_pt_enable=False
+lora_at_trunk=True
+lora_at_bottom=True
+lora_at_top=True
+collect_all_layers=True
+
+model_name='llama2'
+
+
+eia_depth=6
+sps="$eia_depth-27"
+batch_size=2
+
+attacker_freq=200
+attacker_samples=1
+max_global_step=405
+mapper_train_frac=1.0
+
+mapper_datasets=("sensireplaced")
+sfl_datasets=("piqa")
+
+wba_raw_enable=True
+wba_raw_mapped_to=1
+eia_lrs=(0.09 0.06 0.11)
+eia_epochs=(72000)
+eia_temps=(0.1 0.5 0.2)
+eia_wds=(0.01)
+# 0.05 0.001 0.1)
+
+for mapper_dataset in "${mapper_datasets[@]}"; do
+  for sfl_dataset in "${sfl_datasets[@]}"; do
+    for eia_lr in "${eia_lrs[@]}"; do
+      for eia_epc in "${eia_epochs[@]}"; do
+        for eia_temp in "${eia_temps[@]}"; do
+          for eia_wd in "${eia_wds[@]}"; do
+
+            # 先训练Mapper
+
+            echo "Running train_mapper.py with seed=$seed, dataset=$mapper_dataset"
+            python ../py/train_mapper.py \
+              --model_name "$model_name" \
+              --seed "$seed" \
+              --dataset "$mapper_dataset" \
+              --attack_mode "b2tr" \
+              --target "${eia_depth}-1" \
+              --save_checkpoint True \
+              --log_to_wandb False \
+              --epochs 10 \
+              --dataset_train_frac "$mapper_train_frac" \
+              --dataset_test_frac 0.1
+
+            case_name="EIA@${model_name}${eia_depth}_lr=${eia_lr},epc=${eia_epc},temp=${eia_temp},wd=${eia_wd}"
+
+            # 将其用于攻击
+            echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
+            python ../py/evaluate_tag_methods.py \
+              --noise_mode "$noise_mode" \
+              --case_name "$case_name" \
+              --model_name "$model_name" \
+              --split_points "$sps" \
+              --global_round "$global_round" \
+              --seed "$seed" \
+              --dataset "$sfl_dataset" \
+              --noise_scale_dxp "$noise_scale" \
+              --exp_name "$exp_name" \
+              --attacker_b2tr_enable False \
+              --attacker_tr2t_enable False \
+              --self_pt_enable "$self_pt_enable" \
+              --client_num "1" \
+              --data_shrink_frac "$data_shrink_frac" \
+              --test_data_shrink_frac "$test_data_shrink_frac" \
+              --evaluate_freq "$evaluate_freq" \
+              --client_steps "$client_steps" \
+              --lora_at_top "$lora_at_top" \
+              --lora_at_trunk "$lora_at_trunk" \
+              --lora_at_bottom "$lora_at_bottom" \
+              --collect_all_layers "$collect_all_layers" \
+              --dataset_label "$dataset_label" \
+              --batch_size "$batch_size" \
+              --dlg_enable False \
+              --attacker_freq "$attacker_freq" \
+              --attacker_samples "$attacker_samples" \
+              --max_global_step "$max_global_step" \
+              --wba_enable False \
+              --wba_raw_enable "$wba_raw_enable" \
+              --wba_raw_lr "$eia_lr" \
+              --wba_raw_epochs "$eia_epc" \
+              --wba_raw_temp "$eia_temp" \
+              --wba_raw_wd "$eia_wd"\
+              --mapper_target "${eia_depth}-1"\
+              --mapper_dataset "${mapper_dataset}"\
+              --mapper_train_frac "$mapper_train_frac"\
+              --wba_raw_mapped_to "$wba_raw_mapped_to"
+          done
+        done
+      done
+    done
+  done
+done

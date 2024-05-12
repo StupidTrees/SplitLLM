@@ -2,7 +2,7 @@
 seed=42
 
 dataset_label='train'
-exp_name='[EXP]BiSR_diff_noise_dc'
+exp_name='[CCS]BiSR_diff_noise_dc'
 client_num=1
 global_round=9
 client_steps=500
@@ -20,20 +20,26 @@ model_name='gpt2-large'
 
 sps='6-26'
 attacker_sp=6
-batch_size=6
-dlg_enable=True
+batch_size=2
+dlg_enable=False
 dlg_adjust=0
 dlg_epochs=30
 dlg_beta=0.85
 dlg_init_with_dra=True
 dlg_raw_enable=True
-attacker_freq=1000
-attacker_samples=20
-max_global_step=3000
+attacker_freq=1500
+attacker_samples=5
+max_global_step=3005
+
+wba_enable=False
+wba_raw_enable=False
+wba_lr=0.01
+wba_raw_epochs=1600
+wba_epochs=100
 
 noise_mode='dc'
-noise_scale_dcs=(32.0 64.0 128.0 256.0)
-attack_models=('gru')
+noise_scale_dcs=(8.0 16.0 32.0 64.0 128.0 256.0)
+attack_models=('nop')
 
 attacker_datasets=("piqa")
 sfl_datasets=("piqa")
@@ -62,7 +68,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --seed "$seed" \
           --dataset "$attacker_dataset" \
           --attack_model "$attack_model" \
-          --attack_mode "tr2t" \
+          --attack_mode "b2tr" \
           --sps "$sps" \
           --save_checkpoint True \
           --log_to_wandb False \
@@ -116,7 +122,13 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --dlg_raw_enable "$dlg_raw_enable" \
           --attacker_freq "$attacker_freq" \
           --attacker_samples "$attacker_samples" \
-          --max_global_step "$max_global_step"
+          --max_global_step "$max_global_step"\
+          --wba_enable "$wba_enable" \
+          --wba_raw_enable "$wba_raw_enable" \
+          --wba_lr "$wba_lr" \
+          --wba_raw_epochs "$wba_raw_epochs" \
+          --wba_epochs "$wba_epochs"\
+          --wba_at tr2t
       done
     done
   done
