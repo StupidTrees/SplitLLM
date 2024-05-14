@@ -1,15 +1,15 @@
-
 # 定义Client本地学习策略
 from typing import Any
 
-import torch
+import numpy as np
 import wandb
 from matplotlib import pyplot
 
-from sfl.model.attacker.eia_attacker import WhiteBoxMIAttacker
-from sfl.simulator.simulator import ParamRestored
+from sfl.config import FLConfig
+from sfl.model.attacker.dlg_attacker import TAGAttacker, LAMPAttacker
+from sfl.model.attacker.eia_attacker import SmashedDataMatchingAttacker, EmbeddingInversionAttacker
+from sfl.model.attacker.sip_attacker import SIPAttacker
 from sfl.strategies.basic import BaseSFLStrategy
-from sfl.utils.exp import get_eia_mapper, get_mapper_config
 from sfl.utils.model import FLConfigHolder, saliency_analysis_direct, Intermediate, evaluate_attacker_rouge, \
     saliency_analysis_generative, draw_generative_saliency_maps, draw_direct_saliency_maps, saliency_analysis_decoder, \
     saliency_analysis_atk, saliency_analysis_atk_mid
@@ -17,10 +17,30 @@ from sfl.utils.model import FLConfigHolder, saliency_analysis_direct, Intermedia
 
 class SLStrategyWithAttacker(BaseSFLStrategy):
 
-    def __init__(self, args, llm, tokenizer, **kwargs):
-        super().__init__(args, llm, tokenizer, **kwargs)
+    def __init__(self, args, fl_config: FLConfig, llm, tokenizer, **kwargs):
+        super().__init__(args, llm, fl_config, tokenizer, **kwargs)
         self.token_class_nums = {}
         self.token_class_hit = {}
+        sip_init_label = 'b2tr'
+        if self.args.sip_tr2t_layer == fl_config.split_point_2:
+            sip_init_label = 'tr2t'
+
+        # Name | AttackerObj | ConfigPrefix | Initialized From
+        attackers_conf = [('SIP', SIPAttacker('SIP'), 'sip', None),
+                          ('BiSR(b)', TAGAttacker(self.fl_config, llm, 'BiSR(b)'), 'gma', f'SIP_{sip_init_label}'),
+                          ('BiSR(f)', SmashedDataMatchingAttacker('BiSR(f)'), 'sma', f'SIP_{sip_init_label}'),
+                          ('BiSR(b+f)', SmashedDataMatchingAttacker('BiSR(b+f)'), 'gsma', 'BiSR(b)'),
+                          ('EIA', EmbeddingInversionAttacker('EIA'), 'eia', None),
+                          ('TAG', TAGAttacker(self.fl_config, llm, 'TAG'), 'tag', None),
+                          ('LAMP', LAMPAttacker(self.fl_config, llm, 'LAMP'), 'lamp', None),
+                          ]
+        self.attackers = []
+        for name, attacker, config_prefix, init in attackers_conf:
+            enable_name = f'{config_prefix}_enable'
+            if hasattr(self.args, enable_name) and getattr(self.args, enable_name):
+                aarg = attacker.parse_arguments(args, config_prefix)
+                self.attackers.append((name, attacker, aarg, init))
+                attacker.load_attacker(self.args, aarg, llm, self.tokenizer)
 
     def client_evaluate(self, global_round, client_id, log):
         super(SLStrategyWithAttacker, self).client_evaluate(global_round, client_id, log)
@@ -29,14 +49,15 @@ class SLStrategyWithAttacker(BaseSFLStrategy):
     def log_sample_text(self):
         llm = self.llm
         observe_sample = self.sample_batch
-        if self.dra1 is not None:
-            self.dra1.to(llm.device)
+        inverter = self.attackers[0][1].inverter_b2tr
+        if inverter is not None:
+            inverter.to(llm.device)
             with FLConfigHolder(llm) as ch:
                 llm.fl_config.attack_mode = 'b2tr'
                 ch.change_config()
                 input_tensors = observe_sample['input_ids'].to(llm.device)
                 inter = llm(input_tensors)
-                attacked = self.dra1(inter.to(llm.device))
+                attacked = inverter(inter.to(llm.device))
                 # ids = [','.join([str(tid.item()) for tid in t.argmax(-1)]) for t in attacked]
                 # true_ids = [','.join([str(tid.item()) for tid in t]) for t in observe_sample['input_ids']]
                 texts = [self.tokenizer.decode(t.argmax(-1), skip_special_tokens=True) for t in attacked]
@@ -85,14 +106,14 @@ class SLStrategyWithAttacker(BaseSFLStrategy):
                     pyplot.close(fig)
                 print('analyzing saliency attacked...')
                 # attacked
-                saliency_dir, attacked, stacks_dir = saliency_analysis_atk(llm, self.dra1, ex_sentence)
+                saliency_dir, attacked, stacks_dir = saliency_analysis_atk(llm, inverter, ex_sentence)
                 figs = draw_generative_saliency_maps(self.tokenizer, ex_sentence, attacked, stacks_dir)
                 wandb.log({'attacked_sample_saliency_matrix_attacked': [wandb.Image(fig) for fig in figs]})
                 for fig in figs:
                     pyplot.close(fig)
                 print('analyzing saliency attacked mid...')
                 # attacked_mid
-                saliency_dir, attacked, stacks_dir = saliency_analysis_atk_mid(llm, self.dra1, ex_sentence)
+                saliency_dir, attacked, stacks_dir = saliency_analysis_atk_mid(llm, inverter, ex_sentence)
                 figs = draw_generative_saliency_maps(self.tokenizer, ex_sentence, attacked, stacks_dir)
                 wandb.log({'attacked_sample_saliency_matrix_attacked_mid': [wandb.Image(fig) for fig in figs]})
                 for fig in figs:
@@ -106,7 +127,6 @@ class SLStrategyWithAttacker(BaseSFLStrategy):
                           zip(texts, observe_sample['input_text'], input_sentence)])
 
             wandb.log({'attacked_sample_text': table})
-
 
     def __log_atk_res(self, attacker_res, client_id, name):
         rouge_res, meteor_res, token_acc = attacker_res
@@ -122,47 +142,31 @@ class SLStrategyWithAttacker(BaseSFLStrategy):
                                   b2tr_inter: Intermediate, tr2t_inter: Intermediate,
                                   all_inter: dict[Any, Intermediate],
                                   batch, logs):
-        encoder_inter = all_inter.get('encoder', None)
-        attention_mask = all_inter.get('att_msk', None)
-        rotary_pos_emb = all_inter.get('rot_pos', None)
-        attacked_result = {}
-        with torch.no_grad():
-            for type, atk in zip(['tr2t', 'b2tr'], [self.dra2, self.dra1]):
-                if atk is None:
-                    continue
-                if type == 'b2tr':
-                    if self.args.attacker_b2tr_target_sp >= 0:
-                        inter = all_inter[self.args.attacker_b2tr_target_sp]
-                    else:
-                        inter = b2tr_inter
-                else:
-                    if self.args.attacker_tr2t_target_sp >= 0:
-                        inter = all_inter[self.args.attacker_tr2t_target_sp]
-                    else:
-                        inter = tr2t_inter
-                if self.llm.type == 'encoder-decoder':
-                    attacked = atk(torch.concat([encoder_inter.fx.to(
-                        self.simulator.device), inter.fx.to(atk.device)], dim=1))
-                else:
-                    attacked = atk(inter.fx.to(atk.device))
-                sip_res = evaluate_attacker_rouge(self.tokenizer, attacked, batch)
-                self.__log_atk_res(sip_res, client_id, f'SIP_{type}')
-                # logs[f'SIP_{type}_rouge-l_step'] = rouge_res['rouge-l']['f']
-                attacked_result[type] = attacked
-
-        if self.args.attacker_b2tr_sp == self.simulator.config.split_point_1:
-            atk_init = attacked_result.get('b2tr', None)
-        elif self.args.attacker_tr2t_sp == self.simulator.config.split_point_2:
-            atk_init = attacked_result.get('tr2t', None)
-        else:
-            atk_init = attacked_result.get('b2tr', None)
+        # 逐个调用Attacker
+        init_map = {}
+        for name, attacker, atk_args, init_from in self.attackers:
+            attack_res = attacker.attack(self.args, atk_args, self.llm, self.tokenizer, self.simulator, batch,
+                                         b2tr_inter,
+                                         tr2t_inter, all_inter, init=init_map.get(init_from, None))
+            if isinstance(attack_res, dict):
+                for key, logits in attack_res.items():
+                    init_map[f"{name}_{key}"] = logits
+                    eval_res = evaluate_attacker_rouge(self.tokenizer, logits, batch)
+                    self.__log_atk_res(eval_res, client_id, f"{name}_{key}")
+            else:
+                eval_res = evaluate_attacker_rouge(self.tokenizer, attack_res, batch)
+                self.__log_atk_res(eval_res, client_id, name)
+                init_map[name] = attack_res
 
         # 分析Entanglement
-        if self.args.entangle_enable:
+        sip_inv_res = init_map.get('SIP_b2tr', None)
+        if sip_inv_res is None:
+            sip_inv_res = init_map.get('SIP_tr2t', None)
+        if self.args.entangle_enable and sip_inv_res is not None:
             saliency, tokens, _ = saliency_analysis_generative(self.llm, batch['input_ids'])
             bins = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
             saliency_bins = np.digitize(saliency, bins)
-            tokens_hit = (atk_init.argmax(-1).cpu() == batch['input_ids']).cpu().numpy()
+            tokens_hit = (sip_inv_res.argmax(-1).cpu() == batch['input_ids']).cpu().numpy()
             for i, (s, h) in enumerate(zip(saliency_bins, tokens_hit)):
                 for cid, hit in zip(s, h):
                     if cid not in self.token_class_nums:
@@ -173,184 +177,3 @@ class SLStrategyWithAttacker(BaseSFLStrategy):
             for cid, hit in self.token_class_hit.items():
                 self.log_to_sample_result(client_id, f'hit_rate_{cid}', hit / self.token_class_nums[cid])
                 self.log_to_all_result(client_id, f'hit_rate_{cid}', hit / self.token_class_nums[cid])
-
-        atk_init_before_dlg = atk_init
-        if self.args.alt_enable:
-            # 交替优化
-            alt_out = atk_init
-            for i in range(self.args.alt_steps):
-                atk = WhiteBoxMIAttacker()
-                with ParamRestored(llm=self.llm, param_keeper=self.simulator.parameter_keeper,
-                                   key='pretrained',
-                                   parts=['bottom']):
-                    alt_out = atk.fit(tok=self.tokenizer,
-                                      llm=self.llm, inter=b2tr_inter, gt=batch,
-                                      dummy_init=alt_out, epochs=self.args.alt_fwd_steps)
-                alt_out = alt_out.argmax(-1)
-                # one-hot
-                alt_out = torch.nn.functional.one_hot(alt_out, num_classes=self.llm.config.vocab_size).float()
-                alt_out = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device),
-                                       tr2t_inter.grad.to(self.simulator.device),
-                                       epochs=self.args.alt_bwd_steps,
-                                       beta=self.args.dlg_beta,
-                                       gt_init=alt_out,
-                                       lr=self.args.dlg_lr,
-                                       init_temp=self.args.dlg_init_temp,
-                                       softmax=True,
-                                       encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                           self.simulator.device),
-                                       model_name=self.args.model_name,
-                                       attention_mask=attention_mask.fx if attention_mask is not None else None,
-                                       rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
-                                       )
-
-            eval_logits = alt_out
-            if self.llm.type == 'encoder-decoder':
-                eval_logits = atk_init.clone()
-                eval_logits[:, -alt_out.shape[1]:, :] = alt_out
-            alt_res = evaluate_attacker_rouge(self.tokenizer, eval_logits, batch)
-            self.__log_atk_res(alt_res, client_id, 'BiSR+')
-        else:
-            if self.args.dlg_enable:
-                gt_init = None
-                if self.args.dlg_init_with_dra:
-                    gt_init = atk_init
-                self.dlg.to(self.simulator.device)
-                gma_name = 'BiSR'
-                if self.dlg.method == 'lamp':
-                    gt = self.simulator.restored_run(self.dlg.fit, key='pretrained', parts=['bottom', 'top', 'trunk'],
-                                                     write_back=False,
-                                                     epochs=self.args.dlg_epochs,
-                                                     lr=self.args.dlg_lr,
-                                                     inter=tr2t_inter.fx.clone().to(self.simulator.device),
-                                                     gradient=tr2t_inter.grad.clone().to(self.simulator.device),
-                                                     beta=self.args.dlg_beta,
-                                                     gt_init=None,
-                                                     model_name=self.args.model_name,
-                                                     encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                                         self.simulator.device),
-                                                     attention_mask=attention_mask.fx if attention_mask is not None else None,
-                                                     rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
-                                                     lamp=True,
-                                                     lamp_freq=self.args.dlg_lamp_freq
-                                                     )
-                    # lamp_res = evaluate_attacker_rouge(self.tokenizer, gt, batch)
-                    # self.__log_atk_res(lamp_res, client_id, 'LAMP')
-                    gma_name = 'LAMP'
-                elif self.dlg.method == 'bisr':
-                    gt = self.simulator.restored_run(self.dlg.fit, key='pretrained', parts=['bottom', 'top'],
-                                                     write_back=False,
-                                                     epochs=self.args.dlg_epochs,
-                                                     lr=self.args.dlg_lr,
-                                                     inter=tr2t_inter.fx.clone().to(self.simulator.device),
-                                                     gradient=tr2t_inter.grad.clone().to(self.simulator.device),
-                                                     beta=self.args.dlg_beta,
-                                                     gt_init=gt_init,
-                                                     model_name=self.args.model_name,
-                                                     encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                                         self.simulator.device),
-                                                     attention_mask=attention_mask.fx if attention_mask is not None else None,
-                                                     rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
-                                                     lamp=True,
-                                                     lamp_freq=self.args.dlg_lamp_freq
-                                                     )
-                    # lamp_res = evaluate_attacker_rouge(self.tokenizer, gt, batch)
-                    # self.__log_atk_res(lamp_res, client_id, 'LAMP')
-                    gma_name = 'BiSR'
-                else:
-                    gt = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device),
-                                      tr2t_inter.grad.to(self.simulator.device),
-                                      epochs=self.args.dlg_epochs,
-                                      adjust=self.args.dlg_adjust,
-                                      beta=self.args.dlg_beta,
-                                      gt_init=gt_init,
-                                      lr=self.args.dlg_lr,
-                                      init_temp=self.args.dlg_init_temp,
-                                      gt_reg=self.args.dlg_dra_reg,
-                                      temp_range=self.args.dlg_temp_range,
-                                      further_ft=self.args.dlg_further_ft,
-                                      encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                          self.simulator.device),
-                                      model_name=self.args.model_name,
-                                      attention_mask=attention_mask.fx if attention_mask is not None else None,
-                                      rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
-                                      )
-                dlg_logits = gt
-                if self.llm.type == 'encoder-decoder':
-                    dlg_logits = attacked.clone()
-                    dlg_logits[:, -gt.shape[1]:, :] = gt
-                atk_init = dlg_logits
-                dlg_res = evaluate_attacker_rouge(self.tokenizer, dlg_logits, batch)
-                self.__log_atk_res(dlg_res, client_id, gma_name)
-
-                if self.args.dlg_raw_enable:  # 进行不初始化的dlg以作为对比
-                    gt2 = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device),
-                                       tr2t_inter.grad.to(self.simulator.device),
-                                       epochs=self.args.dlg_raw_epochs,  # self.args.dlg_epochs ,  # 轮次要拉大一点
-                                       beta=self.args.dlg_beta,
-                                       gt_init=None,
-                                       lr=self.args.dlg_lr,
-                                       model_name=self.args.model_name,
-                                       encoder_inter=None if encoder_inter is None else encoder_inter.fx.to(
-                                           self.simulator.device),
-                                       attention_mask=attention_mask.fx if attention_mask is not None else None,
-                                       rotary_pos_emb=rotary_pos_emb.fx if rotary_pos_emb is not None else None,
-                                       )
-                    dlg2_logits = gt2
-                    if self.llm.type == 'encoder-decoder':
-                        dlg2_logits = attacked.clone()
-                        dlg2_logits[:, -gt2.shape[1]:, :] = gt2
-                    tag_res = evaluate_attacker_rouge(self.tokenizer, dlg2_logits, batch)
-                    self.__log_atk_res(tag_res, client_id, 'TAG')
-
-            if self.args.wba_enable:
-                atk = WhiteBoxMIAttacker()
-                parts = ['bottom']
-                inter = b2tr_inter
-                if self.args.wba_at == 'tr2t':
-                    inter = tr2t_inter
-                with ParamRestored(llm=self.llm, param_keeper=self.simulator.parameter_keeper, key='pretrained',
-                                   parts=parts):
-                    spis_out = atk.fit(tok=self.tokenizer,
-                                       llm=self.llm, inter=inter, gt=batch,
-                                       dummy_init=atk_init, epochs=self.args.wba_epochs,
-                                       lr=self.args.wba_lr, cos_loss=True, at=self.args.wba_at)
-                wba_res = evaluate_attacker_rouge(self.tokenizer, spis_out, batch)
-                self.__log_atk_res(wba_res, client_id, f'BiSR+')
-            if self.args.wba_dir_enable:
-                atk = WhiteBoxMIAttacker()
-                parts = ['bottom']
-                inter = b2tr_inter
-                if self.args.wba_at == 'tr2t':
-                    inter = tr2t_inter
-                with ParamRestored(llm=self.llm, param_keeper=self.simulator.parameter_keeper, key='pretrained',
-                                   parts=parts):
-                    spis_out = atk.fit(tok=self.tokenizer,
-                                       llm=self.llm, inter=inter, gt=batch,
-                                       dummy_init=atk_init_before_dlg, epochs=self.args.wba_epochs,
-                                       lr=self.args.wba_lr, cos_loss=True, at=self.args.wba_at)
-                wba_res = evaluate_attacker_rouge(self.tokenizer, spis_out, batch)
-                self.__log_atk_res(wba_res, client_id, f'BiSR-')
-            if self.args.wba_raw_enable:
-                atk = WhiteBoxMIAttacker()
-                mapper = None
-                parts = ['bottom']
-                inter = b2tr_inter
-                if self.args.wba_at == 'tr2t':
-                    inter = tr2t_inter
-                if self.args.wba_raw_mapped_to > 0:
-                    mapper = get_eia_mapper(get_mapper_config(self.args)).to(self.llm.device)
-                    # inter = all_inter.get(self.args.wba_raw_mapped_to - 1, None)
-                with ParamRestored(llm=self.llm, param_keeper=self.simulator.parameter_keeper, key='pretrained',
-                                   parts=parts):
-                    wba_raw_out = atk.fit_eia(tok=self.tokenizer, mapper=mapper,mapped_to=self.args.wba_raw_mapped_to,
-                                              llm=self.llm, inter=inter, gt=batch, lr=self.args.wba_raw_lr,
-                                              dummy_init=None, epochs=self.args.wba_raw_epochs, at=self.args.wba_at,
-                                              temp=self.args.wba_raw_temp, wd=self.args.wba_raw_wd)
-                wba_raw_res = evaluate_attacker_rouge(self.tokenizer, wba_raw_out, batch)
-                self.__log_atk_res(wba_raw_res, client_id, f'MIA')
-            # wba_out = self.simulator.restored_run(atk.fit, key='pretrained', parts=['bottom', 'top'],
-            #                                       tok=self.tokenizer,
-            #                                       llm=self.llm, b2tr_inter=b2tr_inter, gt=batch)
-            # wba_res = evaluate_attacker_rouge(self.tokenizer, wba_out, batch)
-            # self.__log_atk_res(wba_res, client_id, f'WBA')

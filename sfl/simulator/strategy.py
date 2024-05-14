@@ -3,16 +3,9 @@ from abc import ABC
 from copy import deepcopy
 from typing import Any, Iterator
 
-import torch
-from numpy import average
-from torch.optim import Adam
-from tqdm import tqdm
-from transformers import AdamW
-
 from sfl.config import FLConfig
-from sfl.model.llm.split_model import SplitModel, SplitWrapperModel
-from sfl.utils.model import Intermediate, calculate_rouge, evaluate_accuracy, evaluate_perplexity, get_t5_input, \
-    dist_corr
+from sfl.model.llm.split_model import SplitModel
+from sfl.utils.model import Intermediate
 
 
 class FLStrategy(ABC):
@@ -20,8 +13,9 @@ class FLStrategy(ABC):
     定义联邦学习的关键策略
     """
 
-    def __init__(self, simulator=None):
+    def __init__(self, fl_config, simulator=None):
         self.simulator = simulator
+        self.fl_config: FLConfig = fl_config
         self.client_logs = {}
         self.task_type = 'lm'
 
@@ -31,7 +25,7 @@ class FLStrategy(ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step,global_step,
+    def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step, global_step,
                                      b2tr_inter: Intermediate, tr2t_inter: Intermediate,
                                      all_inter: dict[int, Intermediate],
                                      batch, logs):
@@ -55,5 +49,3 @@ class FLStrategy(ABC):
 
     def step_done(self, client_id, mini_step, batch, logs=None):
         self.simulator._client_one_step_done(client_id, mini_step, batch, logs)
-
-

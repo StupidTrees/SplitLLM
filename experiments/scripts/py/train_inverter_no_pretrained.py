@@ -14,9 +14,9 @@ from sfl.simulator.simulator import SFLSimulator
 from sfl.simulator.strategy import BaseSFLStrategy
 from sfl.simulator.dataset import MixtureFedDataset
 import sfl
-from sfl.config import FLConfig, DRAttackerConfig, dxp_moe_range, gaussian_moe_range
-from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, LSTMDRAttackerConfig, \
-    TransformerDRAttackerConfig
+from sfl.config import FLConfig, SIPInverterConfig, dxp_moe_range, gaussian_moe_range
+from sfl.model.attacker.sip_attacker import LSTMDRInverter, GRUDRInverter, LinearSIPInverter, LSTMDRAttackerConfig, \
+    TransformerSIPInverterConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_tokenizer
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
     evaluate_attacker_rouge, random_choose_noise
@@ -157,13 +157,13 @@ def train_attacker(args):
         return r
 
     # 开始训练Attack Model
-    attack_model = LSTMDRAttacker(LSTMDRAttackerConfig(), model.config)
+    attack_model = LSTMDRInverter(LSTMDRAttackerConfig(), model.config)
     if args.attack_model == 'lstm':
-        attack_model = LSTMDRAttacker(LSTMDRAttackerConfig(), model.config)
+        attack_model = LSTMDRInverter(LSTMDRAttackerConfig(), model.config)
     elif args.attack_model == 'gru':
-        attack_model = GRUDRAttacker(LSTMDRAttackerConfig(), model.config)
+        attack_model = GRUDRInverter(LSTMDRAttackerConfig(), model.config)
     elif args.attack_model == 'linear':
-        attack_model = LinearDRAttacker(DRAttackerConfig(), model.config)
+        attack_model = LinearSIPInverter(SIPInverterConfig(), model.config)
     if 'llama' not in args.model_name and 'chatglm' not in args.model_name:
         device = get_best_gpu()
         model.to(device)

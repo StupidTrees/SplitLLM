@@ -117,7 +117,7 @@ def sfl_with_attacker(args):
     config = get_fl_config(args)
 
     # 加载TAG攻击模型
-    tag = get_dlg_attacker(model)
+    tag = get_dlg_mocker(model)
     # 加载数据集
     fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)
     test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[])

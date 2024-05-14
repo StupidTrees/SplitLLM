@@ -73,7 +73,7 @@ for model_name in "${model_names[@]}"; do
 
     # 先训练攻击模型
     echo "Running ${case_name} train_attacker.py with atk_ds=${attacker_dataset}"
-    python ../py/train_attacker.py \
+    python ../py/train_inverter.py \
       --model_name "$model_name" \
       --seed "$seed" \
       --dataset "$attacker_dataset" \
@@ -90,7 +90,7 @@ for model_name in "${model_names[@]}"; do
 
     # 将其用于攻击
     echo "Running ${case_name} evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
-    python ../py/evaluate_tag_methods.py \
+    python ../py/sim_with_attacker.py \
       --noise_mode "$noise_mode" \
       --case_name "$case_name" \
       --model_name "$model_name" \

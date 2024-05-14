@@ -7,7 +7,7 @@ import wandb
 sys.path.append(os.path.abspath('../../..'))
 
 from sfl.simulator.simulator import SFLSimulator
-from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, get_dlg_attacker, add_sfl_params, \
+from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, get_dlg_mocker, add_sfl_params, \
     get_dataset
 
 from sfl.simulator.strategy import BaseSFLStrategy
@@ -37,7 +37,7 @@ def sfl_with_attacker(args):
     config = get_fl_config(args)
 
     # 加载TAG攻击模型
-    dlg = get_dlg_attacker(model, method=args.dlg_method)
+    dlg = get_dlg_mocker(model, method=args.dlg_method)
 
     # 加载数据集
     fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids, shrink_frac=args.data_shrink_frac)

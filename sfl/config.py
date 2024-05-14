@@ -64,7 +64,7 @@ class FLConfig:
 
 
 @dataclass
-class DRAttackerConfig(PretrainedConfig):
+class SIPInverterConfig(PretrainedConfig):
     model_name: str = None
     target_model: str = None
     vocab_size: int = 0
@@ -75,23 +75,24 @@ class DRAttackerConfig(PretrainedConfig):
 
 
 @dataclass
-class DRAConfig:
+class SIPAttackerArguments:
     path: str = attacker_path
     b2tr_enable: bool = True
-    b2tr_sp: int = -1
+    b2tr_layer: int = -1
+    b2tr_target_layer: int = -1
     tr2t_enable: bool = True
-    tr2t_sp: int = -1
+    tr2t_layer: int = -1
+    tr2t_target_layer: int = -1
     model: str = 'gru'  # DRAttacker Model
     dataset: str = None  # what dataset the DRAttacker is trained on
-    train_label: str = 'validation'  # training dataset of that model
+    # train_label: str = 'validation'  # training dataset of that model
     train_frac: float = 1.0  # percentage of dataset used for training
     prefix: str = 'normal'
     target_model_name: str = None
     target_dataset: str = None
-    target_sps: str = None
+    target_system_sps: str = None
     target_model_load_bits: int = 8
     larger_better: bool = True
-
 
 
 @dataclass
@@ -104,6 +105,5 @@ class MapperConfig:
     prefix: str = 'normal'
     target_model_name: str = None
     target_dataset: str = None
-    # target_sps: str = None
     target_model_load_bits: int = 8
     larger_better: bool = False

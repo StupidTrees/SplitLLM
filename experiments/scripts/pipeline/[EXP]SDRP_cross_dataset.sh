@@ -33,7 +33,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
 
     # 先训练攻击模型
     echo "Running train_attacker.py with atk_ds=$attacker_dataset"
-    python ../py/train_attacker.py \
+    python ../py/train_inverter.py \
       --model_name "$model_name" \
       --seed "$seed" \
       --dataset "$attacker_dataset" \

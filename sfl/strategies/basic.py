@@ -15,23 +15,16 @@ from sfl.utils.model import Intermediate, evaluate_accuracy, evaluate_perplexity
 
 class BaseSFLStrategy(FLStrategy):
 
-    def __init__(self, args, llm, tokenizer, test_loader=None, dra1=None, dra2=None, dlg=None, sample_batch=None):
-        super().__init__()
+    def __init__(self, args, fl_config: FLConfig, llm, tokenizer, test_loader=None, sample_batch=None):
+        super().__init__(fl_config=fl_config)
         self.args = args
         self.tokenizer = tokenizer
-        self.dra1 = dra1
-        self.dra2 = dra2
         self.test_loader = test_loader
-        self.dlg = dlg
         self.llm = llm
         self.sample_batch = sample_batch
         self.attack_sample_counter = {}
         self.attack_sample_performs = {}
         self.attack_all_performs = {}
-        if dra1 is not None:
-            dra1.to(llm.device)
-        if dra2 is not None:
-            dra2.to(llm.device)
 
     def client_evaluate(self, global_round, client_id, log):
         if self.task_type == 'classification':
@@ -47,7 +40,6 @@ class BaseSFLStrategy(FLStrategy):
             optimizer = Adam(llm.parameters(), lr=1e-4)
         avg_loss = 0
         avg_self_rouge = 0
-        # avg_self_rouge_pt = 0
         batch_num = 0
         with tqdm(total=config.client_steps) as pbar:
             for step, batch in enumerate(iterator):
@@ -107,7 +99,7 @@ class BaseSFLStrategy(FLStrategy):
                 if 0 < config.max_global_step <= self.simulator.get_current_step(client_id, step)[1] + 1:
                     break
 
-    def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step,global_step,
+    def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step, global_step,
                                      b2tr_inter: Intermediate, tr2t_inter: Intermediate,
                                      all_inter: dict[int, Intermediate],
                                      batch, logs
@@ -156,46 +148,3 @@ class BaseSFLStrategy(FLStrategy):
                                   all_inter: dict[Any, Intermediate],
                                   batch, logs):
         pass
-        # """
-        # 一定频率，触发这个攻击函数
-        # """
-        # encoder_inter = all_inter.get('encoder', None)
-        # with torch.no_grad():
-        #     for type, atk in zip(['tr2t', 'b2tr'], [self.dra2, self.dra1]):
-        #         if atk is None:
-        #             continue
-        #         atk.to(self.simulator.device)
-        #         inter = b2tr_inter if type == 'b2tr' else tr2t_inter
-        #         if self.llm.type == 'encoder-decoder':
-        #             attacked = atk(torch.concat([encoder_inter.fx.to(
-        #                 self.simulator.device), inter.fx.to(atk.device)], dim=1))
-        #         else:
-        #             attacked = atk(inter.fx.to(atk.device))
-        #         rouge_res = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
-        #         self.log_to_sample_result(client_id, f'DRA_{type}_rgLf', rouge_res['rouge-l']['f'])
-        #         self.log_to_all_result(client_id, f'DRA_{type}_rgLf', rouge_res['rouge-l']['f'])
-        #         logs[f'attacker_{type}_step'] = rouge_res['rouge-l']['f']
-        # gt_init = None
-        # if self.args.dlg_init_with_dra:
-        #     gt_init = attacked
-        # if self.dlg is not None:
-        #     self.dlg.to(self.simulator.device)
-        #     gt = self.dlg.fit(tr2t_inter.fx.to(self.simulator.device), tr2t_inter.grad.to(self.simulator.device),
-        #                       epochs=self.args.dlg_epochs,
-        #                       adjust=self.args.dlg_adjust,
-        #                       beta=self.args.dlg_beta,
-        #                       gt_init=gt_init,
-        #                       gt_reg=self.args.dlg_dra_reg,
-        #                       # temp_range=self.args.dlg_temp_range,
-        #                       # further_ft=self.args.dlg_further_ft,
-        #                       encoder_inter=None if encoder_inter is None else
-        #                       encoder_inter.fx.to(self.simulator.device)
-        #                       )
-        #     if self.llm.type == 'encoder-decoder':
-        #         # replace the latter half of attacked to gt
-        #         attacked[:, -gt.shape[1]:, :] = gt
-        #         dlg_rouge = calculate_rouge(self.tokenizer, attacked, batch['input_text'])
-        #     else:
-        #         dlg_rouge = calculate_rouge(self.tokenizer, gt, batch['input_text'])
-        #     self.log_to_sample_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])
-        #     self.log_to_all_result(client_id, 'DLG_rgL_f', dlg_rouge['rouge-l']['f'])

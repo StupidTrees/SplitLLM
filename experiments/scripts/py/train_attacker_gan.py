@@ -11,7 +11,7 @@ sys.path.append(os.path.abspath('../../..'))
 from sfl.simulator.dataset import MixtureFedDataset
 
 from sfl.config import FLConfig
-from sfl.model.attacker.dra_attacker import ViTDRAttacker, ViTDRAttackerConfig
+from sfl.model.attacker.sip_attacker import ViTDRAttacker, ViTDRAttackerConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params
 from sfl.utils.model import get_best_gpu, set_random_seed, \
     evaluate_attacker_mse

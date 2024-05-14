@@ -58,7 +58,7 @@ for seed in "${seeds[@]}"; do
                     for pre_ft_dataset in "${pre_ft_datasets[@]}"; do
                       for dlg_further_ft in "${dlg_further_ft[@]}"; do
                         echo "Running evaluate_tag_methods.py with seed=$seed, dataset=$dataset, noise=$noise"
-                        python ../py/evaluate_tag_methods.py \
+                        python ../py/sim_with_attacker.py \
                           --noise_mode "$noise_mode" \
                           --model_name "$model_name" \
                           --global_round "$global_round" \

@@ -7,7 +7,7 @@ from tqdm import tqdm
 from transformers import PretrainedConfig, PreTrainedModel
 
 from sfl.config import DRA_train_label, fsha_path, DRA_test_label
-from sfl.model.attacker.dra_attacker import GRUDRAttacker, LSTMDRAttackerConfig
+from sfl.model.attacker.sip_attacker import GRUDRInverter, LSTMDRAttackerConfig
 from sfl.utils.model import calc_unshift_loss, evaluate_attacker_rouge
 
 
@@ -77,14 +77,14 @@ class FSHAAttacker(PreTrainedModel):
 
     def __init__(self, config: AutoEncoderConfig = None, target_config=None, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
-        self.f_inv = GRUDRAttacker(LSTMDRAttackerConfig(hidden_size=config.f_hidden_size, dropout=config.f_dropout,
-                                                        vocab_size=config.vocab_size, n_embed=config.n_embed,),
+        self.f_inv = GRUDRInverter(LSTMDRAttackerConfig(hidden_size=config.f_hidden_size, dropout=config.f_dropout,
+                                                        vocab_size=config.vocab_size, n_embed=config.n_embed, ),
                                    target_config)
         self.config.vocab_size = self.f_inv.config.vocab_size
         self.config.n_embed = self.f_inv.config.n_embed
-        self.f = GRUDRAttacker(LSTMDRAttackerConfig(vocab_size=self.config.n_embed, n_embed=target_config.vocab_size,
-                                 hidden_size=self.config.f_hidden_size,
-                                 dropout=self.config.f_dropout))
+        self.f = GRUDRInverter(LSTMDRAttackerConfig(vocab_size=self.config.n_embed, n_embed=target_config.vocab_size,
+                                                    hidden_size=self.config.f_hidden_size,
+                                                    dropout=self.config.f_dropout))
         self.d = torch.nn.GRU(self.config.n_embed, self.config.d_hidden_size, batch_first=True)
         self.d_mlp = torch.nn.Sequential(
             torch.nn.Linear(self.config.d_hidden_size, 1),

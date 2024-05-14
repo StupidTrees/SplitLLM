@@ -82,7 +82,7 @@ for seed in "${seeds[@]}"; do
                     for pre_ft_dataset in "${pre_ft_datasets[@]}"; do
 
                       echo "Running evaluate_tag_methods.py with seed=$seed, dataset=$dataset, noise=$noise_mode"
-                      python ../py/evaluate_tag_methods.py \
+                      python ../py/sim_with_attacker.py \
                         --case_name "$case_name" \
                         --noise_mode "$noise_mode" \
                         --model_name "$model_name" \

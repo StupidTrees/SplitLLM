@@ -58,12 +58,12 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         dlg_enable=True
         wba_raw_enable=False
         wba_enable=True
-        file='train_attacker.py'
+        file='train_inverter.py'
         if [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
-          file='train_attacker_moe.py'
+          file='train_inverter_moe.py'
         fi
         if [ "$attack_model" = "nop" ]; then
-          file='train_attacker_no_pretrained.py'
+          file='train_inverter_no_pretrained.py'
         fi
 
         if [ "$raw_tested" = "True" ]; then
@@ -125,7 +125,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
 
         # 将其用于攻击
         echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
-        python ../py/evaluate_tag_methods.py \
+        python ../py/sim_with_attacker.py \
           --noise_mode "$noise_mode" \
           --case_name "$case_name" \
           --model_name "$model_name" \

@@ -37,7 +37,7 @@ for dataset in "${datasets[@]}"; do
     attacker_test_frac=0.01
     # 先训练攻击模型
     echo "Running train_attacker.py with atk_ds=$dataset"
-    python ../py/train_attacker.py \
+    python ../py/train_inverter.py \
       --model_name "$model_name" \
       --seed "$seed" \
       --dataset "$dataset" \

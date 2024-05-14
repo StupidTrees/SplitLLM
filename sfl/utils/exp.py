@@ -2,23 +2,19 @@ import argparse
 import os
 
 import torch
-from transformers import AutoTokenizer, BitsAndBytesConfig, OPTForCausalLM, ViTImageProcessor
+from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor
 
 from sfl import config
-from sfl.config import FLConfig, attacker_path, DRAConfig, model_download_dir, DRA_train_label, fsha_path, mapper_path, \
-    MapperConfig
-from sfl.model.attacker.dlg_attacker import GPT2TopDLGAttacker, T5DecoderDLGAttacker, LLAMA2TopDLGAttacker, \
-    ChatGLMDLGAttacker
-from sfl.model.attacker.dra_attacker import LSTMDRAttacker, GRUDRAttacker, LinearDRAttacker, MOEDRAttacker, \
-    ViTDRAttacker, DecoderDRAttacker, AttnGRUDRAttacker, GRUAttnDRAttacker, AttnDRAttacker
-from sfl.model.attacker.eia_attacker import LMMapper
+from sfl.config import FLConfig, attacker_path, model_download_dir, DRA_train_label, fsha_path, mapper_path, \
+    SIPAttackerArguments
 from sfl.model.attacker.fsha_attacker import FSHAAttacker
+from sfl.model.attacker.sip_attacker import LSTMDRInverter, GRUDRInverter, LinearSIPInverter, MOEDRInverter, \
+    ViTDRAttacker, DecoderSIPInverter, AttnGRUDRInverter, GRUAttnSIPInverter, AttnSIPInverter
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel, GPT2SplitClassificationModel
 from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
 from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificationSplitModel
-from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
 from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
 from sfl.simulator.dataset import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
@@ -119,64 +115,9 @@ def add_sfl_params(parser):
     parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
     parser.add_argument('--noise_scale_grad', type=float, default=0.0)
     parser.add_argument('--noise_beta_dc', type=float, default=0.1)
-    parser.add_argument('--attacker_model', type=str, default='gru', help='lstm, gru, linear')
-    parser.add_argument('--attacker_train_frac', type=float, default=1.0)
-    parser.add_argument('--attacker_prefix', type=str, default='normal')
-    parser.add_argument('--attacker_search', type=str2bool, default=False)
-    parser.add_argument('--attacker_freq', type=int, default=25, help='attack every * steps')
-    parser.add_argument('--attacker_samples', type=int, default=10, help='attack how many batches each time')
-    parser.add_argument('--attacker_dataset', type=str,
-                        default='')
-    parser.add_argument('--attacker_path', type=str,
-                        default=attacker_path,
-                        help='trained attacker model for b2tr')
-    parser.add_argument('--attacker_b2tr_enable', type=str2bool, default=True)
-    parser.add_argument('--attacker_b2tr_sp', type=int, default=15)
-    parser.add_argument('--attacker_b2tr_target_sp', type=int, default=-1)
-    parser.add_argument('--attacker_tr2t_enable', type=str2bool, default=True)
-    parser.add_argument('--attacker_tr2t_target_sp', type=int, default=-1)
-    parser.add_argument('--attacker_tr2t_sp', type=int, default=15)
     parser.add_argument('--client_num', type=int, default=1)
     parser.add_argument('--global_round', type=int, default=4)
     parser.add_argument('--client_from_scratch', type=str2bool, default=False)
-    parser.add_argument('--dlg_enable', type=str2bool, default=True)
-    parser.add_argument('--dlg_raw_enable', type=str2bool, default=False)
-    parser.add_argument('--dlg_epochs', type=int, default=30)
-    parser.add_argument('--dlg_raw_epochs', type=int, default=400)
-    parser.add_argument('--dlg_adjust', type=int, default=0)
-    parser.add_argument('--dlg_beta', type=float, default=0.9)
-    parser.add_argument('--dlg_lr', type=float, default=0.09)
-    parser.add_argument('--dlg_lamp_freq', type=int, default=30)
-    parser.add_argument('--dlg_method', type=str, default='tag')
-    parser.add_argument('--dlg_init_with_dra', type=str2bool, default=True,
-                        help='initialize GT vector with DRA attacker')
-    parser.add_argument('--dlg_init_temp', type=float, default=1.0)
-    parser.add_argument('--dlg_dra_reg', type=float, default=0.0,
-                        help='Add regularization term to make GT closer to DRA result')
-    parser.add_argument('--dlg_temp_range', type=float, default=0.0)
-    parser.add_argument('--dlg_further_ft', type=int, default=0)
-    parser.add_argument('--wba_enable', type=str2bool, default=False)
-    parser.add_argument('--wba_epochs', type=int, default=100)
-    parser.add_argument('--wba_lr', type=float, default=0.001)
-    parser.add_argument('--wba_raw_enable', type=str2bool, default=False)
-    parser.add_argument('--wba_raw_epochs', type=int, default=500)
-    parser.add_argument('--wba_raw_lr', type=float, default=0.09)
-    parser.add_argument('--wba_raw_temp', type=float, default=0.1)
-    parser.add_argument('--wba_raw_wd', type=float, default=0.01)
-    parser.add_argument('--wba_raw_mapped_to', type=int, default=1)
-    parser.add_argument('--wba_at', type=str, default='b2tr')
-    parser.add_argument('--wba_dir_enable', type=str2bool, default=False)
-    parser.add_argument('--mapper_enable', type=str2bool, default=False)
-    parser.add_argument('--mapper_train_frac', type=float, default=1.0)
-    parser.add_argument('--mapper_path', type=str, default=mapper_path)
-    parser.add_argument('--mapper_dataset', type=str,
-                        default='')
-    parser.add_argument('--mapper_target', type=str,
-                        default='')
-    parser.add_argument('--alt_enable', type=str2bool, default=False)
-    parser.add_argument('--alt_steps', type=int, default=3)
-    parser.add_argument('--alt_fwd_steps', type=int, default=64)
-    parser.add_argument('--alt_bwd_steps', type=int, default=18)
     parser.add_argument('--self_pt_enable', type=str2bool, default=False)
     parser.add_argument('--entangle_enable', type=str2bool, default=False)
     parser.add_argument('--client_steps', type=int, default=50)
@@ -185,6 +126,73 @@ def add_sfl_params(parser):
     parser.add_argument('--lr', type=float, default=1e-5)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--log_to_wandb', type=str2bool, default=True)
+
+    parser.add_argument('--attacker_freq', type=int, default=25, help='attack every * steps')
+    parser.add_argument('--attacker_samples', type=int, default=10, help='attack how many batches each time')
+    # sip
+    parser.add_argument('--sip_enable', type=str2bool, default=True)
+    parser.add_argument('--sip_path', type=str,
+                        default=attacker_path,
+                        help='trained attacker model for b2tr')
+    parser.add_argument('--sip_model', type=str, default='gru', help='lstm, gru, linear')
+    parser.add_argument('--sip_dataset', type=str,
+                        default='')
+    parser.add_argument('--sip_train_frac', type=float, default=1.0)
+    parser.add_argument('--sip_prefix', type=str, default='normal')
+    parser.add_argument('--sip_b2tr_enable', type=str2bool, default=True)
+    parser.add_argument('--sip_b2tr_layer', type=int, default=-1)
+    parser.add_argument('--sip_b2tr_target_layer', type=int, default=-1)
+    parser.add_argument('--sip_tr2t_enable', type=str2bool, default=True)
+    parser.add_argument('--sip_tr2t_target_layer', type=int, default=-1)
+    parser.add_argument('--sip_tr2t_layer', type=int, default=-1)
+    # GMA
+    parser.add_argument('--gma_enable', type=str2bool, default=True)
+    parser.add_argument('--gma_epochs', type=int, default=30)
+    parser.add_argument('--gma_beta', type=float, default=0.85)
+    parser.add_argument('--gma_lr', type=float, default=0.09)
+    parser.add_argument('--gma_init_temp', type=float, default=1.0)
+    # TAG
+    parser.add_argument('--tag_enable', type=str2bool, default=False)
+    parser.add_argument('--tag_epochs', type=int, default=400)
+    parser.add_argument('--tag_lr', type=float, default=0.09)
+    parser.add_argument('--tag_beta', type=float, default=0.85)
+    # LAMP
+    parser.add_argument('--lamp_freq', type=int, default=30)
+    # SMA
+    parser.add_argument('--sma_enable', type=str2bool, default=False)
+    parser.add_argument('--sma_epochs', type=int, default=100)
+    parser.add_argument('--sma_lr', type=float, default=0.001)
+    parser.add_argument('--sma_wd', type=float, default=0.01)
+    parser.add_argument('--sma_at', type=str, default='b2tr')
+    # GSMA
+    parser.add_argument('--gsma_enable', type=str2bool, default=False)
+    parser.add_argument('--gsma_epochs', type=int, default=100)
+    parser.add_argument('--gsma_lr', type=float, default=0.001)
+    parser.add_argument('--gsma_at', type=str, default='b2tr')
+    # EIA
+    parser.add_argument('--eia_enable', type=str2bool, default=False)
+    parser.add_argument('--eia_epochs', type=int, default=500)
+    parser.add_argument('--eia_lr', type=float, default=0.09)
+    parser.add_argument('--eia_temp', type=float, default=0.1)
+    parser.add_argument('--eia_wd', type=float, default=0.01)
+    parser.add_argument('--eia_mapped_to', type=int, default=1)
+    parser.add_argument('--eia_at', type=str, default='b2tr')
+
+    parser.add_argument('--mapper_enable', type=str2bool, default=False)
+    parser.add_argument('--mapper_train_frac', type=float, default=1.0)
+    parser.add_argument('--mapper_path', type=str, default=mapper_path)
+    parser.add_argument('--mapper_dataset', type=str,
+                        default='')
+    parser.add_argument('--mapper_target', type=str,
+                        default='')
+
+    # ALT
+    parser.add_argument('--alt_enable', type=str2bool, default=False)
+    parser.add_argument('--alt_steps', type=int, default=3)
+    parser.add_argument('--alt_fwd_steps', type=int, default=64)
+    parser.add_argument('--alt_bwd_steps', type=int, default=18)
+
+
 
 
 def get_fl_config(args) -> FLConfig:
@@ -213,49 +221,42 @@ def get_fl_config(args) -> FLConfig:
     return config
 
 
-def get_dra_config(args) -> DRAConfig:
-    res = DRAConfig()
-    res.path = args.attacker_path
-    res.model = args.attacker_model
-    res.dataset = args.attacker_dataset
-    if args.attacker_dataset is None or len(args.attacker_dataset) == 0:
-        res.dataset = args.dataset
-    if ',' in res.dataset:
-        res.train_label = DRA_train_label[res.dataset.split(',')[0]]
-    else:
-        res.train_label = DRA_train_label[res.dataset]
-    res.train_frac = args.attacker_train_frac
-    res.prefix = args.attacker_prefix
-    res.b2tr_sp = args.attacker_b2tr_sp
-    res.b2tr_enable = args.attacker_b2tr_enable
-    res.tr2t_sp = args.attacker_tr2t_sp
-    res.tr2t_enable = args.attacker_tr2t_enable
-    res.target_dataset = args.dataset
-    res.target_model_name = args.model_name
-    res.target_sps = args.split_points
-    if res.model == 'vit':
-        res.larger_better = False
-    return res
+# def parse_attacker_args(args, prefix: str, clz):
+#     # get parameters from args starts with 'prefix_'
+#     kwargs = {}
+#     for k, v in vars(args).items():
+#         if k.startswith(prefix):
+#             kwargs[k[len(prefix) + 1:]] = v
+#     return clz(**kwargs)
 
 
-def get_mapper_config(args) -> MapperConfig:
-    res = MapperConfig()
-    res.path = args.mapper_path
-    res.dataset = args.mapper_dataset
-    if args.mapper_dataset is None or len(args.mapper_dataset) == 0:
-        res.dataset = args.dataset
-    if ',' in res.dataset:
-        res.train_label = DRA_train_label[res.dataset.split(',')[0]]
-    else:
-        res.train_label = DRA_train_label[res.dataset]
-    res.train_frac = args.mapper_train_frac
-    if args.mapper_target is None or len(args.mapper_target) == 0:
-        args.mapper_target = f'${args.attacker_b2tr_sp}-1'
-    res.from_layer = int(args.mapper_target.split('-')[0])
-    res.to_layer = int(args.mapper_target.split('-')[1])
-    res.target_dataset = args.dataset
-    res.target_model_name = args.model_name
-    return res
+# def get_sip_arguments(args) -> SIPAttackerArguments:
+#     res = SIPAttackerArguments()
+#     # res.path = args.attacker_path
+#     # res.model = args.attacker_model
+#     # res.dataset = args.attacker_dataset
+#     # if args.attacker_dataset is None or len(args.attacker_dataset) == 0:
+#     #     res.dataset = args.dataset
+#     # if ',' in res.dataset:
+#     #     res.train_label = DRA_train_label[res.dataset.split(',')[0]]
+#     # else:
+#     #     res.train_label = DRA_train_label[res.dataset]
+#     # res.train_frac = args.attacker_train_frac
+#     # res.prefix = args.attacker_prefix
+#     # res.b2tr_layer = args.attacker_b2tr_sp
+#     # res.b2tr_target_layer = args.attacker_b2tr_target_sp
+#     # res.b2tr_enable = args.attacker_b2tr_enable
+#     # res.tr2t_layer = args.attacker_tr2t_sp
+#     # res.tr2t_target_layer = args.attacker_tr2t_target_sp
+#     # res.tr2t_enable = args.attacker_tr2t_enable
+#     res.target_dataset = args.dataset
+#     res.target_model_name = args.model_name
+#     res.target_system_sps = args.split_points
+#     if res.model == 'vit':
+#         res.larger_better = False
+#     return res
+
+
 
 
 def get_model_path(model_name):
@@ -381,117 +382,8 @@ def get_dataset_class(dataset_name):
     return dataset_cls
 
 
-def get_attacker_class(attack_model):
-    attacker_cls = LSTMDRAttacker
-    if attack_model == 'lstm':
-        attacker_cls = LSTMDRAttacker
-    elif attack_model == 'gru':
-        attacker_cls = GRUDRAttacker
-    elif attack_model == 'linear':
-        attacker_cls = LinearDRAttacker
-    elif attack_model == 'dec':
-        attacker_cls = DecoderDRAttacker
-    elif attack_model == 'moe' or attack_model == 'moe2':
-        attacker_cls = MOEDRAttacker
-    elif attack_model == 'vit':
-        attacker_cls = ViTDRAttacker
-    elif attack_model == 'attngru':
-        attacker_cls = AttnGRUDRAttacker
-    elif attack_model == 'gruattn':
-        attacker_cls = GRUAttnDRAttacker
-    elif attack_model == 'attn':
-        attacker_cls = AttnDRAttacker
-    return attacker_cls
 
-
-def get_dra_attacker(dra_config: DRAConfig):
-    if not dra_config.b2tr_enable and not dra_config.tr2t_enable:
-        return None, None
-    dataset = dra_config.dataset
-    if dataset is None:
-        dataset = dra_config.target_dataset
-
-    prefix = dra_config.prefix
-    model_name = dra_config.target_model_name
-    if 'llama' in model_name:
-        model_name += f"-{dra_config.target_model_load_bits}bits"
-    attacker_path = dra_config.path + f'{model_name}/{dataset}/'
-    matches = []
-    for d in os.listdir(attacker_path):
-        pattern = f'{DRA_train_label[dataset]}*{dra_config.train_frac:.3f}'
-        if ',' in dra_config.dataset:
-            pattern = f'Tr{dra_config.train_frac:.3f}'
-        if d.startswith(pattern):
-            attacker_path = os.path.join(attacker_path, d) + '/'
-            matches.append(attacker_path)
-    assert len(matches) > 0
-    attacker_path_1 = None
-    attacker_path_2 = None
-    for attacker_path in matches:
-        attacker_path += f'{dra_config.model}'
-        if dra_config.b2tr_enable and attacker_path_1 is None:
-            sp1 = int(dra_config.target_sps.split('-')[0])
-            if dra_config.b2tr_sp >= 0:
-                sp1 = dra_config.b2tr_sp
-            attacker_path_1 = attacker_path + f'/layer{sp1}/' + prefix
-            l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[
-                -1 if dra_config.larger_better else 0]
-            attacker_path_1 = os.path.join(attacker_path_1, l)
-            if not os.path.exists(attacker_path_1):
-                attacker_path_1 = None
-
-        if dra_config.tr2t_enable and attacker_path_2 is None:
-            sp2 = int(dra_config.target_sps.split('-')[1])
-            if dra_config.tr2t_sp >= 0:
-                sp2 = dra_config.tr2t_sp
-            attacker_path_2 = attacker_path + f'/layer{sp2}/' + prefix
-            if not os.path.exists(attacker_path_2):
-                attacker_path_2 = attacker_path_2.replace('tr2t', 'b2tr')
-            l = sorted(list(os.listdir(attacker_path_2)), key=lambda x: float(x.split('_')[-1]))[-1]
-            attacker_path_2 = os.path.join(attacker_path_2, l)
-            if not os.path.exists(attacker_path_2):
-                attacker_path_2 = None
-
-    attacker, attacker2 = None, None
-    if attacker_path_1:
-        attacker = get_attacker_class(dra_config.model).from_pretrained(attacker_path_1)
-    if attacker_path_2:
-        attacker2 = get_attacker_class(dra_config.model).from_pretrained(attacker_path_2)
-    return attacker, attacker2
-
-
-def get_eia_mapper(mapper_config: MapperConfig):
-    dataset = mapper_config.dataset
-    if dataset is None:
-        dataset = mapper_config.target_dataset
-
-    model_name = mapper_config.target_model_name
-    if 'llama' in model_name or 'chatglm' in model_name:
-        model_name += f"-{mapper_config.target_model_load_bits}bits"
-    mapper_path = mapper_config.path + f'{model_name}/{dataset}/'
-    matches = []
-    for d in os.listdir(mapper_path):
-        pattern = f'{DRA_train_label[dataset]}*{mapper_config.train_frac:.3f}'
-        if ',' in mapper_config.dataset:
-            pattern = f'Tr{mapper_config.train_frac:.3f}'
-        if d.startswith(pattern):
-            mapper_path = os.path.join(mapper_path, d) + '/'
-            matches.append(mapper_path)
-    assert len(matches) > 0
-    mapper_path_1 = None
-    for attacker_path in matches:
-        mapper_path_1 = attacker_path + f'{mapper_config.from_layer}-{mapper_config.to_layer}/'
-        l = sorted(list(os.listdir(mapper_path_1)), key=lambda x: float(x.split('_')[-1]))[
-            -1 if mapper_config.larger_better else 0]
-        mapper_path_1 = os.path.join(mapper_path_1, l)
-        if not os.path.exists(mapper_path_1):
-            mapper_path_1 = None
-    if mapper_path_1:
-        return LMMapper.from_pretrained(mapper_path_1)
-    return None
-
-
-def get_fsha_attacker(dra_config: DRAConfig):
+def get_fsha_attacker(dra_config: SIPAttackerArguments):
     dataset = dra_config.dataset
     if dataset is None:
         dataset = dra_config.target_dataset
@@ -501,7 +393,7 @@ def get_fsha_attacker(dra_config: DRAConfig):
     attacker_path = fsha_path + f'{model_name}/{dataset}/'
     match = False
     for d in os.listdir(attacker_path):
-        pattern = f'{dra_config.train_label}*{dra_config.train_frac:.3f}'
+        pattern = f'{DRA_train_label[dra_config.dataset]}*{dra_config.train_frac:.3f}'
         if ',' in dra_config.dataset:
             pattern = f'Tr{dra_config.train_frac:.3f}'
         if d.startswith(pattern):
@@ -522,20 +414,3 @@ def get_fsha_attacker(dra_config: DRAConfig):
 
     return attacker
 
-
-def get_dlg_attacker(llm: SplitWrapperModel, method='tag'):
-    mocker = None
-    assert llm.fl_config is not None
-    # if method == 'lamp':
-    #     ppl_llm = llm#get_model_and_tokenizer('gpt2')[0]
-    # !需要在LoRA加上去之前进行复制
-    if isinstance(llm, GPT2SplitLMHeadModel):
-        mocker = GPT2TopDLGAttacker(llm.fl_config, llm, method=method)
-    elif isinstance(llm, LLAMA2SplitLMHeadModel):
-        mocker = LLAMA2TopDLGAttacker(llm.fl_config, llm, method=method)
-        # print(llm.config)
-    elif isinstance(llm, T5ForConditionalGenerationSplitModel):
-        mocker = T5DecoderDLGAttacker(llm.fl_config, llm, method=method)
-    elif isinstance(llm, ChatGLMForConditionalGenerationSplit):
-        mocker = ChatGLMDLGAttacker(llm.fl_config, llm, method=method)
-    return mocker

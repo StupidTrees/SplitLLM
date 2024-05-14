@@ -9,10 +9,10 @@ from torch.optim import Adam
 from tqdm import tqdm
 
 sys.path.append(os.path.abspath('../../..'))
-from experiments.scripts.py.train_attacker import get_save_path, evaluate
+from experiments.scripts.py.train_inverter import get_save_path, evaluate
 from sfl.simulator.dataset import MixtureFedDataset
 from sfl.config import FLConfig, DRA_test_label, DRA_train_label, dxp_moe_range, gaussian_moe_range, dc_moe_range
-from sfl.model.attacker.dra_attacker import MOEDRAttacker, MOEDRAttackerConfig
+from sfl.model.attacker.sip_attacker import MOEDRInverter, MOEDRAttackerConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
     evaluate_attacker_rouge, random_choose_noise
@@ -99,7 +99,7 @@ def train_attacker(args):
         expert_modes = ['none', 'dxp', 'gaussian']
         expert_scales = [0, tuple(dxp_moe_range), tuple(gaussian_moe_range)]
 
-    attack_model = MOEDRAttacker(MOEDRAttackerConfig(expert_scales=expert_scales), model.config)
+    attack_model = MOEDRInverter(MOEDRAttackerConfig(expert_scales=expert_scales), model.config)
     p = get_save_path(config, args.save_dir, args)
     print(f'Checking Existing Model @ {p}')
     if os.path.exists(p) and args.skip_exists:

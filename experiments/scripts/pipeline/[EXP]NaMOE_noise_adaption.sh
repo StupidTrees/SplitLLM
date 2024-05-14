@@ -55,9 +55,9 @@ for seed in "${seeds[@]}"; do
           for atk_ns in "${attacker_noise_scales[@]}"; do
             # 先训练攻击模型
 
-            file='train_attacker.py'
+            file='train_inverter.py'
             if [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
-              file='train_attacker_moe.py'
+              file='train_inverter_moe.py'
             fi
 
             attack_mode='b2tr'

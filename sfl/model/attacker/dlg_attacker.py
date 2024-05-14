@@ -1,8 +1,11 @@
+from abc import ABC
 from copy import deepcopy
+from dataclasses import dataclass
 
 import numpy as np
 import torch
 import tqdm
+from tokenizers import Tokenizer
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from torch.nn import ModuleList
@@ -10,31 +13,49 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 from transformers.models.t5.modeling_t5 import T5Block, T5LayerNorm
 
 from sfl.config import FLConfig
+from sfl.model.attacker.attacker import Attacker
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel
 from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
-from sfl.simulator.simulator import SFLSimulator
-from sfl.utils.model import calc_shifted_loss_logits
+from sfl.simulator.simulator import SFLSimulator, ParamRestored
+from sfl.utils.model import calc_shifted_loss_logits, get_output
 
 
-class DLGAttacker(nn.Module):
+class DLGAttacker(Attacker, ABC):
     """
     DLG攻击模型
     """
 
-    def __init__(self, fl_config: FLConfig, model: SplitWrapperModel, method='tag', *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, fl_config: FLConfig, model: SplitWrapperModel, name=None, arg_clz=None):
+        super().__init__(name=name, arg_clz=arg_clz)
+        self.top_mocker = None
         self.target_model_config = model.config
         self.fl_config = fl_config
         self.model_type = model.type
-        self.method = method
-        self.simulator: SFLSimulator = None
 
-    def gma_loss(self, inter, gradient, gt, beta=0.85, ppl=False, **kwargs):
-        # print(inter.shape, gradient.shape, gt.shape, flush=True)
-        x = self.forward(inter, **kwargs)
+    def load_attacker(self, args, aargs, llm: SplitWrapperModel = None, tokenizer: Tokenizer = None):
+        print(get_output("test", tokenizer, llm))
+        # self.top_mocker = get_dlg_mocker(llm)
+        mocker = None
+        assert llm.fl_config is not None
+        # if method == 'lamp':
+        #     ppl_llm = llm#get_model_and_tokenizer('gpt2')[0]
+        # !需要在LoRA加上去之前进行复制
+        if isinstance(llm, GPT2SplitLMHeadModel):
+            mocker = GPT2TopMocker(llm.fl_config, llm)
+        elif isinstance(llm, LLAMA2SplitLMHeadModel):
+            mocker = LLAMA2TopMocker(llm.fl_config, llm)
+            # print(llm.config)
+        elif isinstance(llm, T5ForConditionalGenerationSplitModel):
+            mocker = T5DecoderTopMocker(llm.fl_config, llm)
+        elif isinstance(llm, ChatGLMForConditionalGenerationSplit):
+            mocker = ChatGLMTopMocker(llm.fl_config, llm)
+        self.top_mocker = mocker
+
+    def _gma_loss(self, inter, gradient, gt, beta=0.85, ppl=False, llm=None, **kwargs):
+        x = self.top_mocker(inter, **kwargs)
         if self.model_type == 'encoder-decoder':
             loss = CrossEntropyLoss(ignore_index=-100)(x.view(-1, x.size(-1)),
                                                        torch.softmax(gt, dim=-1).view(-1, gt.size(-1)))
@@ -43,60 +64,89 @@ class DLGAttacker(nn.Module):
         grad = torch.autograd.grad(loss, inter, create_graph=True)
         grad_diff = 0
         for gx, gy in zip(grad, gradient.to(loss.device)):
-            if self.method == 'dlg':
-                grad_diff += ((gx - gy) ** 2).sum()
-            else:
-                grad_diff += beta * ((gx - gy) ** 2).sum() + (1 - beta) * (torch.abs(gx - gy)).sum()
+            # if self.method == 'dlg':
+            #     grad_diff += ((gx - gy) ** 2).sum()
+            # else:
+            grad_diff += beta * ((gx - gy) ** 2).sum() + (1 - beta) * (torch.abs(gx - gy)).sum()
         if ppl:
             with torch.no_grad():
                 input_ids = gt.argmax(-1)
-                ppl = self.simulator.llm(input_ids=input_ids, labels=input_ids).loss
+                ppl = llm(input_ids=input_ids, labels=input_ids).loss
                 grad_diff += 0.2 * ppl
         return grad_diff
 
-    def fit(self, inter, gradient, epochs=300, adjust=0, beta=0.85, lr=0.09, gt_init=None, init_temp=1.0,
-            model_name=None, lamp=False, lamp_freq=30, softmax=True, **kwargs):
-        if model_name == 'chatglm':
-            gradient = gradient.permute(1, 0, 2)
-            inter = inter.permute(1, 0, 2)
-        batch_size, seq_len = inter.shape[:2]
-        vocab_size = self.target_model_config.vocab_size
-        if gt_init is not None:
-            if gt_init.shape[1] != gradient.shape[1]:
-                gt_init = gt_init[:, -gradient.shape[1]:, :]
-            dra_attacked = gt_init.clone().detach().to(inter.device)  # (batch_size, seq_len, vocab_size)
-            # softmax with temperature
-            if softmax:
-                dra_attacked = torch.softmax(dra_attacked / init_temp, dim=-1)
-            # dra_attacked = torch.softmax(dra_attacked, dim=-1)
+    # def fit(self, inter, gradient, epochs=300, adjust=0, beta=0.85, lr=0.09, gt_init=None, init_temp=1.0,
+    #         model_name=None, lamp=False, lamp_freq=30, softmax=True, **kwargs):
+    #
+    #     return gt
 
-            gt = dra_attacked.clone()
-        else:
-            gt = torch.softmax(torch.randn((batch_size, seq_len, vocab_size)).to(inter.device), dim=-1)
-        gt.requires_grad = True
-        inter.requires_grad = True
-        optimizer = torch.optim.AdamW([gt], lr=lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01)
-        for i in range(epochs):
-            optimizer.zero_grad()
-            grad_diff = self.gma_loss(inter, gradient, gt, beta=beta, **kwargs)
-            grad_diff.backward()
-            optimizer.step()
-            if lamp and i % lamp_freq == 0:
-                new_gt = self.lamp(inter, gradient, gt.detach().clone(), beta=beta, **kwargs)
-                with torch.no_grad():
-                    # copy new_gt's data to gt
-                    gt.data = new_gt.data
-        if adjust > 0:
-            optimizer2 = torch.optim.AdamW(self.parameters(), lr=1e-5)
-            for i in range(adjust):
-                optimizer2.zero_grad()
-                x = self.forward(inter, **kwargs)
-                loss = calc_shifted_loss_logits(x, torch.softmax(gt, dim=-1))
-                loss.backward()
-                optimizer2.step()
+
+@dataclass
+class TAGArguments:
+    epochs: int = 300
+    beta: float = 0.85
+    lr: float = 0.09
+    init_temp: float = 1.0
+    softmax = True
+
+
+class TAGAttacker(DLGAttacker):
+
+    def __init__(self, fl_config: FLConfig, model: SplitWrapperModel, name='TAG'):
+        super().__init__(fl_config, model, name, TAGArguments)
+
+    def attack(self, args, aargs: TAGArguments,
+               llm: SplitWrapperModel, tokenizer: Tokenizer, simulator: SFLSimulator, batch,
+               b2tr_inter, tr2t_inter, all_inter, init=None):
+        encoder_inter = all_inter.get('encoder', None)
+        attention_mask = all_inter.get('att_msk', None)
+        rotary_pos_emb = all_inter.get('rot_pos', None)
+        encoder_inter = None if encoder_inter is None else encoder_inter.fx.to(llm.device)
+        attention_mask = attention_mask.fx if attention_mask is not None else None
+        rotary_pos_emb = rotary_pos_emb.fx if rotary_pos_emb is not None else None
+        gradient = tr2t_inter.grad.clone().to(llm.device)
+        inter = tr2t_inter.fx.clone().to(llm.device)
+        with ParamRestored(llm=llm, param_keeper=simulator.parameter_keeper, key='pretrained',
+                           parts=['bottom', 'top', 'trunk'],
+                           write_back=False):
+            if args.model_name == 'chatglm':
+                gradient = gradient.permute(1, 0, 2)
+                inter = inter.permute(1, 0, 2)
+            batch_size, seq_len = inter.shape[:2]
+            vocab_size = self.target_model_config.vocab_size
+            if init is not None:
+                if init.shape[1] != gradient.shape[1]:
+                    init = init[:, -gradient.shape[1]:, :]
+                dra_attacked = init.clone().detach().to(inter.device)  # (batch_size, seq_len, vocab_size)
+                # softmax with temperature
+                if aargs.softmax:
+                    dra_attacked = torch.softmax(dra_attacked / aargs.init_temp, dim=-1)
+                gt = dra_attacked.clone()
+            else:
+                gt = torch.softmax(torch.randn((batch_size, seq_len, vocab_size)).to(inter.device), dim=-1)
+            gt.requires_grad = True
+            inter.requires_grad = True
+            optimizer = torch.optim.AdamW([gt], lr=aargs.lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01)
+            for i in range(aargs.epochs):
+                optimizer.zero_grad()
+                grad_diff = self._gma_loss(inter, gradient, gt, beta=aargs.beta, encoder_inter=encoder_inter,
+                                           attention_mask=attention_mask,
+                                           rotary_pos_emb=rotary_pos_emb, llm=llm)
+                grad_diff.backward()
+                optimizer.step()
         return gt
 
-    def lamp(self, inter, gradient, gt, beta=0.85, lamp_steps=50, **kwargs):
+
+class LAMPArguments(TAGArguments):
+    lamp_freq = 30
+
+
+class LAMPAttacker(DLGAttacker):
+
+    def __init__(self, fl_config: FLConfig, model: SplitWrapperModel, name='LAMP'):
+        super().__init__(fl_config, model, name, LAMPArguments)
+
+    def _lamp(self, llm, inter, gradient, gt, beta=0.85, lamp_steps=50, **kwargs):
         inter.requires_grad = True
         best_gt, best_loss = None, None
         init_loss = None
@@ -108,60 +158,60 @@ class DLGAttacker(nn.Module):
             with torch.no_grad():
                 for sen_id in range(batch_size):
                     if sample_idx != 0:
-                        if self.method == 'bisr':
-                            # randomly select 1~seq_len*0.1 tokens
-                            num_tokens = np.random.randint(1, int(seq_len * 0.2))
-                            # randomly select the positions of the tokens
-                            token_indexes = np.random.choice(range(seq_len), num_tokens)
-                            # for each position, randomly change the last dimension of the token
-                            for i in token_indexes:
-                                second_idx = np.random.choice([-1, -2, -3])
-                                max_idx = torch.argmax(new_gt[sen_id, i, :])
-                                second_max_idx = torch.argsort(new_gt[sen_id, i, :])[second_idx]
-                                # swap the two tokens
-                                new_gt[sen_id, i, max_idx], new_gt[sen_id, i, second_max_idx] = new_gt[
-                                                                                                    sen_id, i, second_max_idx], \
-                                                                                                new_gt[
-                                                                                                    sen_id, i, max_idx]
-                        else:
-                            perm_ids = np.arange(seq_len)
-                            if sample_idx != 0:
-                                if sample_idx % 4 == 0:  # swap two tokens
-                                    i, j = 1 + np.random.randint(seq_len - 2), 1 + np.random.randint(seq_len - 2)
-                                    perm_ids[i], perm_ids[j] = perm_ids[j], perm_ids[i]
-                                elif sample_idx % 4 == 1:  # move a token to another place
-                                    i = 1 + np.random.randint(seq_len - 2)
-                                    j = 1 + np.random.randint(seq_len - 1)
-                                    if i < j:
-                                        perm_ids = np.concatenate(
-                                            [perm_ids[:i], perm_ids[i + 1:j], perm_ids[i:i + 1], perm_ids[j:]])
-                                    else:
-                                        perm_ids = np.concatenate(
-                                            [perm_ids[:j], perm_ids[i:i + 1], perm_ids[j:i], perm_ids[i + 1:]])
-                                elif sample_idx % 4 == 2:  # move a sequence to another place
-                                    b = 1 + np.random.randint(seq_len - 1)
-                                    e = 1 + np.random.randint(seq_len - 1)
-                                    if b > e:
-                                        b, e = e, b
-                                    p = 1 + np.random.randint(seq_len - 1 - (e - b))
-                                    if p >= b:
-                                        p += e - b
-                                    if p < b:
-                                        perm_ids = np.concatenate(
-                                            [perm_ids[:p], perm_ids[b:e], perm_ids[p:b], perm_ids[e:]])
-                                    elif p >= e:
-                                        perm_ids = np.concatenate(
-                                            [perm_ids[:b], perm_ids[e:p], perm_ids[b:e], perm_ids[p:]])
-                                    else:
-                                        assert False
-                                elif sample_idx % 4 == 3:  # take some prefix and put it at the end
-                                    i = 1 + np.random.randint(seq_len - 2)
+                        # if self.method == 'bisr':
+                        #     # randomly select 1~seq_len*0.1 tokens
+                        #     num_tokens = np.random.randint(1, int(seq_len * 0.2))
+                        #     # randomly select the positions of the tokens
+                        #     token_indexes = np.random.choice(range(seq_len), num_tokens)
+                        #     # for each position, randomly change the last dimension of the token
+                        #     for i in token_indexes:
+                        #         second_idx = np.random.choice([-1, -2, -3])
+                        #         max_idx = torch.argmax(new_gt[sen_id, i, :])
+                        #         second_max_idx = torch.argsort(new_gt[sen_id, i, :])[second_idx]
+                        #         # swap the two tokens
+                        #         new_gt[sen_id, i, max_idx], new_gt[sen_id, i, second_max_idx] = new_gt[
+                        #                                                                             sen_id, i, second_max_idx], \
+                        #                                                                         new_gt[
+                        #                                                                             sen_id, i, max_idx]
+                        # else:
+                        perm_ids = np.arange(seq_len)
+                        if sample_idx != 0:
+                            if sample_idx % 4 == 0:  # swap two tokens
+                                i, j = 1 + np.random.randint(seq_len - 2), 1 + np.random.randint(seq_len - 2)
+                                perm_ids[i], perm_ids[j] = perm_ids[j], perm_ids[i]
+                            elif sample_idx % 4 == 1:  # move a token to another place
+                                i = 1 + np.random.randint(seq_len - 2)
+                                j = 1 + np.random.randint(seq_len - 1)
+                                if i < j:
                                     perm_ids = np.concatenate(
-                                        [perm_ids[:1], perm_ids[i:-1], perm_ids[1:i], perm_ids[-1:]])
-                            new_gt[sen_id] = gt[sen_id, perm_ids, :]
+                                        [perm_ids[:i], perm_ids[i + 1:j], perm_ids[i:i + 1], perm_ids[j:]])
+                                else:
+                                    perm_ids = np.concatenate(
+                                        [perm_ids[:j], perm_ids[i:i + 1], perm_ids[j:i], perm_ids[i + 1:]])
+                            elif sample_idx % 4 == 2:  # move a sequence to another place
+                                b = 1 + np.random.randint(seq_len - 1)
+                                e = 1 + np.random.randint(seq_len - 1)
+                                if b > e:
+                                    b, e = e, b
+                                p = 1 + np.random.randint(seq_len - 1 - (e - b))
+                                if p >= b:
+                                    p += e - b
+                                if p < b:
+                                    perm_ids = np.concatenate(
+                                        [perm_ids[:p], perm_ids[b:e], perm_ids[p:b], perm_ids[e:]])
+                                elif p >= e:
+                                    perm_ids = np.concatenate(
+                                        [perm_ids[:b], perm_ids[e:p], perm_ids[b:e], perm_ids[p:]])
+                                else:
+                                    assert False
+                            elif sample_idx % 4 == 3:  # take some prefix and put it at the end
+                                i = 1 + np.random.randint(seq_len - 2)
+                                perm_ids = np.concatenate(
+                                    [perm_ids[:1], perm_ids[i:-1], perm_ids[1:i], perm_ids[-1:]])
+                        new_gt[sen_id] = gt[sen_id, perm_ids, :]
 
             new_gt.requires_grad = True
-            loss = self.gma_loss(inter, gradient, new_gt, ppl=True, beta=beta, **kwargs).detach().cpu().item()
+            loss = self._gma_loss(inter, gradient, new_gt, ppl=True, llm=llm, beta=beta, **kwargs).detach().cpu().item()
             if sample_idx == 0:
                 init_loss = loss
             pbar.set_postfix({'loss': loss, 'best_loss': best_loss, 'init_loss': init_loss})
@@ -176,8 +226,64 @@ class DLGAttacker(nn.Module):
             print(change)
         return best_gt
 
+    def attack(self, args, aargs: LAMPArguments,
+               llm: SplitWrapperModel, tokenizer: Tokenizer, simulator: SFLSimulator, batch,
+               b2tr_inter, tr2t_inter, all_inter, init=None):
+        encoder_inter = all_inter.get('encoder', None)
+        attention_mask = all_inter.get('att_msk', None)
+        rotary_pos_emb = all_inter.get('rot_pos', None)
+        encoder_inter = None if encoder_inter is None else encoder_inter.fx.to(llm.device)
+        attention_mask = attention_mask.fx if attention_mask is not None else None
+        rotary_pos_emb = rotary_pos_emb.fx if rotary_pos_emb is not None else None
+        gradient = tr2t_inter.grad.clone().to(llm.device)
+        inter = tr2t_inter.fx.clone().to(llm.device)
+        with ParamRestored(llm=llm, param_keeper=simulator.parameter_keeper, key='pretrained',
+                           parts=['bottom', 'top', 'trunk'],
+                           write_back=False):
+            if args.model_name == 'chatglm':
+                gradient = gradient.permute(1, 0, 2)
+                inter = inter.permute(1, 0, 2)
+            batch_size, seq_len = inter.shape[:2]
+            vocab_size = self.target_model_config.vocab_size
+            if init is not None:
+                if init.shape[1] != gradient.shape[1]:
+                    init = init[:, -gradient.shape[1]:, :]
+                dra_attacked = init.clone().detach().to(inter.device)  # (batch_size, seq_len, vocab_size)
+                # softmax with temperature
+                if aargs.softmax:
+                    dra_attacked = torch.softmax(dra_attacked / aargs.init_temp, dim=-1)
+                gt = dra_attacked.clone()
+            else:
+                gt = torch.softmax(torch.randn((batch_size, seq_len, vocab_size)).to(inter.device), dim=-1)
+            gt.requires_grad = True
+            inter.requires_grad = True
+            optimizer = torch.optim.AdamW([gt], lr=aargs.lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01)
+            for i in range(aargs.epochs):
+                optimizer.zero_grad()
+                grad_diff = self._gma_loss(inter, gradient, gt, llm=llm, beta=aargs.beta, encoder_inter=encoder_inter,
+                                           attention_mask=attention_mask,
+                                           rotary_pos_emb=rotary_pos_emb)
+                grad_diff.backward()
+                optimizer.step()
+                if i % aargs.lamp_freq == 0:
+                    new_gt = self._lamp(llm, inter, gradient, gt.detach().clone(), beta=aargs.beta,
+                                        encoder_inter=encoder_inter,
+                                        attention_mask=attention_mask,
+                                        rotary_pos_emb=rotary_pos_emb)
+                    with torch.no_grad():
+                        # copy new_gt's data to gt
+                        gt.data = new_gt.data
+        return gt
 
-class GPT2TopDLGAttacker(DLGAttacker):
+
+class TopMocker(nn.Module):
+    def __init__(self, fl_config: FLConfig, llm: SplitWrapperModel, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fl_config = fl_config
+        self.model_type = llm.type
+
+
+class GPT2TopMocker(TopMocker):
 
     def __init__(self, fl_config: FLConfig, model: GPT2SplitLMHeadModel, **kwargs):
         super().__init__(fl_config, model, **kwargs)
@@ -197,7 +303,7 @@ class GPT2TopDLGAttacker(DLGAttacker):
         return self.head(x)
 
 
-class LLAMA2TopDLGAttacker(DLGAttacker):
+class LLAMA2TopMocker(TopMocker):
 
     def __init__(self, fl_config: FLConfig, model: LLAMA2SplitLMHeadModel, **kwargs):
         super().__init__(fl_config, model, **kwargs)
@@ -214,7 +320,7 @@ class LLAMA2TopDLGAttacker(DLGAttacker):
         return self.head(x)
 
 
-class T5DecoderDLGAttacker(DLGAttacker):
+class T5DecoderTopMocker(TopMocker):
 
     def __init__(self, fl_config: FLConfig, model: T5ForConditionalGenerationSplitModel, **kwargs):
         super().__init__(fl_config, model, **kwargs)
@@ -236,7 +342,7 @@ class T5DecoderDLGAttacker(DLGAttacker):
         return self.lm_head(x)
 
 
-class ChatGLMDLGAttacker(DLGAttacker):
+class ChatGLMTopMocker(TopMocker):
 
     def __init__(self, fl_config: FLConfig, model: ChatGLMForConditionalGenerationSplit, *args, **kwargs):
         super().__init__(fl_config, model, *args, **kwargs)

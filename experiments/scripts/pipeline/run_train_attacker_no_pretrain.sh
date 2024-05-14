@@ -22,7 +22,7 @@ for seed in "${seeds[@]}"; do
         for sp1 in "${sp1s[@]}"; do
 
           echo "Running train_attacker_no_pretrained.py with seed=$seed, dataset=$dataset, model=$model, mode=$mode"
-          python ../py/train_attacker_no_pretrained.py \
+          python ../py/train_inverter_no_pretrained.py \
             --model_name "$model_name" \
             --seed "$seed" \
             --dataset "$dataset" \

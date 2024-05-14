@@ -21,7 +21,7 @@ for seed in "${seeds[@]}"; do
       for mode in "${attack_mode[@]}"; do
         for sp1 in "${sp1s[@]}"; do
           echo "Running train_attacker_moe.py with seed=$seed, dataset=$dataset, model=$model, mode=$mode"
-          python ../py/train_attacker_moe.py \
+          python ../py/train_inverter_moe.py \
             --model_name "$model_name" \
             --seed "$seed" \
             --dataset "$dataset" \

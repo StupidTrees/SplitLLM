@@ -42,9 +42,9 @@ for seed in "${seeds[@]}"; do
 
         # 先训练攻击模型
 
-        file='train_attacker.py'
+        file='train_inverter.py'
         if [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
-          file='train_attacker_moe.py'
+          file='train_inverter_moe.py'
         fi
 
         echo "Running $file with seed=$seed, dataset=$dataset, model=$attack_model"
@@ -63,7 +63,7 @@ for seed in "${seeds[@]}"; do
 
         for noise_dxp in "${noises_dxp[@]}"; do
           echo "Running evaluate_tag_methods.py with seed=$seed, dataset=$dataset, noise=$noise_mode"
-          python ../py/evaluate_tag_methods.py \
+          python ../py/sim_with_attacker.py \
             --noise_mode "$noise_mode" \
             --model_name "$model_name" \
             --global_round "$global_round" \

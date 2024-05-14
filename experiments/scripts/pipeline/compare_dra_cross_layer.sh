@@ -35,7 +35,7 @@ for sp in "${search_splits[@]}"; do
   for dataset in "${datasets[@]}"; do
     # 先训练攻击模型
     echo "Running train_attacker.py with seed=$seed, dataset=$dataset, model=$attack_model"
-    python ../py/train_attacker.py \
+    python ../py/train_inverter.py \
       --model_name "$model_name" \
       --seed "$seed" \
       --dataset "$dataset" \

@@ -40,7 +40,7 @@ for sfl_dataset in "${sfl_datasets[@]}"; do
 
     # 将其用于攻击
     echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
-    python ../py/evaluate_tag_methods.py \
+    python ../py/sim_with_attacker.py \
       --noise_mode "$noise_mode" \
       --case_name "$case_name" \
       --model_name "$model_name" \

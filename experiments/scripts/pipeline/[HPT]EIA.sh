@@ -31,11 +31,11 @@ mapper_train_frac=1.0
 mapper_datasets=("sensireplaced")
 sfl_datasets=("piqa")
 
-wba_raw_enable=True
-wba_raw_mapped_to=1
+eia_enable=True
+eia_mapped_to=1
 eia_lrs=(0.09 0.06 0.11)
 eia_epochs=(72000)
-eia_temps=(0.1 0.5 0.2)
+eia_temps=(0.5 0.3 0.2)
 eia_wds=(0.01)
 # 0.05 0.001 0.1)
 
@@ -65,7 +65,7 @@ for mapper_dataset in "${mapper_datasets[@]}"; do
 
             # 将其用于攻击
             echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
-            python ../py/evaluate_tag_methods.py \
+            python ../py/sim_with_attacker.py \
               --noise_mode "$noise_mode" \
               --case_name "$case_name" \
               --model_name "$model_name" \
@@ -75,8 +75,8 @@ for mapper_dataset in "${mapper_datasets[@]}"; do
               --dataset "$sfl_dataset" \
               --noise_scale_dxp "$noise_scale" \
               --exp_name "$exp_name" \
-              --attacker_b2tr_enable False \
-              --attacker_tr2t_enable False \
+              --sip_b2tr_enable False \
+              --sip_tr2t_enable False \
               --self_pt_enable "$self_pt_enable" \
               --client_num "1" \
               --data_shrink_frac "$data_shrink_frac" \
@@ -89,20 +89,22 @@ for mapper_dataset in "${mapper_datasets[@]}"; do
               --collect_all_layers "$collect_all_layers" \
               --dataset_label "$dataset_label" \
               --batch_size "$batch_size" \
-              --dlg_enable False \
+              --tag_enable False \
+              --gma_enable False \
+              --gsma_enable False \
+              --sma_enable False \
               --attacker_freq "$attacker_freq" \
               --attacker_samples "$attacker_samples" \
               --max_global_step "$max_global_step" \
-              --wba_enable False \
-              --wba_raw_enable "$wba_raw_enable" \
-              --wba_raw_lr "$eia_lr" \
-              --wba_raw_epochs "$eia_epc" \
-              --wba_raw_temp "$eia_temp" \
-              --wba_raw_wd "$eia_wd"\
+              --eia_enable "$eia_enable" \
+              --eia_lr "$eia_lr" \
+              --eia_epochs "$eia_epc" \
+              --eia_temp "$eia_temp" \
+              --eia_wd "$eia_wd"\
+              --eia_mapped_to "$eia_mapped_to"\
               --mapper_target "${eia_depth}-1"\
               --mapper_dataset "${mapper_dataset}"\
-              --mapper_train_frac "$mapper_train_frac"\
-              --wba_raw_mapped_to "$wba_raw_mapped_to"
+              --mapper_train_frac "$mapper_train_frac"
           done
         done
       done

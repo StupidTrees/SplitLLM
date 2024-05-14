@@ -1,13 +1,19 @@
+import os
 from dataclasses import dataclass
+from typing import Any
 
 import torch
+from tokenizers import Tokenizer
 from torch.nn import Linear
 from tqdm import tqdm
 from transformers import PretrainedConfig, PreTrainedModel
 
+from sfl.config import MapperConfig, DRA_train_label
+from sfl.model.attacker.attacker import Attacker
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
 from sfl.model.llm.split_model import SplitWrapperModel
-from sfl.utils.model import Intermediate, evaluate_attacker_rouge, get_embedding_layer, FLConfigHolder, \
+from sfl.simulator.simulator import SFLSimulator, ParamRestored
+from sfl.utils.model import evaluate_attacker_rouge, get_embedding_layer, FLConfigHolder, \
     get_embedding_matrix
 
 
@@ -47,139 +53,155 @@ class LMMapper(PreTrainedModel):
         return self.mapper(hidden_states)
 
 
-class WhiteBoxMIAttacker(object):
+def get_mapper_config(args) -> MapperConfig:
+    res = MapperConfig()
+    res.path = args.mapper_path
+    res.dataset = args.mapper_dataset
+    if args.mapper_dataset is None or len(args.mapper_dataset) == 0:
+        res.dataset = args.dataset
+    if ',' in res.dataset:
+        res.train_label = DRA_train_label[res.dataset.split(',')[0]]
+    else:
+        res.train_label = DRA_train_label[res.dataset]
+    res.train_frac = args.mapper_train_frac
+    if args.mapper_target is None or len(args.mapper_target) == 0:
+        args.mapper_target = f'${args.attacker_b2tr_sp}-1'
+    res.from_layer = int(args.mapper_target.split('-')[0])
+    res.to_layer = int(args.mapper_target.split('-')[1])
+    res.target_dataset = args.dataset
+    res.target_model_name = args.model_name
+    return res
 
-    def fit(self, tok, llm: SplitWrapperModel, inter: Intermediate, gt, epochs=10, lr=1e-4, dummy_init=None,
-            attacker=None, cos_loss=True, at='b2tr'):
-        with FLConfigHolder(llm) as ch:
-            llm.fl_config.attack_mode = at
-            llm.fl_config.collect_intermediates = False
-            llm.fl_config.noise_mode = 'none'
-            ch.change_config()
 
-            if dummy_init is not None:
-                dummy = dummy_init.clone().detach().to(llm.device).argmax(-1)
-            else:
-                dummy = torch.randint(0, llm.config.vocab_size, inter.fx.shape[:-1]).to(llm.device)
-                dummy = dummy.long()
-                if isinstance(llm, ChatGLMForConditionalGenerationSplit):
-                    dummy = dummy.permute(1, 0)
+def get_eia_mapper(mapper_config: MapperConfig):
+    dataset = mapper_config.dataset
+    if dataset is None:
+        dataset = mapper_config.target_dataset
 
-            dummy = get_embedding_layer(llm)(dummy)
-            if dummy.dtype == torch.float16:
-                dummy = dummy.float()
+    model_name = mapper_config.target_model_name
+    if 'llama' in model_name or 'chatglm' in model_name:
+        model_name += f"-{mapper_config.target_model_load_bits}bits"
+    mapper_path = mapper_config.path + f'{model_name}/{dataset}/'
+    matches = []
+    for d in os.listdir(mapper_path):
+        pattern = f'{DRA_train_label[dataset]}*{mapper_config.train_frac:.3f}'
+        if ',' in mapper_config.dataset:
+            pattern = f'Tr{mapper_config.train_frac:.3f}'
+        if d.startswith(pattern):
+            mapper_path = os.path.join(mapper_path, d) + '/'
+            matches.append(mapper_path)
+    assert len(matches) > 0
+    mapper_path_1 = None
+    for attacker_path in matches:
+        mapper_path_1 = attacker_path + f'{mapper_config.from_layer}-{mapper_config.to_layer}/'
+        l = sorted(list(os.listdir(mapper_path_1)), key=lambda x: float(x.split('_')[-1]))[
+            -1 if mapper_config.larger_better else 0]
+        mapper_path_1 = os.path.join(mapper_path_1, l)
+        if not os.path.exists(mapper_path_1):
+            mapper_path_1 = None
+    if mapper_path_1:
+        return LMMapper.from_pretrained(mapper_path_1)
+    return None
 
-            pbar = tqdm(total=epochs)
-            avg_rglf = 0
-            avg_step = 0
-            dummy.requires_grad = True
-            opt = torch.optim.AdamW([dummy], lr=lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01)
-            for e in range(epochs):
-                opt.zero_grad()
-                dmy = dummy
-                if isinstance(llm, ChatGLMForConditionalGenerationSplit):
-                    dmy = dummy.half()
-                it = llm(inputs_embeds=dmy)
-                target = inter.fx.to(llm.device)
-                if it.dtype == torch.float16:
-                    it = it.float()
-                if target.dtype == torch.float16:
-                    target = target.float()
-                if dummy.dtype == torch.float16:
-                    dummy = dummy.float()
-                if attacker is not None:
-                    out = attacker(it)
-                    out2 = attacker(target)
-                    loss = torch.nn.CrossEntropyLoss()(out, out2)
+
+@dataclass
+class EIAArguments:
+    at: str = 'b2tr'
+    mapped_to: int = 1
+    epochs: int = 72000
+    lr: float = 0.09
+    wd: float = 0.01
+    temp: float = 0.2
+
+
+class EmbeddingInversionAttacker(Attacker):
+
+    def __init__(self, name='EIA', arg_clz=EIAArguments):
+        super().__init__(name, arg_clz=arg_clz)
+        self.mapper: LMMapper | None = None
+
+    def load_attacker(self, args, aargs: EIAArguments, llm: SplitWrapperModel = None, tokenizer: Tokenizer = None):
+        if aargs.mapped_to > 0:
+            self.mapper = get_eia_mapper(get_mapper_config(args))
+
+    def attack(self, args, aargs: EIAArguments, llm: SplitWrapperModel, tokenizer: Tokenizer,
+               simulator: SFLSimulator, batch, b2tr_inter, tr2t_inter, all_inters, init=None) -> \
+            dict[str, Any]:
+        if self.mapper:
+            self.mapper.to(llm.device)
+        inter = b2tr_inter
+        if aargs.at == 'tr2t':
+            inter = tr2t_inter
+        with ParamRestored(llm=llm, param_keeper=simulator.parameter_keeper, key='pretrained',
+                           parts=['bottom']):
+            with FLConfigHolder(llm) as ch:
+                llm.fl_config.attack_mode = aargs.at
+                llm.fl_config.collect_intermediates = False
+                llm.fl_config.noise_mode = 'none'
+                if self.mapper and aargs.mapped_to > 0:
+                    llm.fl_config.split_point_1 = aargs.mapped_to
+                ch.change_config()
+                if init is not None:
+                    dummy = init.clone().detach().to(llm.device)  # (batch_size, seq_len, vocab_size)
                 else:
+                    dummy = torch.rand((inter.fx.shape[0], inter.fx.shape[1], llm.config.vocab_size)).to(llm.device)
+                    if isinstance(llm, ChatGLMForConditionalGenerationSplit):
+                        dummy = dummy.permute(1, 0)
+                # dummy = torch.softmax(dummy / temp, -1)  # (batch_size, seq_len, vocab_size)
+                pbar = tqdm(total=aargs.epochs)
+                avg_rglf = 0
+                avg_step = 0
+                target = inter.fx.to(llm.device)
+                if self.mapper:
+                    target = self.mapper(target).detach()
+                dummy.requires_grad = True
+                opt = torch.optim.AdamW([dummy], lr=aargs.lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=aargs.wd)
+                embedding_matrix = get_embedding_matrix(llm).float()  # (vocab, embed_size)
+                for e in range(aargs.epochs):
+                    opt.zero_grad()
+                    dmy = torch.softmax(dummy / aargs.temp, -1) @ embedding_matrix
+                    it = llm(inputs_embeds=dmy)
                     if isinstance(llm, ChatGLMForConditionalGenerationSplit):
                         target = target.permute(1, 0, 2).contiguous()
                         it = it.permute(1, 0, 2).contiguous()
                     loss = 0
-                    if cos_loss:
-                        for x, y in zip(it, target):
-                            loss += 1 - torch.cosine_similarity(x, y, dim=-1).mean()
-                            # loss += ((x - y) ** 2).mean()# + 0.1 * torch.abs(x - y).mean().float()
-                    else:
-                        for x, y in zip(it, target):
-                            loss += ((x - y) ** 2).mean()  # + 0.1 * torch.abs(x - y).sum().float()
+                    for x, y in zip(it, target):
+                        loss += ((x - y) ** 2).sum()  # + 0.1 * torch.abs(x - y).sum().float()
+                    loss.backward()
+                    opt.step()
+                    if e % 10 == 0:
+                        rg, _, _ = evaluate_attacker_rouge(tokenizer, dummy, batch)
+                        avg_rglf += rg["rouge-l"]["f"]
+                        avg_step += 1
 
-                loss.backward()
-                opt.step()
-                # print(f"Loss:{loss.item()} Before: {sent_before} After: {sent_after}")
-
-                if e % 10 == 0:
-                    texts = self.rec_text(llm, dummy)
-                    rg, _, _ = evaluate_attacker_rouge(tok, texts, gt)
-                    avg_rglf += rg["rouge-l"]["f"]
-                    avg_step += 1
-                # logits = self.rec_text(llm, dummy)
-                # text = tok.decode(logits.argmax(-1)[0], skip_special_tokens=True)
-                pbar.set_description(
-                    f'Epoch {e}/{epochs} Loss: {loss.item()} ROUGE: {0 if avg_step == 0 else avg_rglf / avg_step}')
-                pbar.update(1)
-                # dummy = self.rec_text(llm, dummy).argmax(-1)
-                # dummy = get_embedding_layer(llm)(dummy)
-        return self.rec_text(llm, dummy)
-
-    def fit_eia(self, tok, llm: SplitWrapperModel, inter: Intermediate, mapper: LMMapper, gt, mapped_to=-1, epochs=10,
-                lr=1e-4,
-                dummy_init=None,
-                at='b2tr', temp=0.1, wd=0.01):
-        with FLConfigHolder(llm) as ch:
-            llm.fl_config.attack_mode = at
-            llm.fl_config.collect_intermediates = False
-            llm.fl_config.noise_mode = 'none'
-            if mapper and mapped_to > 0:
-                llm.fl_config.split_point_1 = mapped_to
-            ch.change_config()
-            if dummy_init is not None:
-                dummy = dummy_init.clone().detach().to(llm.device)  # (batch_size, seq_len, vocab_size)
-            else:
-                dummy = torch.rand((inter.fx.shape[0], inter.fx.shape[1], llm.config.vocab_size)).to(llm.device)
-                if isinstance(llm, ChatGLMForConditionalGenerationSplit):
-                    dummy = dummy.permute(1, 0)
-            # dummy = torch.softmax(dummy / temp, -1)  # (batch_size, seq_len, vocab_size)
-            pbar = tqdm(total=epochs)
-            avg_rglf = 0
-            avg_step = 0
-            target = inter.fx.to(llm.device)
-            if mapper:
-                target = mapper(target).detach()
-            dummy.requires_grad = True
-            opt = torch.optim.AdamW([dummy], lr=lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=wd)
-            embedding_matrix = get_embedding_matrix(llm).float()  # (vocab, embed_size)
-            for e in range(epochs):
-                opt.zero_grad()
-                dmy = torch.softmax(dummy / temp, -1) @ embedding_matrix
-                it = llm(inputs_embeds=dmy)
-                # if it.dtype == torch.float16:
-                #     it = it.float()
-                # if target.dtype == torch.float16:
-                #     target = target.float()
-                # if dummy.dtype == torch.float16:
-                #     dummy = dummy.float()
-
-                if isinstance(llm, ChatGLMForConditionalGenerationSplit):
-                    target = target.permute(1, 0, 2).contiguous()
-                    it = it.permute(1, 0, 2).contiguous()
-                loss = 0
-                for x, y in zip(it, target):
-                    loss += ((x - y) ** 2).sum()  # + 0.1 * torch.abs(x - y).sum().float()
-                loss.backward()
-                opt.step()
-                # print(f"Loss:{loss.item()} Before: {sent_before} After: {sent_after}")
-                if e % 10 == 0:
-                    rg, _, _ = evaluate_attacker_rouge(tok, dummy, gt)
-                    avg_rglf += rg["rouge-l"]["f"]
-                    avg_step += 1
-
-                pbar.set_description(
-                    f'Epoch {e}/{epochs} Loss: {loss.item()} ROUGE: {0 if avg_step == 0 else avg_rglf / avg_step}')
-                pbar.update(1)
+                    pbar.set_description(
+                        f'Epoch {e}/{aargs.epochs} Loss: {loss.item()} ROUGE: {0 if avg_step == 0 else avg_rglf / avg_step}')
+                    pbar.update(1)
         return dummy
 
-    def rec_text(self, llm, embeds):
+
+@dataclass
+class SMArguments:
+    at: str = 'b2tr'
+    # mapped_to: int = 1
+    epochs: int = 20
+    lr: float = 1e-4
+    wd: float = 0.01
+    cosine_loss: bool = True
+
+
+class SmashedDataMatchingAttacker(Attacker):
+
+    def __init__(self, name='BiSR(b+f)'):
+        super().__init__(name, SMArguments)
+
+    def load_attacker(self, args, aargs: SMArguments, llm: SplitWrapperModel = None, tokenizer: Tokenizer = None):
+        pass
+
+    #
+    # def fit(self, tok, llm: SplitWrapperModel, inter: Intermediate, gt, epochs=10, lr=1e-4, dummy_init=None,
+    #         attacker=None, cos_loss=True, at='b2tr'):
+    def _rec_text(self, llm, embeds):
         wte = get_embedding_layer(llm)
         all_words = torch.tensor(list([i for i in range(llm.config.vocab_size)])).to(llm.device)
         all_embeds = wte(all_words)
@@ -191,3 +213,79 @@ class WhiteBoxMIAttacker(object):
             all_embeds = all_embeds.float()
         cosine_similarities = torch.matmul(embeds, all_embeds.transpose(0, 1))  # (bs, seq,vocab)
         return torch.softmax(cosine_similarities, -1)
+
+    def attack(self, args, aargs: SMArguments, llm: SplitWrapperModel, tokenizer: Tokenizer,
+               simulator: SFLSimulator, batch, b2tr_inter, tr2t_inter, all_inters, init=None):
+        inter = b2tr_inter
+        if aargs.at == 'tr2t':
+            inter = tr2t_inter
+        with ParamRestored(llm=llm, param_keeper=simulator.parameter_keeper, key='pretrained',
+                           parts=['bottom']):
+            # spis_out = atk.fit(tok=self.tokenizer,
+            #                    llm=self.llm, inter=inter, gt=batch,
+            #                    dummy_init=atk_init, epochs=self.args.wba_epochs,
+            #                    lr=self.args.wba_lr, cos_loss=True, at=self.args.wba_at)
+            with FLConfigHolder(llm) as ch:
+                llm.fl_config.attack_mode = aargs.at
+                llm.fl_config.collect_intermediates = False
+                llm.fl_config.noise_mode = 'none'
+                ch.change_config()
+
+                if init is not None:
+                    dummy = init.clone().detach().to(llm.device).argmax(-1)
+                else:
+                    dummy = torch.randint(0, llm.config.vocab_size, inter.fx.shape[:-1]).to(llm.device)
+                    dummy = dummy.long()
+                    if isinstance(llm, ChatGLMForConditionalGenerationSplit):
+                        dummy = dummy.permute(1, 0)
+
+                dummy = get_embedding_layer(llm)(dummy)
+                if dummy.dtype == torch.float16:
+                    dummy = dummy.float()
+
+                pbar = tqdm(total=aargs.epochs)
+                avg_rglf = 0
+                avg_step = 0
+                dummy.requires_grad = True
+                opt = torch.optim.AdamW([dummy], lr=aargs.lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=aargs.wd)
+                for e in range(aargs.epochs):
+                    opt.zero_grad()
+                    dmy = dummy
+                    if isinstance(llm, ChatGLMForConditionalGenerationSplit):
+                        dmy = dummy.half()
+                    it = llm(inputs_embeds=dmy)
+                    target = inter.fx.to(llm.device)
+                    if it.dtype == torch.float16:
+                        it = it.float()
+                    if target.dtype == torch.float16:
+                        target = target.float()
+                    if dummy.dtype == torch.float16:
+                        dummy = dummy.float()
+                    if isinstance(llm, ChatGLMForConditionalGenerationSplit):
+                        target = target.permute(1, 0, 2).contiguous()
+                        it = it.permute(1, 0, 2).contiguous()
+                    loss = 0
+                    if aargs.cosine_loss:
+                        for x, y in zip(it, target):
+                            loss += 1 - torch.cosine_similarity(x, y, dim=-1).mean()
+                    else:
+                        for x, y in zip(it, target):
+                            loss += ((x - y) ** 2).mean()  # + 0.1 * torch.abs(x - y).sum().float()
+
+                    loss.backward()
+                    opt.step()
+                    # print(f"Loss:{loss.item()} Before: {sent_before} After: {sent_after}")
+
+                    if e % 10 == 0:
+                        texts = self._rec_text(llm, dummy)
+                        rg, _, _ = evaluate_attacker_rouge(tokenizer, texts, batch)
+                        avg_rglf += rg["rouge-l"]["f"]
+                        avg_step += 1
+                    # logits = self.rec_text(llm, dummy)
+                    # text = tok.decode(logits.argmax(-1)[0], skip_special_tokens=True)
+                    pbar.set_description(
+                        f'Epoch {e}/{aargs.epochs} Loss: {loss.item()} ROUGE: {0 if avg_step == 0 else avg_rglf / avg_step}')
+                    pbar.update(1)
+                    # dummy = self.rec_text(llm, dummy).argmax(-1)
+                    # dummy = get_embedding_layer(llm)(dummy)
+        return self._rec_text(llm, dummy)

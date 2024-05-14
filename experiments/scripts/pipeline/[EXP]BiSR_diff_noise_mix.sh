@@ -49,9 +49,9 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         noise_scale="$noise_scale_dxp"
         # 先训练攻击模型
 
-        file='train_attacker.py'
+        file='train_inverter.py'
         if [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
-          file='train_attacker_moe.py'
+          file='train_inverter_moe.py'
         fi
 
         attacker_noise_mode='dxp'
@@ -84,7 +84,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
 
         # 将其用于攻击
         echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
-        python ../py/evaluate_tag_methods.py \
+        python ../py/sim_with_attacker.py \
           --noise_mode "$noise_mode" \
           --case_name "$case_name" \
           --model_name "$model_name" \

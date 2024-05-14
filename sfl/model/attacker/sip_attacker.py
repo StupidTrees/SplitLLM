@@ -1,24 +1,90 @@
 import dataclasses
 import math
-from collections import OrderedDict
+import os
 
 import torch
+from tokenizers import Tokenizer
 from torch import nn, Tensor
-from torch.nn import TransformerDecoderLayer, TransformerEncoderLayer, ModuleList
+from torch.nn import ModuleList
 from transformers import PretrainedConfig, PreTrainedModel, GPT2Config
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
-from sfl.config import DRAttackerConfig
+from sfl.config import SIPInverterConfig, SIPAttackerArguments, DRA_train_label
+from sfl.model.attacker.attacker import Attacker
+from sfl.model.llm.split_model import SplitWrapperModel
+from sfl.simulator.simulator import SFLSimulator
 from sfl.utils.model import sentence_score_tokens
 
 
-class DRAttacker(PreTrainedModel):
+class SIPAttacker(Attacker):
+
+    def __init__(self, name='SIP'):
+        super().__init__(name, SIPAttackerArguments)
+        self.inverter_b2tr = None
+        self.inverter_tr2t = None
+
+    def log_name(self) -> str:
+        pass
+
+    def parse_arguments(self, args, prefix: str):
+        res: SIPAttackerArguments = super().parse_arguments(args, prefix)
+        if args.sip_dataset is None or len(args.sip_dataset) == 0:
+            res.dataset = args.dataset
+        res.target_dataset = args.dataset
+        res.target_model_name = args.model_name
+        res.target_system_sps = args.split_points
+        if res.b2tr_layer < 0:
+            res.b2tr_layer = int(res.target_system_sps.split('-')[0])
+        if res.tr2t_layer < 0:
+            res.tr2t_layer = int(res.target_system_sps.split('-')[1])
+        if res.model == 'vit':
+            res.larger_better = False
+        return res
+
+    def load_attacker(self, args, aargs: SIPAttackerArguments, llm: SplitWrapperModel = None,
+                      tokenizer: Tokenizer = None):
+        self.inverter_b2tr, self.inverter_tr2t = get_sip_inverter(aargs)
+
+    def attack(self, args, aargs: SIPAttackerArguments, llm: SplitWrapperModel, tokenizer: Tokenizer,
+               simulator: SFLSimulator, batch, b2tr_inter,
+               tr2t_inter, all_inters, init=None):
+        attacked_result = {}
+        encoder_inter = all_inters.get('encoder', None)
+        encoder_inter = None if encoder_inter is None else encoder_inter.fx.to(llm.device)
+        with torch.no_grad():
+            for type, atk in zip(['tr2t', 'b2tr'], [self.inverter_tr2t, self.inverter_b2tr]):
+                if atk is None:
+                    continue
+                if type == 'b2tr':
+                    if aargs.b2tr_target_layer >= 0:
+                        inter = all_inters[aargs.b2tr_target_layer]
+                    else:
+                        inter = b2tr_inter
+                else:
+                    if aargs.tr2t_target_layer >= 0:
+                        inter = all_inters[aargs.tr2t_target_layer]
+                    else:
+                        inter = tr2t_inter
+                if llm.type == 'encoder-decoder':
+                    attacked = atk(torch.concat([encoder_inter.fx.to(
+                        simulator.device), inter.fx.to(atk.device)], dim=1))
+                else:
+                    attacked = atk(inter.fx.to(atk.device))
+                # sip_res = evaluate_attacker_rouge(tokenizer, attacked, batch)
+                # self.__log_atk_res(sip_res, client_id, f'SIP_{type}')
+                # logs[f'SIP_{type}_rouge-l_step'] = rouge_res['rouge-l']['f']
+                attacked_result[type] = attacked
+        return {f'{type}': res for type, res in attacked_result.items()}
+
+
+class SIPInverter(PreTrainedModel):
     """
     DRA攻击模型
     """
-    config_class = DRAttackerConfig
 
-    def __init__(self, config: DRAttackerConfig, target_config: PretrainedConfig = None, *args, **kwargs):
+    config_class = SIPInverterConfig
+
+    def __init__(self, config: SIPInverterConfig, target_config: PretrainedConfig = None, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         if target_config:
             self.target_config = target_config
@@ -81,7 +147,7 @@ class DRAttacker(PreTrainedModel):
 
 
 @dataclasses.dataclass
-class LSTMDRAttackerConfig(DRAttackerConfig):
+class LSTMDRAttackerConfig(SIPInverterConfig):
     hidden_size: int = 256
     dropout: float = 0.1
     num_layers = 2
@@ -93,7 +159,7 @@ class LSTMDRAttackerConfig(DRAttackerConfig):
 
 
 @dataclasses.dataclass
-class TransformerDRAttackerConfig(DRAttackerConfig):
+class TransformerSIPInverterConfig(SIPInverterConfig):
     dropout: float = 0.1
     hidden_size: int = 256
     num_layers = 1
@@ -105,14 +171,14 @@ class TransformerDRAttackerConfig(DRAttackerConfig):
 
 
 @dataclasses.dataclass
-class TransformerGRUDRAttackerConfig(LSTMDRAttackerConfig, TransformerDRAttackerConfig):
+class TransformerGRUDRAttackerConfig(LSTMDRAttackerConfig, TransformerSIPInverterConfig):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
 
 @dataclasses.dataclass
-class MOEDRAttackerConfig(DRAttackerConfig):
+class MOEDRAttackerConfig(SIPInverterConfig):
     dropout: float = 0.1
     hidden_size: int = 256
     expert_scales: list[float] = None
@@ -124,10 +190,10 @@ class MOEDRAttackerConfig(DRAttackerConfig):
             self.expert_scales = [0, 10.0, 7.5, 5.0]
 
 
-class LinearDRAttacker(DRAttacker):
-    config_class = DRAttackerConfig
+class LinearSIPInverter(SIPInverter):
+    config_class = SIPInverterConfig
 
-    def __init__(self, config: DRAttackerConfig, *args, **kwargs):
+    def __init__(self, config: SIPInverterConfig, *args, **kwargs):
         config.model_name = 'linear'
         super().__init__(config, *args, **kwargs)
         self.mlp = nn.Linear(self.config.n_embed, self.config.vocab_size)
@@ -139,7 +205,7 @@ class LinearDRAttacker(DRAttacker):
         return self.mlp(x)
 
 
-class LSTMDRAttacker(DRAttacker):
+class LSTMDRInverter(SIPInverter):
     config_class = LSTMDRAttackerConfig
 
     def __init__(self, config: LSTMDRAttackerConfig, *args, **kwargs):
@@ -160,7 +226,7 @@ class LSTMDRAttacker(DRAttacker):
         return self.mlp(hidden)
 
 
-class GRUDRAttacker(DRAttacker):
+class GRUDRInverter(SIPInverter):
     config_class = LSTMDRAttackerConfig
 
     def __init__(self, config: LSTMDRAttackerConfig, *args, **kwargs):
@@ -181,7 +247,7 @@ class GRUDRAttacker(DRAttacker):
         return self.mlp(hidden)
 
 
-class MOEDRAttacker(DRAttacker):
+class MOEDRInverter(SIPInverter):
     config_class = MOEDRAttackerConfig
 
     def __init__(self, config: MOEDRAttackerConfig, *args, **kwargs):
@@ -239,10 +305,10 @@ class MOEDRAttacker(DRAttacker):
         return self.mlp(output)  # [batch_size, seq_len, vocab_size]
 
 
-class DecoderDRAttacker(DRAttacker):
-    config_class = TransformerDRAttackerConfig
+class DecoderSIPInverter(SIPInverter):
+    config_class = TransformerSIPInverterConfig
 
-    def __init__(self, config: TransformerDRAttackerConfig, *args, **kwargs):
+    def __init__(self, config: TransformerSIPInverterConfig, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         self.decoder = ModuleList(
             [GPT2Block(GPT2Config(n_embd=config.n_embed, n_head=config.nhead)) for _ in range(config.num_layers)])
@@ -257,10 +323,10 @@ class DecoderDRAttacker(DRAttacker):
         return self.mlp(x)
 
 
-class AttnDRAttacker(DRAttacker):
-    config_class = TransformerDRAttackerConfig
+class AttnSIPInverter(SIPInverter):
+    config_class = TransformerSIPInverterConfig
 
-    def __init__(self, config: TransformerDRAttackerConfig, *args, **kwargs):
+    def __init__(self, config: TransformerSIPInverterConfig, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         self.attn = nn.MultiheadAttention(self.config.n_embed, self.config.nhead, dropout=self.config.dropout)
         self.mlp = nn.Linear(self.config.n_embed, self.config.vocab_size)
@@ -271,10 +337,10 @@ class AttnDRAttacker(DRAttacker):
         return self.mlp(x)
 
 
-class AttnGRUDRAttacker(DRAttacker):
+class AttnGRUDRInverter(SIPInverter):
     config_class = TransformerGRUDRAttackerConfig
 
-    def __init__(self, config: TransformerDRAttackerConfig, *args, **kwargs):
+    def __init__(self, config: TransformerSIPInverterConfig, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         self.attn = nn.MultiheadAttention(self.config.n_embed, self.config.nhead, dropout=self.config.dropout)
         # self.decoder = GPT2Block(GPT2Config(n_embd=config.n_embed, n_head=config.nhead))
@@ -295,7 +361,7 @@ class AttnGRUDRAttacker(DRAttacker):
         return self.mlp(x)
 
 
-class GRUAttnDRAttacker(DRAttacker):
+class GRUAttnSIPInverter(SIPInverter):
     config_class = TransformerGRUDRAttackerConfig
 
     def __init__(self, config: TransformerGRUDRAttackerConfig, *args, **kwargs):
@@ -347,7 +413,7 @@ class GRUAttnDRAttacker(DRAttacker):
 
 
 @dataclasses.dataclass
-class ViTDRAttackerConfig(DRAttackerConfig):
+class ViTDRAttackerConfig(SIPInverterConfig):
     hidden_size: int = 512
     dropout: float = 0.1
     bidirectional = False
@@ -428,3 +494,83 @@ class ViTDRAttacker(PreTrainedModel):
         # normalize to -1,1
         x = torch.tanh(x)
         return x
+
+
+def get_inverter_class(attack_model):
+    attacker_cls = LSTMDRInverter
+    if attack_model == 'lstm':
+        attacker_cls = LSTMDRInverter
+    elif attack_model == 'gru':
+        attacker_cls = GRUDRInverter
+    elif attack_model == 'linear':
+        attacker_cls = LinearSIPInverter
+    elif attack_model == 'dec':
+        attacker_cls = DecoderSIPInverter
+    elif attack_model == 'moe' or attack_model == 'moe2':
+        attacker_cls = MOEDRInverter
+    elif attack_model == 'vit':
+        attacker_cls = ViTDRAttacker
+    elif attack_model == 'attngru':
+        attacker_cls = AttnGRUDRInverter
+    elif attack_model == 'gruattn':
+        attacker_cls = GRUAttnSIPInverter
+    elif attack_model == 'attn':
+        attacker_cls = AttnSIPInverter
+    return attacker_cls
+
+
+def get_sip_inverter(dra_config: SIPAttackerArguments):
+    if not dra_config.b2tr_enable and not dra_config.tr2t_enable:
+        return None, None
+    dataset = dra_config.dataset
+    if dataset is None:
+        dataset = dra_config.target_dataset
+
+    prefix = dra_config.prefix
+    model_name = dra_config.target_model_name
+    if 'llama' in model_name:
+        model_name += f"-{dra_config.target_model_load_bits}bits"
+    attacker_path = dra_config.path + f'{model_name}/{dataset}/'
+    print(attacker_path)
+    matches = []
+    for d in os.listdir(attacker_path):
+        pattern = f'{DRA_train_label[dataset]}*{dra_config.train_frac:.3f}'
+        if ',' in dra_config.dataset:
+            pattern = f'Tr{dra_config.train_frac:.3f}'
+        if d.startswith(pattern):
+            attacker_path = os.path.join(attacker_path, d) + '/'
+            matches.append(attacker_path)
+    assert len(matches) > 0
+    attacker_path_1 = None
+    attacker_path_2 = None
+    for attacker_path in matches:
+        attacker_path += f'{dra_config.model}'
+        if dra_config.b2tr_enable and attacker_path_1 is None:
+            sp1 = int(dra_config.target_system_sps.split('-')[0])
+            if dra_config.b2tr_layer >= 0:
+                sp1 = dra_config.b2tr_layer
+            attacker_path_1 = attacker_path + f'/layer{sp1}/' + prefix
+            l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[
+                -1 if dra_config.larger_better else 0]
+            attacker_path_1 = os.path.join(attacker_path_1, l)
+            if not os.path.exists(attacker_path_1):
+                attacker_path_1 = None
+
+        if dra_config.tr2t_enable and attacker_path_2 is None:
+            sp2 = int(dra_config.target_system_sps.split('-')[1])
+            if dra_config.tr2t_layer >= 0:
+                sp2 = dra_config.tr2t_layer
+            attacker_path_2 = attacker_path + f'/layer{sp2}/' + prefix
+            if not os.path.exists(attacker_path_2):
+                attacker_path_2 = attacker_path_2.replace('tr2t', 'b2tr')
+            l = sorted(list(os.listdir(attacker_path_2)), key=lambda x: float(x.split('_')[-1]))[-1]
+            attacker_path_2 = os.path.join(attacker_path_2, l)
+            if not os.path.exists(attacker_path_2):
+                attacker_path_2 = None
+
+    attacker, attacker2 = None, None
+    if attacker_path_1:
+        attacker = get_inverter_class(dra_config.model).from_pretrained(attacker_path_1)
+    if attacker_path_2:
+        attacker2 = get_inverter_class(dra_config.model).from_pretrained(attacker_path_2)
+    return attacker, attacker2
