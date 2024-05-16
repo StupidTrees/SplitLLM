@@ -116,9 +116,9 @@ class ChatGLMSplitModel(ChatGLMModel, SplitModel):
             self.prefix_encoder = PrefixEncoder(config)
             self.dropout = torch.nn.Dropout(0.1)
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
-        super(ChatGLMSplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.encoder.config_sfl(config, param_keeper, b2tr_hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super(ChatGLMSplitModel, self).config_sfl(config, *args, **kwargs)
+        self.encoder.config_sfl(config, *args, **kwargs)
 
     def change_noise(self, noise_scale, noise_mode=None):
         super(ChatGLMSplitModel, self).change_noise(noise_scale, noise_mode)

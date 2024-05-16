@@ -6,9 +6,6 @@ import wandb
 from matplotlib import pyplot
 
 from sfl.config import FLConfig
-from sfl.model.attacker.dlg_attacker import TAGAttacker, LAMPAttacker
-from sfl.model.attacker.eia_attacker import SmashedDataMatchingAttacker, EmbeddingInversionAttacker
-from sfl.model.attacker.sip_attacker import SIPAttacker
 from sfl.strategies.basic import BaseSFLStrategy
 from sfl.utils.model import FLConfigHolder, saliency_analysis_direct, Intermediate, evaluate_attacker_rouge, \
     saliency_analysis_generative, draw_generative_saliency_maps, draw_direct_saliency_maps, saliency_analysis_decoder, \
@@ -17,28 +14,14 @@ from sfl.utils.model import FLConfigHolder, saliency_analysis_direct, Intermedia
 
 class SLStrategyWithAttacker(BaseSFLStrategy):
 
-    def __init__(self, args, fl_config: FLConfig, llm, tokenizer, **kwargs):
+    def __init__(self, args, fl_config: FLConfig, llm, tokenizer, attackers_conf, **kwargs):
         super().__init__(args, llm, fl_config, tokenizer, **kwargs)
         self.token_class_nums = {}
         self.token_class_hit = {}
-        sip_init_label = 'b2tr'
-        if self.args.sip_tr2t_layer == fl_config.split_point_2:
-            sip_init_label = 'tr2t'
-
-        # Name | AttackerObj | ConfigPrefix | Initialized From
-        attackers_conf = [('SIP', SIPAttacker('SIP'), 'sip', None),
-                          ('BiSR(b)', TAGAttacker(self.fl_config, llm, 'BiSR(b)'), 'gma', f'SIP_{sip_init_label}'),
-                          ('BiSR(f)', SmashedDataMatchingAttacker('BiSR(f)'), 'sma', f'SIP_{sip_init_label}'),
-                          ('BiSR(b+f)', SmashedDataMatchingAttacker('BiSR(b+f)'), 'gsma', 'BiSR(b)'),
-                          ('EIA', EmbeddingInversionAttacker('EIA'), 'eia', None),
-                          ('TAG', TAGAttacker(self.fl_config, llm, 'TAG'), 'tag', None),
-                          ('LAMP', LAMPAttacker(self.fl_config, llm, 'LAMP'), 'lamp', None),
-                          ]
         self.attackers = []
         for name, attacker, config_prefix, init in attackers_conf:
-            enable_name = f'{config_prefix}_enable'
-            if hasattr(self.args, enable_name) and getattr(self.args, enable_name):
-                aarg = attacker.parse_arguments(args, config_prefix)
+            aarg = attacker.parse_arguments(args, config_prefix)
+            if aarg.enable:
                 self.attackers.append((name, attacker, aarg, init))
                 attacker.load_attacker(self.args, aarg, llm, self.tokenizer)
 
@@ -58,8 +41,6 @@ class SLStrategyWithAttacker(BaseSFLStrategy):
                 input_tensors = observe_sample['input_ids'].to(llm.device)
                 inter = llm(input_tensors)
                 attacked = inverter(inter.to(llm.device))
-                # ids = [','.join([str(tid.item()) for tid in t.argmax(-1)]) for t in attacked]
-                # true_ids = [','.join([str(tid.item()) for tid in t]) for t in observe_sample['input_ids']]
                 texts = [self.tokenizer.decode(t.argmax(-1), skip_special_tokens=True) for t in attacked]
             input_sentence = observe_sample['input_ids']
             if 'q_ids' in observe_sample:

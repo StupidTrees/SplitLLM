@@ -11,6 +11,7 @@ from PIL.Image import fromarray
 from matplotlib import pyplot
 from rouge import Rouge
 from torch.nn import CrossEntropyLoss, Parameter
+from transformers import PretrainedConfig
 from trl import DPOTrainer
 
 from sfl.config import dxp_moe_range, gaussian_moe_range, dc_moe_range
@@ -22,6 +23,17 @@ class Intermediate:
     fx: Any
     grad: Any | None = None
     type: str = 'normal'
+
+
+def get_embed_size(target_config: PretrainedConfig):
+    n_embed = 0
+    if hasattr(target_config, 'n_embd'):
+        n_embed = target_config.n_embd
+    elif hasattr(target_config, 'hidden_size'):
+        n_embed = target_config.hidden_size
+    elif hasattr(target_config, 'd_model'):
+        n_embed = target_config.d_model
+    return n_embed
 
 
 def decode_with_extra_space(tok, sent):
@@ -121,12 +133,12 @@ def calculate_rouge_text(texts, labels, print_comparison=False):
 
 
 # 测试模型的生成文本
-def generate(text, tokenizer, md):
+def generate(text, tokenizer, md, **kwargs):
     md.train(False)
     t = tokenizer(text, return_tensors="pt", add_special_tokens=False)
-    res = md.generate(t['input_ids'].to(md.device), attention_mask=t['attention_mask'].to(md.device),
-                      max_length=512, num_beams=6, no_repeat_ngram_size=2, early_stopping=True,
-                      num_return_sequences=1, pad_token_id=tokenizer.pad_token_id)
+    res = md.generate(t['input_ids'].to(md.device), attention_mask=t['attention_mask'].to(md.device), **kwargs)
+    # max_length=128)#, num_beams=8, no_repeat_ngram_size=4, early_stopping=True,
+    # num_return_sequences=1)
     return tokenizer.decode(res[0], skip_special_tokens=True)
 
 
@@ -476,7 +488,6 @@ def get_embedding_matrix(llm) -> Parameter:
         return embedding.word_embeddings.weight
 
 
-
 class FLConfigHolder:
 
     def __init__(self, llm):
@@ -487,11 +498,11 @@ class FLConfigHolder:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.llm.config_sfl(self.config_bk, None)
+        self.llm.config_sfl(self.config_bk)
 
-    def change_config(self):
+    def change_config(self, *args, **kwargs):
         # change self.llm.fl_config's kw to value
-        self.llm.config_sfl(self.llm.fl_config, None)
+        self.llm.config_sfl(self.llm.fl_config, *args, **kwargs)
         # get an instance of fl_cnfig with its collect_intermediates set to False
 
 

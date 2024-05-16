@@ -45,9 +45,9 @@ class GPT2SplitWrapper(SplitWrapperModel):
             reg = rf"^({reg}|.*(.+wte|wpe).*)$"
         return reg
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks=None):
-        super(GPT2SplitWrapper, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.transformer.config_sfl(config, param_keeper, b2tr_hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super(GPT2SplitWrapper, self).config_sfl(config, *args, **kwargs)
+        self.transformer.config_sfl(config, *args, **kwargs)
 
     def get_all_inter(self, detach=True):
         return self.transformer.get_all_inter(detach)

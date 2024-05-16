@@ -65,7 +65,7 @@ def get_mapper_config(args) -> MapperConfig:
         res.train_label = DRA_train_label[res.dataset]
     res.train_frac = args.mapper_train_frac
     if args.mapper_target is None or len(args.mapper_target) == 0:
-        args.mapper_target = f'${args.attacker_b2tr_sp}-1'
+        args.mapper_target = f'{args.split_points.split("-")[0]}-1'
     res.from_layer = int(args.mapper_target.split('-')[0])
     res.to_layer = int(args.mapper_target.split('-')[1])
     res.target_dataset = args.dataset
@@ -106,6 +106,7 @@ def get_eia_mapper(mapper_config: MapperConfig):
 
 @dataclass
 class EIAArguments:
+    enable: bool = False
     at: str = 'b2tr'
     mapped_to: int = 1
     epochs: int = 72000
@@ -115,9 +116,10 @@ class EIAArguments:
 
 
 class EmbeddingInversionAttacker(Attacker):
+    arg_clz = EIAArguments
 
-    def __init__(self, name='EIA', arg_clz=EIAArguments):
-        super().__init__(name, arg_clz=arg_clz)
+    def __init__(self):
+        super().__init__()
         self.mapper: LMMapper | None = None
 
     def load_attacker(self, args, aargs: EIAArguments, llm: SplitWrapperModel = None, tokenizer: Tokenizer = None):
@@ -145,28 +147,36 @@ class EmbeddingInversionAttacker(Attacker):
                     dummy = init.clone().detach().to(llm.device)  # (batch_size, seq_len, vocab_size)
                 else:
                     dummy = torch.rand((inter.fx.shape[0], inter.fx.shape[1], llm.config.vocab_size)).to(llm.device)
-                    if isinstance(llm, ChatGLMForConditionalGenerationSplit):
-                        dummy = dummy.permute(1, 0)
+                    # if isinstance(llm, ChatGLMForConditionalGenerationSplit):
+                    #     dummy = dummy.permute(1, 0, 2)
                 # dummy = torch.softmax(dummy / temp, -1)  # (batch_size, seq_len, vocab_size)
                 pbar = tqdm(total=aargs.epochs)
                 avg_rglf = 0
                 avg_step = 0
-                target = inter.fx.to(llm.device)
+                target = inter.fx.to(llm.device).float()
                 if self.mapper:
                     target = self.mapper(target).detach()
+                if isinstance(llm, ChatGLMForConditionalGenerationSplit):
+                    target = target.permute(1, 0, 2).contiguous()
                 dummy.requires_grad = True
                 opt = torch.optim.AdamW([dummy], lr=aargs.lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=aargs.wd)
                 embedding_matrix = get_embedding_matrix(llm).float()  # (vocab, embed_size)
                 for e in range(aargs.epochs):
                     opt.zero_grad()
-                    dmy = torch.softmax(dummy / aargs.temp, -1) @ embedding_matrix
-                    it = llm(inputs_embeds=dmy)
+                    dmy = torch.softmax(dummy.float() / aargs.temp, -1) @ embedding_matrix
                     if isinstance(llm, ChatGLMForConditionalGenerationSplit):
-                        target = target.permute(1, 0, 2).contiguous()
-                        it = it.permute(1, 0, 2).contiguous()
+                        it = llm(inputs_embeds=dmy.half())
+                        it = it.permute(1, 0, 2).contiguous().float()
+                    else:
+                        it = llm(inputs_embeds=dmy)
                     loss = 0
-                    for x, y in zip(it, target):
-                        loss += ((x - y) ** 2).sum()  # + 0.1 * torch.abs(x - y).sum().float()
+                    if isinstance(llm, ChatGLMForConditionalGenerationSplit):
+                        for x, y in zip(it, target):
+                            loss += ((x - y) ** 2).mean()
+                    else:
+                        for x, y in zip(it, target):
+                            loss += ((x - y) ** 2).sum()
+                    # + 0.1 * torch.abs(x - y).sum().float()
                     loss.backward()
                     opt.step()
                     if e % 10 == 0:
@@ -175,13 +185,14 @@ class EmbeddingInversionAttacker(Attacker):
                         avg_step += 1
 
                     pbar.set_description(
-                        f'Epoch {e}/{aargs.epochs} Loss: {loss.item()} ROUGE: {0 if avg_step == 0 else avg_rglf / avg_step}')
+                        f'Epoch {e}/{aargs.epochs} Loss: {loss.item():.5f} ROUGE: {0 if avg_step == 0 else avg_rglf / avg_step :.5f}')
                     pbar.update(1)
         return dummy
 
 
 @dataclass
 class SMArguments:
+    enable: bool = False
     at: str = 'b2tr'
     # mapped_to: int = 1
     epochs: int = 20
@@ -191,16 +202,11 @@ class SMArguments:
 
 
 class SmashedDataMatchingAttacker(Attacker):
+    arg_clz = SMArguments
 
-    def __init__(self, name='BiSR(b+f)'):
-        super().__init__(name, SMArguments)
-
-    def load_attacker(self, args, aargs: SMArguments, llm: SplitWrapperModel = None, tokenizer: Tokenizer = None):
+    def load_attacker(self, args, aargs: arg_clz, llm: SplitWrapperModel = None, tokenizer: Tokenizer = None):
         pass
 
-    #
-    # def fit(self, tok, llm: SplitWrapperModel, inter: Intermediate, gt, epochs=10, lr=1e-4, dummy_init=None,
-    #         attacker=None, cos_loss=True, at='b2tr'):
     def _rec_text(self, llm, embeds):
         wte = get_embedding_layer(llm)
         all_words = torch.tensor(list([i for i in range(llm.config.vocab_size)])).to(llm.device)

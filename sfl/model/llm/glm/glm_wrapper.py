@@ -15,9 +15,9 @@ from sfl.simulator.param_keeper import ParameterKeeper
 
 class ChatGLMForConditionalGenerationSplit(ChatGLMForConditionalGeneration, SplitWrapperModel):
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
-        super(ChatGLMForConditionalGenerationSplit, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.transformer.config_sfl(config, param_keeper, b2tr_hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super(ChatGLMForConditionalGenerationSplit, self).config_sfl(config, *args, **kwargs)
+        self.transformer.config_sfl(config, *args, **kwargs)
 
     def get_adapter_module_regex(self):
         if self.fl_config is not None:
@@ -52,7 +52,7 @@ class ChatGLMForConditionalGenerationSplit(ChatGLMForConditionalGeneration, Spli
         return self.transformer.get_all_inter(detach=detach)
 
     def change_noise(self, scale, mode=None):
-        super(ChatGLMForConditionalGenerationSplit, self).change_noise(scale,mode)
+        super(ChatGLMForConditionalGenerationSplit, self).change_noise(scale, mode)
         self.transformer.change_noise(scale, mode)
 
     def forward(

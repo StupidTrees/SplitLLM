@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
-from copy import deepcopy
 
 import regex
 import torch
 from peft import LoraConfig, get_peft_model
-from torch import nn
+from torch import nn, float16
 
 from sfl.config import FLConfig
-from sfl.model.llm.noise import DxPrivacy, GaussianPerturber
+from sfl.model.llm.dim_reduction import DimReduction
+from sfl.model.llm.noise import GaussianPerturber
 from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.utils.model import Intermediate
 
@@ -25,12 +25,17 @@ class SplitModel(nn.Module, ABC):
         self.b2tr_hooks = []
         self.intermediate_fx = {}
         self.noise_mode = None
+        self.dim_reducer = None
         self.perturbers = {'gaussian': GaussianPerturber()}
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks: list = None):
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks: list = None,
+                   dim_reducer: DimReduction = None, *args, **kwargs):
         self.fl_config = config
-        self.param_keeper = param_keeper
         self.noise_mode = config.noise_mode
+        if dim_reducer is not None:
+            self.dim_reducer = dim_reducer
+        if param_keeper is not None:
+            self.param_keeper = param_keeper
         if b2tr_hooks is not None:
             for hk in b2tr_hooks:
                 self.b2tr_hooks.append(hk)
@@ -71,32 +76,39 @@ class SplitModel(nn.Module, ABC):
         return inputs_embeds
 
     def inject_between_blocks(self, hidden_states, i):
+        to_save = hidden_states
+        if self.dim_reducer and self.fl_config and self.fl_config.reducer_enable and i == self.dim_reducer.config.layer - 1:
+            half = hidden_states.dtype == float16
+            self.dim_reducer.to(hidden_states.device)
+            to_save, hidden_states = self.dim_reducer(hidden_states)
+            if half:
+                hidden_states = hidden_states.half()
         if self.fl_config and self.fl_config.attack_mode:
             if i == self.fl_config.split_point_1 - 1 and self.fl_config.attack_mode == 'b2tr':
                 if self.noise_mode == 'gaussian':
                     return self.perturbers['gaussian'](hidden_states), hidden_states
-                return hidden_states, hidden_states
+                return to_save, hidden_states
             elif i == self.fl_config.split_point_2 and self.fl_config.attack_mode == 'tr2t':
-                return hidden_states, hidden_states
+                return to_save, hidden_states
 
         if self.fl_config is not None and self.fl_config.trigger_hook and i == self.fl_config.split_point_1 - 1:  # bottom-trunk
             for hook in self.b2tr_hooks:
-                hook(hidden_states)
+                hook(to_save)
 
         if self.fl_config is not None and self.noise_mode == 'gaussian' and i == self.fl_config.split_point_1 - 1:
-            hidden_states = self.perturbers['gaussian'](hidden_states)
+            to_save = hidden_states = self.perturbers['gaussian'](to_save)
         if self.training and self.fl_config is not None and self.fl_config.collect_intermediates:
             if i == self.fl_config.split_point_1 - 1:  # bottom-trunk
-                hidden_states.retain_grad()
-                self._store_fx(i, hidden_states)
+                to_save.retain_grad()
+                self._store_fx(i, to_save)
                 for hook in self.b2tr_hooks:
-                    hook(hidden_states)
+                    hook(to_save)
             elif i == self.fl_config.split_point_2 - 1:  # trunk-top
-                hidden_states.retain_grad()
-                self._store_fx(i, hidden_states)
+                to_save.retain_grad()
+                self._store_fx(i, to_save)
             elif self.fl_config.collect_all_layers:
-                hidden_states.retain_grad()
-                self._store_fx(i, hidden_states)
+                to_save.retain_grad()
+                self._store_fx(i, to_save)
         return None, hidden_states
 
 

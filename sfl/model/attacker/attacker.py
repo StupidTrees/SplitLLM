@@ -1,33 +1,25 @@
-import argparse
-from abc import ABC
-from typing import Any
+from abc import ABC, abstractmethod
 
 from tokenizers import Tokenizer
 
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator
+from sfl.utils.argparser import PrefixArgumentParser
 
 
 class Attacker(ABC):
+    arg_clz = None
 
-    def __init__(self, name=None, arg_clz=None):
-        self.name = name
-        self.arg_clz = arg_clz
-
+    @abstractmethod
     def load_attacker(self, args, aargs, llm: SplitWrapperModel = None):
         raise NotImplementedError
 
-    def attack(self, args, aargs,
+    @abstractmethod
+    def attack(self, args, aargs: arg_clz,
                llm: SplitWrapperModel, tokenizer: Tokenizer, simulator: SFLSimulator, batch, b2tr_inter, tr2t_inter,
-               all_inters, init=None) -> dict[str, Any]:
+               all_inters, init=None):
         raise NotImplementedError
 
     def parse_arguments(self, args, prefix: str):
-        kwargs = {}
-        for k, v in vars(args).items():
-            if k.startswith(prefix):
-                inner_name = k[len(prefix) + 1:]
-                if inner_name == 'enable':
-                    continue
-                kwargs[inner_name] = v
-        return self.arg_clz(**kwargs)
+        parser = PrefixArgumentParser([self.__class__.arg_clz], prefix=prefix)
+        return parser.parse_args_into_dataclasses(return_remaining_strings=True)[0]

@@ -18,8 +18,8 @@ class GPT2SplitModel(GPT2Model, SplitModel):
     GPT2主模型，主要在FP过程中收集中间输出和梯度
     """
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
-        super(GPT2SplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super(GPT2SplitModel, self).config_sfl(config,*args, **kwargs)
         self.perturbers['dxp'] = DxPrivacy(self.wte, self.config.vocab_size, config.noise_scale_dxp)
 
     def forward(

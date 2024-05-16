@@ -20,9 +20,9 @@ class BertSplitModel(BertModel, SplitModel):
         super().__init__(config, **kwargs)
         self.encoder = BertSplitEncoderModel(config)
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks=None):
-        super(BertSplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.encoder.config_sfl(config, param_keeper, b2tr_hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super(BertSplitModel, self).config_sfl(config, *args, **kwargs)
+        self.encoder.config_sfl(config, *args, **kwargs)
         self.perturbers['dxp'] = DxPrivacy(self.embeddings, self.config.vocab_size, self.fl_config.noise_scale_dxp)
 
     def get_all_inter(self, detach=True):

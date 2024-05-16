@@ -21,8 +21,8 @@ class T5SplitStack(T5Stack, SplitModel):
         self.num_encoder_layers = self.config.num_layers
         self.encoder_hidden_states = None
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks: list = None):
-        super().config_sfl(config, param_keeper, b2tr_hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super().config_sfl(config, *args, **kwargs)
         self.perturbers['dxp'] = DxPrivacy(self.embed_tokens, self.config.vocab_size, self.fl_config.noise_scale_dxp)
 
     def get_all_inter(self, detach=True):

@@ -40,9 +40,9 @@ class RobertaSplitWrapper(SplitWrapperModel):
     def get_all_inter(self, detach=True):
         return self.roberta.get_all_inter(detach)
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks=None):
-        super(RobertaSplitWrapper, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.roberta.config_sfl(config, param_keeper, b2tr_hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super(RobertaSplitWrapper, self).config_sfl(config, *args, **kwargs)
+        self.roberta.config_sfl(config, *args, **kwargs)
 
 
 class RobertaForSequenceClassificationSplitModel(RobertaForSequenceClassification, RobertaSplitWrapper):

@@ -9,6 +9,7 @@ model_download_dir = f'{data_root}/sfl/models/'
 model_cache_dir = f'{data_root}/sfl/cache/'
 attacker_path = f'{data_root}/sfl/models/attacker/'
 mapper_path = f'{data_root}/sfl/models/mapper/'
+reducer_path = f'{data_root}/sfl/models/reducer/'
 fsha_path = f'{data_root}/sfl/models/attacker-fsha/'
 
 DRA_train_label = {
@@ -61,21 +62,12 @@ class FLConfig:
     noise_beta_dc: float = 0.1
     dataset_type: str = 'train'
     batch_size: int = 2
-
-
-@dataclass
-class SIPInverterConfig(PretrainedConfig):
-    model_name: str = None
-    target_model: str = None
-    vocab_size: int = 0
-    n_embed: int = 0
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    reducer_enable:bool = False
 
 
 @dataclass
 class SIPAttackerArguments:
+    enable: bool = True
     path: str = attacker_path
     b2tr_enable: bool = True
     b2tr_layer: int = -1

@@ -9,26 +9,24 @@ from torch.nn import ModuleList
 from transformers import PretrainedConfig, PreTrainedModel, GPT2Config
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
-from sfl.config import SIPInverterConfig, SIPAttackerArguments, DRA_train_label
+from sfl.config import SIPAttackerArguments, DRA_train_label
 from sfl.model.attacker.attacker import Attacker
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator
-from sfl.utils.model import sentence_score_tokens
+from sfl.utils.model import sentence_score_tokens, get_embed_size
 
 
 class SIPAttacker(Attacker):
+    arg_clz = SIPAttackerArguments
 
-    def __init__(self, name='SIP'):
-        super().__init__(name, SIPAttackerArguments)
+    def __init__(self):
+        super().__init__()
         self.inverter_b2tr = None
         self.inverter_tr2t = None
 
-    def log_name(self) -> str:
-        pass
-
     def parse_arguments(self, args, prefix: str):
         res: SIPAttackerArguments = super().parse_arguments(args, prefix)
-        if args.sip_dataset is None or len(args.sip_dataset) == 0:
+        if res.dataset is None or len(res.dataset) == 0:
             res.dataset = args.dataset
         res.target_dataset = args.dataset
         res.target_model_name = args.model_name
@@ -41,11 +39,11 @@ class SIPAttacker(Attacker):
             res.larger_better = False
         return res
 
-    def load_attacker(self, args, aargs: SIPAttackerArguments, llm: SplitWrapperModel = None,
+    def load_attacker(self, args, aargs: arg_clz, llm: SplitWrapperModel = None,
                       tokenizer: Tokenizer = None):
         self.inverter_b2tr, self.inverter_tr2t = get_sip_inverter(aargs)
 
-    def attack(self, args, aargs: SIPAttackerArguments, llm: SplitWrapperModel, tokenizer: Tokenizer,
+    def attack(self, args, aargs: arg_clz, llm: SplitWrapperModel, tokenizer: Tokenizer,
                simulator: SFLSimulator, batch, b2tr_inter,
                tr2t_inter, all_inters, init=None):
         attacked_result = {}
@@ -77,6 +75,17 @@ class SIPAttacker(Attacker):
         return {f'{type}': res for type, res in attacked_result.items()}
 
 
+@dataclasses.dataclass
+class SIPInverterConfig(PretrainedConfig):
+    model_name: str = None
+    target_model: str = None
+    vocab_size: int = 0
+    n_embed: int = 0
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
 class SIPInverter(PreTrainedModel):
     """
     DRA攻击模型
@@ -84,17 +93,15 @@ class SIPInverter(PreTrainedModel):
 
     config_class = SIPInverterConfig
 
-    def __init__(self, config: SIPInverterConfig, target_config: PretrainedConfig = None, *args, **kwargs):
+    def __init__(self, config: SIPInverterConfig, target_config: PretrainedConfig = None, reduce_dim=None, *args,
+                 **kwargs):
         super().__init__(config, *args, **kwargs)
         if target_config:
             self.target_config = target_config
-            if hasattr(target_config, 'n_embd'):
-                self.config.n_embed = target_config.n_embd
-            elif hasattr(target_config, 'hidden_size'):
-                self.config.n_embed = target_config.hidden_size
-            elif hasattr(target_config, 'd_model'):
-                self.config.n_embed = target_config.d_model
+            self.config.n_embed = get_embed_size(target_config)
             self.config.vocab_size = target_config.vocab_size
+            if reduce_dim:
+                self.config.n_embed = reduce_dim
             name_or_path = target_config.name_or_path
             # if it is a path, use the last dir name
             if '/' in name_or_path:

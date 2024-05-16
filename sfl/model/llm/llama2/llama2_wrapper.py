@@ -49,9 +49,9 @@ class LLAMA2SplitLMHeadModel(LlamaForCausalLM, SplitWrapperModel):
         r = regex.findall('\.layers\.[0-9]+', param_name)
         return int(r[0].split('.')[-1]) if len(r) > 0 else -1
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, hooks=None):
-        super(LLAMA2SplitLMHeadModel, self).config_sfl(config, param_keeper, hooks)
-        self.model.config_sfl(config, param_keeper, hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super(LLAMA2SplitLMHeadModel, self).config_sfl(config, *args, **kwargs)
+        self.model.config_sfl(config, *args, **kwargs)
 
     def forward(
             self,

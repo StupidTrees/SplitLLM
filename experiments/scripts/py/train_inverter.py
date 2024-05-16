@@ -11,11 +11,12 @@ from tqdm import tqdm
 sys.path.append(os.path.abspath('../../..'))
 from sfl.simulator.dataset import MixtureFedDataset
 import sfl
-from sfl.config import FLConfig, SIPInverterConfig, dxp_moe_range, gaussian_moe_range
+from sfl.config import FLConfig, dxp_moe_range, gaussian_moe_range
 from sfl.model.attacker.sip_attacker import LSTMDRInverter, GRUDRInverter, LinearSIPInverter, LSTMDRAttackerConfig, \
     TransformerSIPInverterConfig, DecoderSIPInverter, AttnGRUDRInverter, TransformerGRUDRAttackerConfig, \
-    GRUAttnSIPInverter, AttnSIPInverter
-from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_tokenizer
+    GRUAttnSIPInverter, AttnSIPInverter, SIPInverterConfig
+from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_dim_reducer, \
+    get_reducer_args
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
     evaluate_attacker_rouge, random_choose_noise
 
@@ -177,8 +178,14 @@ def train_attacker(args):
                                                                       type=None,
                                                                       shrink_frac=args.dataset_train_frac)
 
-    model.config_sfl(config,
-                     param_keeper=None)
+    reducer = None
+    if args.require_prefix and args.require_prefix.startswith('red'):
+        reducer_arg = get_reducer_args()
+        reducer_arg.alpha = int(args.require_prefix.split(':')[1])
+        reducer_arg.layer = config.split_point_1 if config.attack_mode == "b2tr" else config.split_point_2
+        reducer = get_dim_reducer(args, reducer_arg).to(model.device)
+
+    model.config_sfl(config, dim_reducer=reducer)
     # freeze all parts:
     for name, param in model.named_parameters():
         param.requires_grad = False
@@ -191,21 +198,30 @@ def train_attacker(args):
         return r
 
     # 开始训练Attack Model
-    attack_model = LSTMDRInverter(LSTMDRAttackerConfig(), model.config)
+    inverter_clz = LSTMDRInverter
+    cfg = LSTMDRAttackerConfig()
     if args.attack_model == 'lstm':
-        attack_model = LSTMDRInverter(LSTMDRAttackerConfig(), model.config)
+        inverter_clz = LSTMDRInverter
+        cfg = LSTMDRAttackerConfig()
     elif args.attack_model == 'gru':
-        attack_model = GRUDRInverter(LSTMDRAttackerConfig(), model.config)
+        inverter_clz = GRUDRInverter
+        cfg = LSTMDRAttackerConfig()
     elif args.attack_model == 'linear':
-        attack_model = LinearSIPInverter(SIPInverterConfig(), model.config)
+        inverter_clz = LinearSIPInverter
+        cfg = SIPInverterConfig()
     elif args.attack_model == 'dec':
-        attack_model = DecoderSIPInverter(TransformerSIPInverterConfig(num_layers=args.md_n_layers), model.config)
+        inverter_clz = DecoderSIPInverter
+        cfg = TransformerSIPInverterConfig(num_layers=args.md_n_layers)
     elif args.attack_model == 'attngru':
-        attack_model = AttnGRUDRInverter(TransformerGRUDRAttackerConfig(), model.config)
+        inverter_clz = AttnGRUDRInverter
+        cfg = TransformerGRUDRAttackerConfig()
     elif args.attack_model == 'gruattn':
-        attack_model = GRUAttnSIPInverter(TransformerGRUDRAttackerConfig(), model.config)
+        inverter_clz = GRUAttnSIPInverter
+        cfg = TransformerGRUDRAttackerConfig()
     elif args.attack_model == 'attn':
-        attack_model = AttnSIPInverter(TransformerSIPInverterConfig(), model.config)
+        cfg = TransformerSIPInverterConfig()
+        inverter_clz = AttnSIPInverter
+    attack_model = inverter_clz(cfg, model.config, reduce_dim=None if reducer is None else reducer.config.alpha)
     if 'llama' not in args.model_name and 'chatglm' not in args.model_name:
         device = get_best_gpu()
         model.to(device)
@@ -293,6 +309,6 @@ def train_attacker(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     add_train_dra_params(parser)
-    args = parser.parse_args()
+    args = parser.parse_known_args()[0]
     set_random_seed(args.seed)
     train_attacker(args)

@@ -16,7 +16,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='llama2'
+model_name='chatglm'
 
 sps="6-27"
 batch_size=2
@@ -28,9 +28,15 @@ max_global_step=405
 sfl_datasets=("piqa")
 sip_inverter_dataset='sensireplaced'
 
-sma_lrs=(0.001 0.005 0.0001)
-sma_epochs=(100 300 1000)
+# chatglm
+sma_lrs=(0.01 0.005 0.0001)
+sma_epochs=(100 200 600 800)
 sma_wds=(0.01 0.001 0.02)
+
+# LLaMA2
+#sma_lrs=(0.001 0.005 0.0001)
+#sma_epochs=(100 300 1000)
+#sma_wds=(0.01 0.001 0.02)
 
 # 0.05 0.001 0.1)
 

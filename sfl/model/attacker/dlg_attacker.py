@@ -28,8 +28,8 @@ class DLGAttacker(Attacker, ABC):
     DLG攻击模型
     """
 
-    def __init__(self, fl_config: FLConfig, model: SplitWrapperModel, name=None, arg_clz=None):
-        super().__init__(name=name, arg_clz=arg_clz)
+    def __init__(self, fl_config: FLConfig, model: SplitWrapperModel):
+        super().__init__()
         self.top_mocker = None
         self.target_model_config = model.config
         self.fl_config = fl_config
@@ -83,19 +83,21 @@ class DLGAttacker(Attacker, ABC):
 
 @dataclass
 class TAGArguments:
+    enable: bool = False
     epochs: int = 300
     beta: float = 0.85
     lr: float = 0.09
     init_temp: float = 1.0
-    softmax = True
+    softmax: bool = True
 
 
 class TAGAttacker(DLGAttacker):
+    arg_clz = TAGArguments
 
-    def __init__(self, fl_config: FLConfig, model: SplitWrapperModel, name='TAG'):
-        super().__init__(fl_config, model, name, TAGArguments)
+    def __init__(self, fl_config: FLConfig, model: SplitWrapperModel):
+        super().__init__(fl_config, model)
 
-    def attack(self, args, aargs: TAGArguments,
+    def attack(self, args, aargs: arg_clz,
                llm: SplitWrapperModel, tokenizer: Tokenizer, simulator: SFLSimulator, batch,
                b2tr_inter, tr2t_inter, all_inter, init=None):
         encoder_inter = all_inter.get('encoder', None)
@@ -142,9 +144,10 @@ class LAMPArguments(TAGArguments):
 
 
 class LAMPAttacker(DLGAttacker):
+    arg_clz = LAMPArguments
 
-    def __init__(self, fl_config: FLConfig, model: SplitWrapperModel, name='LAMP'):
-        super().__init__(fl_config, model, name, LAMPArguments)
+    def __init__(self, fl_config: FLConfig, model: SplitWrapperModel):
+        super().__init__(fl_config, model)
 
     def _lamp(self, llm, inter, gradient, gt, beta=0.85, lamp_steps=50, **kwargs):
         inter.requires_grad = True
@@ -221,12 +224,12 @@ class LAMPAttacker(DLGAttacker):
                 if sample_idx != 0:
                     changed = sample_idx % 4
             pbar.update()
-        if not (changed is None):
-            change = ['Swapped tokens', 'Moved token', 'Moved sequence', 'Put prefix at the end'][changed]
-            print(change)
+        # if not (changed is None):
+        #     change = ['Swapped tokens', 'Moved token', 'Moved sequence', 'Put prefix at the end'][changed]
+        #     print(change)
         return best_gt
 
-    def attack(self, args, aargs: LAMPArguments,
+    def attack(self, args, aargs: arg_clz,
                llm: SplitWrapperModel, tokenizer: Tokenizer, simulator: SFLSimulator, batch,
                b2tr_inter, tr2t_inter, all_inter, init=None):
         encoder_inter = all_inter.get('encoder', None)

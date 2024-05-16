@@ -40,9 +40,9 @@ class BertSplitWrapper(SplitWrapperModel):
     def get_all_inter(self, detach=True):
         return self.bert.get_all_inter(detach)
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks=None):
-        super(BertSplitWrapper, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.bert.config_sfl(config, param_keeper, b2tr_hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super(BertSplitWrapper, self).config_sfl(config, *args, **kwargs)
+        self.bert.config_sfl(config, *args, **kwargs)
 
     def change_noise(self, noise_scale, noise_mode=None):
         self.bert.change_noise(noise_scale, noise_mode)

@@ -74,10 +74,10 @@ class T5SplitWrapper(SplitWrapperModel):
     def get_all_inter(self, detach=True):
         return self.decoder.get_all_inter(detach)
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks=None):
-        super(T5SplitWrapper, self).config_sfl(config, param_keeper, b2tr_hooks)
-        self.encoder.config_sfl(config, param_keeper, b2tr_hooks)
-        self.decoder.config_sfl(config, param_keeper, b2tr_hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super(T5SplitWrapper, self).config_sfl(config, *args, **kwargs)
+        self.encoder.config_sfl(config, *args, **kwargs)
+        self.decoder.config_sfl(config, *args, **kwargs)
 
     def change_noise(self, scale, mode=None):
         self.encoder.change_noise(scale, mode)
