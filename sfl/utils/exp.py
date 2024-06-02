@@ -15,6 +15,7 @@ from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
 from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificationSplitModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
 from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
+from sfl.model.llm.wizard.wiard_wrapper import WizardForCausalLMSplit
 from sfl.simulator.dataset import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
     GSM8KFedDataset, WikiTextFedDataset, FedDataset, MixtureFedDataset, SensiMarkedFedDataset, \
     SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset, PIQAMiniFedDataset
@@ -31,6 +32,18 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+def args_to_dict(args_list):
+    dict = {}
+    key = None
+    for l in args_list:
+        if key:
+            dict[key] = l
+            key = None
+        elif l.startswith('--'):
+            key = l[2:]
+    return dict
 
 
 def merge_args(args1, args2):
@@ -175,7 +188,7 @@ def add_sfl_params(parser):
     parser.add_argument('--reducer_dataset', type=str,
                         default='')
     parser.add_argument('--reducer_layer', type=int,
-                        default='')
+                        default=-1)
     parser.add_argument('--reducer_alpha', type=int,
                         default=512)
     # # sip
@@ -258,7 +271,6 @@ def get_fl_config(args) -> FLConfig:
                       collect_all_layers=args.collect_all_layers,
                       dataset_type=args.dataset_label,
                       batch_size=args.batch_size
-
                       )
     return config
 
@@ -275,6 +287,9 @@ def get_model_path(model_name):
         path = os.path.join(model_download_dir, f"google/{model_name}")
     elif model_name.startswith('flan-ul2'):
         path = os.path.join(model_download_dir, f"google/{model_name}")
+    elif model_name.startswith('llama2-raw'):
+        path = os.path.join(model_download_dir, f"meta-llama/Llama-2-7b")
+        # path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
     elif model_name.startswith('llama2'):
         path = os.path.join(model_download_dir, f"meta-llama/Llama-2-7b-chat-hf")
         # path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
@@ -285,6 +300,8 @@ def get_model_path(model_name):
         path = os.path.join(model_download_dir, f"lmsys/vicuna-7b-v1.5")
     elif model_name.startswith('chatglm'):
         path = os.path.join(model_download_dir, f"THUDM/chatglm3-6b")
+    elif model_name.startswith('wizard'):
+        path = os.path.join(model_download_dir, f"lucyknada/microsoft_WizardLM-2-7B")
     return path
 
 
@@ -330,7 +347,7 @@ def get_dim_reducer(args, aargs: ReducerArgument):
     mapper_path_1 = None
     for attacker_path in matches:
         mapper_path_1 = attacker_path + f'layer{aargs.layer}/{aargs.alpha}'
-        l = sorted(list(os.listdir(mapper_path_1)), key=lambda x: abs(1.0 - float(x.split('_')[-1])))[0]
+        l = sorted(list(os.listdir(mapper_path_1)), key=lambda x: float(x.split('_')[-1]))[0]
         mapper_path_1 = os.path.join(mapper_path_1, l)
         if not os.path.exists(mapper_path_1):
             mapper_path_1 = None
@@ -339,7 +356,8 @@ def get_dim_reducer(args, aargs: ReducerArgument):
     return None
 
 
-def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_bits=8, **kwargs):
+def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_bits=8, force_on_best_gpu=True,
+              **kwargs):
     clz = GPT2SplitLMHeadModel
     if model_name.startswith('gpt2'):
         if task == 'lm':
@@ -356,7 +374,9 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
         clz = ChatGLMForConditionalGenerationSplit
     elif 'llama' in model_name or 'vicuna' in model_name:
         clz = LLAMA2SplitLMHeadModel
-    if 'llama' in model_name or 'chatglm' in model_name or 'vicuna' in model_name:
+    elif 'wizard' in model_name:
+        clz = WizardForCausalLMSplit
+    if 'llama' in model_name or 'chatglm' in model_name or 'vicuna' in model_name or 'wizard' in model_name:
         if load_bits <= 8:
             bnb_config = BitsAndBytesConfig(
                 load_in_8bit=load_bits == 8,  # load the model into memory using 8-bit precision
@@ -372,7 +392,11 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
 
     if task == 'clsf':
         kwargs['num_labels'] = num_labels
-    model = clz.from_pretrained(get_model_path(model_name), device_map=str(get_best_gpu()), **kwargs)
+    if force_on_best_gpu:
+        device_map = str(get_best_gpu())
+    else:
+        device_map = 'auto'
+    model = clz.from_pretrained(get_model_path(model_name), device_map=device_map, **kwargs)
     if tokenizer is not None and 'chatglm' not in model_name:
         if model.config.pad_token_id is not None:
             tokenizer.pad_token_id = model.config.pad_token_id
@@ -381,7 +405,7 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
     return model
 
 
-def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, **kwargs):
+def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, force_on_best_gpu=True, **kwargs):
     if model_name.startswith('vit'):
         processor = ViTImageProcessor.from_pretrained(
             os.path.join(model_download_dir, f'google/{model_name}-patch16-224'))
@@ -389,7 +413,7 @@ def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, **kwargs
             os.path.join(model_download_dir, f'google/{model_name}-patch16-224'))
         return model, processor
     tokenizer = get_tokenizer(model_name)
-    model = get_model(model_name, task, num_labels, tokenizer, **kwargs)
+    model = get_model(model_name, task, num_labels, tokenizer, force_on_best_gpu=force_on_best_gpu, **kwargs)
 
     return model, tokenizer
 

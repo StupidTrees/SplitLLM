@@ -16,7 +16,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='chatglm'
+model_name='gpt2-large'
 
 sps="6-27"
 batch_size=2
@@ -28,10 +28,15 @@ max_global_step=405
 sfl_datasets=("piqa")
 sip_inverter_dataset='sensireplaced'
 
-# chatglm
+# gpt2
 sma_lrs=(0.01 0.005 0.0001)
-sma_epochs=(100 200 600 800)
+sma_epochs=(200 600 800 1200)
 sma_wds=(0.01 0.001 0.02)
+
+# chatglm
+#sma_lrs=(0.01 0.005 0.0001)
+#sma_epochs=(100 200 600 800)
+#sma_wds=(0.01 0.001 0.02)
 
 # LLaMA2
 #sma_lrs=(0.001 0.005 0.0001)

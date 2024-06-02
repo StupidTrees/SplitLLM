@@ -37,7 +37,7 @@ def evaluate(epc, md, mapper, test_data_loader, args):
     mase_avg = 0
     for step, batch in tqdm(enumerate(test_data_loader), total=dl_len):
         input_ids = batch['input_ids'].to(md.device)
-        attention_mask = batch['input_att_mask'].to(md.device)
+        attention_mask = batch['attention_mask'].to(md.device)
         md(input_ids=input_ids, attention_mask=attention_mask)
         inter_b2tr, inter_tr2t, _ = md.get_all_inter(detach=True)
         mapped = mapper(inter_tr2t.fx.to(mapper.device))
@@ -127,7 +127,7 @@ def train_mapper(args):
             for step, batch in enumerate(dataloader):
                 optimizer.zero_grad()
                 input_ids = batch['input_ids'].to(model.device)
-                attention_mask = batch['input_att_mask'].to(model.device)
+                attention_mask = batch['attention_mask'].to(model.device)
                 model(input_ids=input_ids, attention_mask=attention_mask)
                 inter_b2tr, inter_tr2t, _ = model.get_all_inter(detach=True)
                 mapped = mapper(inter_tr2t.fx.to(mapper.device))

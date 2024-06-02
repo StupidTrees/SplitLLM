@@ -9,6 +9,7 @@ from tokenizers import Tokenizer
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from torch.nn import ModuleList
+from torch.nn.attention import sdpa_kernel, SDPBackend
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 from transformers.models.t5.modeling_t5 import T5Block, T5LayerNorm
 
@@ -55,6 +56,7 @@ class DLGAttacker(Attacker, ABC):
         self.top_mocker = mocker
 
     def _gma_loss(self, inter, gradient, gt, beta=0.85, ppl=False, llm=None, **kwargs):
+        self.top_mocker.to(llm.device)
         x = self.top_mocker(inter, **kwargs)
         if self.model_type == 'encoder-decoder':
             loss = CrossEntropyLoss(ignore_index=-100)(x.view(-1, x.size(-1)),
@@ -317,8 +319,15 @@ class LLAMA2TopMocker(TopMocker):
         self.head = deepcopy(model.lm_head)
 
     def forward(self, x, **kwargs):
-        for block in self.layers:
-            x = block(x)[0]
+        past_seen_tokens = 0
+        cache_position = torch.arange(
+            past_seen_tokens, past_seen_tokens + x.shape[1], device=x.device
+        )
+
+        position_ids = cache_position.unsqueeze(0)
+        with sdpa_kernel(SDPBackend.MATH):
+            for block in self.layers:
+                x = block(x, position_ids=position_ids)[0]
         x = self.ln(x)
         return self.head(x)
 
@@ -360,8 +369,9 @@ class ChatGLMTopMocker(TopMocker):
         if rotary_pos_emb is not None:
             rotary_pos_emb = rotary_pos_emb.to(x.device)
         x = x.permute(1, 0, 2)
-        for block in self.blocks:
-            x = block(x, attention_mask=attention_mask,
-                      rotary_pos_emb=rotary_pos_emb)[0]
+        with sdpa_kernel(SDPBackend.MATH):
+            for block in self.blocks:
+                x = block(x, attention_mask=attention_mask,
+                          rotary_pos_emb=rotary_pos_emb)[0]
         x = self.final_ln(x)
         return self.output_layer(x).permute(1, 0, 2)

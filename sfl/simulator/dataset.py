@@ -1,5 +1,6 @@
 import ast
 from abc import ABC, abstractmethod
+from functools import partial
 
 import pandas as pd
 import torch
@@ -37,6 +38,11 @@ class FedDataset(ABC):
                           batch_size=batch_size,
                           shuffle=True)
 
+    def as_dataset_and_collator(self, type='train', shrink_frac=1.0):
+        ds = self.all_dataset[type].select(range(int(len(self.all_dataset[type]) * shrink_frac)))
+        ds = self._pre_process(ds, 1)
+        return ds, partial(self._col_fun, extra_info=False)
+
     def get_dataloader_unsliced(self, batch_size=2, type='train', shrink_frac=1.0, further_test_split=None,
                                 max_seq_len=-1):
         ds = self.all_dataset[type].select(range(int(len(self.all_dataset[type]) * shrink_frac)))
@@ -57,11 +63,11 @@ class FedDataset(ABC):
         ds.set_format(type="torch")
         return ds
 
-    def _col_fun(self, batch, max_seq_len=-1):
+    def _col_fun(self, batch, max_seq_len=-1, extra_info=True):
         texts = [b['input'] for b in batch]
         input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt')
         return {'input_ids': input['input_ids'],
-                'input_att_mask': input['attention_mask'],
+                'attention_mask': input['attention_mask'],
                 'input_text': texts}
 
     @abstractmethod
@@ -146,7 +152,7 @@ class PIQAFedDataset(FedDataset):
         return {'q': q, 'a': a,
                 'input': q + a}
 
-    def _col_fun(self, batch, max_seq_len=-1):
+    def _col_fun(self, batch, max_seq_len=-1, extra_info=True):
         texts = [b['input'] for b in batch]
         qs = [b['q'] for b in batch]
         as_ = [b['a'] for b in batch]
@@ -155,15 +161,20 @@ class PIQAFedDataset(FedDataset):
         input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt')
         labels = [b['label'] for b in batch]
         labels = torch.tensor(labels)
-        return {'input_ids': input['input_ids'],
-                'input_att_mask': input['attention_mask'],
-                'input_text': texts,
-                'q_ids': input_q['input_ids'],
-                'q_att_mask': input_q['attention_mask'],
-                'a_ids': input_a['input_ids'],
-                'a_att_mask': input_a['attention_mask'],
-                'q_text': qs,
-                'a_text': as_, 'labels': labels}
+        if not extra_info:
+            return {'input_ids': input['input_ids'], 'attention_mask': input['attention_mask']
+                ,'labels': input['input_ids']}
+        else:
+            return {'input_ids': input['input_ids'],
+                    'attention_mask': input['attention_mask'],
+                    'input_text': texts,
+                    'q_ids': input_q['input_ids'],
+                    'q_att_mask': input_q['attention_mask'],
+                    'a_ids': input_a['input_ids'],
+                    'a_att_mask': input_a['attention_mask'],
+                    'q_text': qs,
+                    'a_text': as_,
+                    'labels': labels}
 
 
 class PIQAMiniFedDataset(PIQAFedDataset):
@@ -183,7 +194,7 @@ class PIQAMiniFedDataset(PIQAFedDataset):
         labels = [b['label'] for b in batch]
         labels = torch.tensor(labels)
         return {'input_ids': input['input_ids'],
-                'input_att_mask': input['attention_mask'],
+                'attention_mask': input['attention_mask'],
                 'input_text': texts,
                 'q_ids': input_q['input_ids'],
                 'q_att_mask': input_q['attention_mask'],
@@ -216,7 +227,7 @@ class GSM8KFedDataset(FedDataset):
         input_q = self.tokenizer(qs_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         return {'input_ids': input['input_ids'],
-                'input_att_mask': input['attention_mask'],
+                'attention_mask': input['attention_mask'],
                 'input_text': texts,
                 'q_ids': input_q['input_ids'],
                 'q_att_mask': input_q['attention_mask'],
@@ -250,7 +261,7 @@ class DialogSumFedDataset(FedDataset):
         input_q = self.tokenizer(qs_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         return {'input_ids': input['input_ids'],
-                'input_att_mask': input['attention_mask'],
+                'attention_mask': input['attention_mask'],
                 'input_text': texts,
                 'q_ids': input_q['input_ids'],
                 'q_att_mask': input_q['attention_mask'],
@@ -283,7 +294,7 @@ class CodeAlpacaFedDataset(FedDataset):
         input_q = self.tokenizer(qs_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         input_a = self.tokenizer(as_, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
         return {'input_ids': input['input_ids'],
-                'input_att_mask': input['attention_mask'],
+                'attention_mask': input['attention_mask'],
                 'input_text': texts,
                 'q_ids': input_q['input_ids'],
                 'q_att_mask': input_q['attention_mask'],
@@ -312,7 +323,7 @@ class IMDBFedDataset(FedDataset):
         labels = [b['label'] for b in batch]
         labels = torch.tensor(labels)
         return {'input_ids': input['input_ids'],
-                'input_att_mask': input['attention_mask'],
+                'attention_mask': input['attention_mask'],
                 'input_text': texts, 'labels': labels}
 
 
@@ -349,7 +360,7 @@ class WikiTextFedDataset(FedDataset):
             }
             result["labels"] = result["input_ids"].copy()
             result["input_text"] = [self.tokenizer.decode(ii) for ii in result["input_ids"]]
-            result["input_att_mask"] = result["attention_mask"]
+            result["attention_mask"] = result["attention_mask"]
             return result
 
         lm_datasets = tokenized_datasets.map(
@@ -395,7 +406,7 @@ class SensiMarkedFedDataset(FedDataset):
                 'q_ids': input['input_ids'],
                 'a_ids': input['input_ids'],
                 'q_att_mask': input['attention_mask'],
-                'input_att_mask': input['attention_mask'],
+                'attention_mask': input['attention_mask'],
                 'input_text': texts, 'entities': [b['entity'] for b in batch],
                 'input_santi_mask': mask}
 
@@ -422,7 +433,7 @@ class SensiReplacedFedDataset(FedDataset):
                 'q_ids': input['input_ids'],
                 'a_ids': input['input_ids'],
                 'q_att_mask': input['attention_mask'],
-                'input_att_mask': input['attention_mask'],
+                'attention_mask': input['attention_mask'],
                 'input_text': texts}
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):

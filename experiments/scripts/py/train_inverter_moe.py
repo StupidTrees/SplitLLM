@@ -27,7 +27,7 @@ def llm_forward(args, model, batch, tokenizer):
                                  dim=1).to(model.device)
     else:
         input_ids = batch['input_ids'].to(model.device)
-        attention_mask = batch['input_att_mask'].to(model.device)
+        attention_mask = batch['attention_mask'].to(model.device)
         intermediate = model(input_ids=input_ids, attention_mask=attention_mask)
     return input_ids, intermediate
 
@@ -154,7 +154,7 @@ def train_attacker(args):
                         #         model.device)
                         # else:
                         #     input_ids = batch['input_ids'].to(model.device)
-                        #     attention_mask = batch['input_att_mask'].to(model.device)
+                        #     attention_mask = batch['attention_mask'].to(model.device)
                         #     intermediate = model(input_ids=input_ids, attention_mask=attention_mask)
                         inters.append(intermediate)
 

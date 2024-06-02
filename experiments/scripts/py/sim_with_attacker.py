@@ -14,7 +14,7 @@ from sfl.model.attacker.eia_attacker import SmashedDataMatchingAttacker, Embeddi
 from sfl.model.attacker.sip_attacker import SIPAttacker
 
 
-def sfl_with_attacker(args):
+def sfl_with_attacker(args, unkown_args):
     model, tokenizer = get_model_and_tokenizer(args.model_name)
 
     # 配置切分学习
@@ -65,11 +65,13 @@ def sfl_with_attacker(args):
         pre_ft_loader = pre_ft_dataset.get_dataloader_unsliced(args.batch_size, args.pre_ft_data_label)
         simulator.pre_ft(pre_ft_loader, ['bottom', 'top'], max_steps=args.pre_ft_max_steps)
 
+    args_dict = vars(args)
+    args_dict.update(unkown_args)
     # 配置wandb
     wandb.init(
         project=args.exp_name,
         name=args.case_name,
-        config=args
+        config=args_dict
     )
     # 开始模拟
     model.train()
@@ -80,5 +82,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     add_sfl_params(parser)
     args, remain = parser.parse_known_args()
+    remain_dict = args_to_dict(remain)
     set_random_seed(args.seed)
-    sfl_with_attacker(args)
+    sfl_with_attacker(args, remain_dict)

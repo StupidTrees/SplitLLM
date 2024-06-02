@@ -115,7 +115,7 @@ class SFLSimulator(object):
                 for step, batch in enumerate(data_loader):
                     optimizer.zero_grad()
                     input_ids = batch['input_ids'].to(self.llm.device)
-                    attention_mask = batch['input_att_mask'].to(self.llm.device)
+                    attention_mask = batch['attention_mask'].to(self.llm.device)
                     outputs = self.llm(input_ids=input_ids, labels=input_ids, attention_mask=attention_mask)
                     loss = outputs.loss
                     pbar.set_description(f'Pre-FT Loss {loss.item():.3f}')

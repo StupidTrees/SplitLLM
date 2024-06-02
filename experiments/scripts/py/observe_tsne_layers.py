@@ -27,7 +27,7 @@ class MultiLayerDRAFLStrategy(BaseSFLStrategy):
         cfg.collect_all_layers = True
         self.llm.config_sfl(cfg, self.llm.param_keeper, self.llm.b2tr_hooks)
         self.llm(self.sample_batch['input_ids'].to(self.llm.device)[:, :10],
-                 attention_mask=self.sample_batch['input_att_mask'].to(self.llm.device)[:, :10])
+                 attention_mask=self.sample_batch['attention_mask'].to(self.llm.device)[:, :10])
         _, _, all_inter = self.llm.get_all_inter(detach=True)
         layer_ranges = {}
         all_tensors = []

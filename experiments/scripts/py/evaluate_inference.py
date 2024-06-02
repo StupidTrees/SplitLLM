@@ -27,7 +27,7 @@ def pre_ft(llm, data_loader):
         for step, batch in enumerate(data_loader):
             optimizer.zero_grad()
             input_ids = batch['input_ids'].to(llm.device)
-            attention_mask = batch['input_att_mask'].to(llm.device)
+            attention_mask = batch['attention_mask'].to(llm.device)
             outputs = llm(input_ids=input_ids, labels=input_ids, attention_mask=attention_mask)
             loss = outputs.loss
             pbar.set_description(f'Pre-FT Loss {loss.item():.3f}')

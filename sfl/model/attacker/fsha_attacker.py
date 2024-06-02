@@ -134,5 +134,5 @@ class FSHAAttacker(PreTrainedModel):
                 if (epc + 1) % 5 == 0:
                     evaluate_ae(epc, llm, self, tokenizer, test_loader, args)
 
-            # input_att_mask = batch['input_att_mask'].to(self.device)
-            # inter = llm(input_ids, attention_mask=input_att_mask)
+            # attention_mask = batch['attention_mask'].to(self.device)
+            # inter = llm(input_ids, attention_mask=attention_mask)

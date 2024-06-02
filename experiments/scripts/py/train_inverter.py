@@ -69,7 +69,7 @@ def evaluate(epc, md, attacker, tok, test_data_loader, args):
                 inter = torch.concat([enc_hidden, dec_hidden], dim=1)
             else:
                 input_ids = batch['input_ids'].to(md.device)
-                attention_mask = batch['input_att_mask'].to(md.device)
+                attention_mask = batch['attention_mask'].to(md.device)
                 inter = md(input_ids=input_ids, attention_mask=attention_mask)
             logits = attacker(inter)
             result, _, _ = evaluate_attacker_rouge(tok, logits, batch)
@@ -111,7 +111,7 @@ def evaluate(epc, md, attacker, tok, test_data_loader, args):
 #                 inter = torch.concat([enc_hidden, dec_hidden], dim=1)
 #             else:
 #                 input_ids = batch['input_ids'].to(md.device)
-#                 attention_mask = batch['input_att_mask'].to(md.device)
+#                 attention_mask = batch['attention_mask'].to(md.device)
 #                 inter = md(input_ids=input_ids, attention_mask=attention_mask)
 #             logits = attacker(inter)
 #             result = evaluate_attacker_rouge(tok, logits, batch)
@@ -184,6 +184,7 @@ def train_attacker(args):
         reducer_arg.alpha = int(args.require_prefix.split(':')[1])
         reducer_arg.layer = config.split_point_1 if config.attack_mode == "b2tr" else config.split_point_2
         reducer = get_dim_reducer(args, reducer_arg).to(model.device)
+        config.reducer_enable = True
 
     model.config_sfl(config, dim_reducer=reducer)
     # freeze all parts:
@@ -267,7 +268,7 @@ def train_attacker(args):
                         model.device)
                 else:
                     input_ids = batch['input_ids'].to(model.device)
-                    attention_mask = batch['input_att_mask'].to(model.device)
+                    attention_mask = batch['attention_mask'].to(model.device)
                     intermediate = model(input_ids=input_ids, attention_mask=attention_mask)
                     # print(intermediate)
                 logits = attack_model(intermediate)

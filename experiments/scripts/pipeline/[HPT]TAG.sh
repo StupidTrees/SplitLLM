@@ -16,7 +16,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='llama2'
+model_name='chatglm'
 
 sps="6-27"
 batch_size=2
@@ -27,10 +27,22 @@ max_global_step=405
 
 sfl_datasets=("piqa")
 
+#chatglm
 tag_lrs=(0.09 0.06 0.11)
 tag_betas=(0.6 0.85)
-tag_epochs=(400 600 800 1000)
+tag_epochs=(400 600 800 1000 1200)
+
+# gpt2
+#tag_lrs=(0.09 0.06 0.11)
+#tag_betas=(0.6 0.85)
+#tag_epochs=(400 600 800 1000 1200)
+
+## llama2
+#tag_lrs=(0.09 0.06 0.11)
+#tag_betas=(0.6 0.85)
+#tag_epochs=(400 600 800 1000)
 # 0.05 0.001 0.1)
+
 
 for sfl_dataset in "${sfl_datasets[@]}"; do
   for tag_lr in "${tag_lrs[@]}"; do

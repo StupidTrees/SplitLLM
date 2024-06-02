@@ -28,40 +28,37 @@ def get_save_path(save_dir, args):
     return p
 
 
-def evaluate(epc, md: SplitWrapperModel, reducer: DimReduction | None, test_data_loader, raw_ppl=None, args=None):
-    """
-    恢复的评价指标选用ROUGE
-    :return: ROUGE-1, ROUGE-2, ROUGE-L, ROUGE-L-P, ROUGE-L-R
-    """
+def evaluate(epc, md: SplitWrapperModel, reducer: DimReduction | None, test_data_loader, args=None):
     if reducer:
         reducer.eval()
     with FLConfigHolder(md) as ch:
-        md.fl_config.attack_mode = None
-        md.fl_config.collect_intermediates = False
-        md.fl_config.reducer_enable = True
+        # md.fl_config.attack_mode = None
+        md.fl_config.collect_intermediates = True
+        # md.fl_config.reducer_enable = True
         ch.change_config()
         dl_len = len(test_data_loader)
         mase_avg = 0
-        with torch.no_grad():
-            for step, batch in tqdm(enumerate(test_data_loader), total=dl_len):
-                input_ids = batch['input_ids'].to(md.device)
-                attention_mask = batch['input_att_mask'].to(md.device)
-                out = md(input_ids=input_ids, attention_mask=attention_mask, labels=input_ids)
-                mase_avg += out.loss.detach().cpu().item()
 
+        for step, batch in tqdm(enumerate(test_data_loader), total=dl_len):
+            input_ids = batch['input_ids'].to(md.device)
+            attention_mask = batch['attention_mask'].to(md.device)
+            md(input_ids=input_ids, attention_mask=attention_mask, labels=input_ids)
+            _, _, all_inters = md.get_all_inter(detach=True)
+            from_inter = all_inters.get(args.layer - 1, None)
+            reduced, recovered = reducer(from_inter.fx.to(reducer.device))
+            mase_avg += torch.nn.MSELoss()(recovered, from_inter.fx.to(reducer.device).float()).detach().item()
         print(
-            f'Epoch {epc} Test PPL: {mase_avg / dl_len}')
-        avg_ppl = mase_avg / dl_len
+            f'Epoch {epc} Test MSE: {mase_avg / dl_len}')
+        avg_mse = mase_avg / dl_len
         p = get_save_path(args.save_dir, args)
-        if raw_ppl:
-            ppl_frac = avg_ppl / raw_ppl
-            if ppl_frac < args.save_threshold and args.save_checkpoint:
-                reducer.save_pretrained(p + f'epoch_{epc}_rppl_{ppl_frac:.5f}')
+
+        if avg_mse < args.save_threshold and args.save_checkpoint:
+            reducer.save_pretrained(p + f'epoch_{epc}_mse_{avg_mse:.5f}')
 
     md.train(True)
     if reducer:
         reducer.train(True)
-    return avg_ppl
+    return avg_mse
 
 
 def train_mapper(args):
@@ -128,8 +125,8 @@ def train_mapper(args):
                    name=f"{args.model_name}_{args.target}",
                    config=vars(args)
                    )
-    raw_ppl = evaluate(0, model, None, dataloader_test, None, args)
-    print(f'Raw PPL:{raw_ppl:.6f}')
+    # raw_ppl = evaluate(0, model, None, dataloader_test, None, args)
+    # print(f'Raw PPL:{raw_ppl:.6f}')
     # evaluate(0, model, attack_model, tokenizer, dataloader_test, args.save_dir)
     with tqdm(total=epoch * len(dataloader)) as pbar:
         for epc in range(epoch):
@@ -138,12 +135,12 @@ def train_mapper(args):
             for step, batch in enumerate(dataloader):
                 optimizer.zero_grad()
                 input_ids = batch['input_ids'].to(model.device)
-                attention_mask = batch['input_att_mask'].to(model.device)
-                b2tr_hidden = model(input_ids=input_ids, attention_mask=attention_mask)
+                attention_mask = batch['attention_mask'].to(model.device)
+                model(input_ids=input_ids, attention_mask=attention_mask)
                 _, _, all_inters = model.get_all_inter(detach=True)
                 from_inter = all_inters.get(args.layer - 1, None)
                 reduced, recovered = reducer(from_inter.fx.to(reducer.device))
-                loss = torch.nn.MSELoss()(recovered, b2tr_hidden.to(reducer.device).float())
+                loss = torch.nn.MSELoss()(recovered, from_inter.fx.to(reducer.device).float())
                 loss.backward()
                 optimizer.step()
                 pbar.set_description(
@@ -153,7 +150,7 @@ def train_mapper(args):
 
             # 计算测试集上的ppl
             if (epc + 1) % args.checkpoint_freq == 0:
-                evaluate(epc, model, reducer, dataloader_test, raw_ppl, args)
+                evaluate(epc, model, reducer, dataloader_test, args)
             # if args.log_to_wandb:
             #     log_dict = {'epoch': epc
             #                 }

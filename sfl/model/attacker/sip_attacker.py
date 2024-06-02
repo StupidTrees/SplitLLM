@@ -28,8 +28,9 @@ class SIPAttacker(Attacker):
         res: SIPAttackerArguments = super().parse_arguments(args, prefix)
         if res.dataset is None or len(res.dataset) == 0:
             res.dataset = args.dataset
+        if res.target_model_name is None or len(res.target_model_name) == 0:
+            res.target_model_name = args.model_name
         res.target_dataset = args.dataset
-        res.target_model_name = args.model_name
         res.target_system_sps = args.split_points
         if res.b2tr_layer < 0:
             res.b2tr_layer = int(res.target_system_sps.split('-')[0])
@@ -53,26 +54,35 @@ class SIPAttacker(Attacker):
             for type, atk in zip(['tr2t', 'b2tr'], [self.inverter_tr2t, self.inverter_b2tr]):
                 if atk is None:
                     continue
-                if type == 'b2tr':
-                    if aargs.b2tr_target_layer >= 0:
-                        inter = all_inters[aargs.b2tr_target_layer]
-                    else:
-                        inter = b2tr_inter
+                if aargs.attack_all_layers:
+                    for idx, inter in all_inters.items():
+                        if not isinstance(idx, int):
+                            continue
+                        if llm.type == 'encoder-decoder':
+                            attacked = atk(torch.concat([encoder_inter.fx.to(
+                                simulator.device), inter.fx.to(atk.device)], dim=1))
+                        else:
+                            attacked = atk(inter.fx.to(atk.device))
+                        attacked_result[f'{type}_{idx}'] = attacked
                 else:
-                    if aargs.tr2t_target_layer >= 0:
-                        inter = all_inters[aargs.tr2t_target_layer]
+                    if type == 'b2tr':
+                        if aargs.b2tr_target_layer >= 0:
+                            inter = all_inters[aargs.b2tr_target_layer]
+                        else:
+                            inter = b2tr_inter
                     else:
-                        inter = tr2t_inter
-                if llm.type == 'encoder-decoder':
-                    attacked = atk(torch.concat([encoder_inter.fx.to(
-                        simulator.device), inter.fx.to(atk.device)], dim=1))
-                else:
-                    attacked = atk(inter.fx.to(atk.device))
-                # sip_res = evaluate_attacker_rouge(tokenizer, attacked, batch)
-                # self.__log_atk_res(sip_res, client_id, f'SIP_{type}')
-                # logs[f'SIP_{type}_rouge-l_step'] = rouge_res['rouge-l']['f']
-                attacked_result[type] = attacked
-        return {f'{type}': res for type, res in attacked_result.items()}
+                        if aargs.tr2t_target_layer >= 0:
+                            inter = all_inters[aargs.tr2t_target_layer]
+                        else:
+                            inter = tr2t_inter
+                    if llm.type == 'encoder-decoder':
+                        attacked = atk(torch.concat([encoder_inter.fx.to(
+                            simulator.device), inter.fx.to(atk.device)], dim=1))
+                    else:
+                        attacked = atk(inter.fx.to(atk.device))
+                    attacked_result[type] = attacked
+
+        return attacked_result
 
 
 @dataclasses.dataclass

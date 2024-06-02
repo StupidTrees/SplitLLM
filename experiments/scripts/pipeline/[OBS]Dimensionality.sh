@@ -22,12 +22,12 @@ batch_size=2
 
 attacker_freq=200
 attacker_samples=1
-max_global_step=405
+max_global_step=2405
 reducer_train_frac=1.0
 inverter_dataset="piqa"
 sfl_dataset="piqa"
 
-reducer_alphas=(64 128 256 512 1024 2048)
+reducer_alphas=(3072)
 split_point=6
 sps="$split_point-27"
 
@@ -45,10 +45,10 @@ for alpha in "${reducer_alphas[@]}"; do
     --alpha "$alpha" \
     --save_checkpoint True \
     --log_to_wandb False \
-    --epochs 35 \
+    --epochs 20 \
     --dataset_train_frac "$reducer_train_frac" \
     --dataset_train_label "train" \
-    --dataset_test_frac 0.05 --checkpoint_freq 5
+    --dataset_test_frac 0.05 --checkpoint_freq 1
 
   # 再训练Inverter
   echo "Running train_inverter.py"
@@ -112,5 +112,4 @@ for alpha in "${reducer_alphas[@]}"; do
     --reducer_dataset "$sfl_dataset" \
     --reducer_layer "$split_point" \
     --reducer_train_frac "$reducer_train_frac"
-
 done

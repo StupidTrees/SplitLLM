@@ -16,13 +16,13 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='chatglm'
+model_name='llama2'
 
 eia_depth=6
 sps="$eia_depth-27"
 batch_size=2
 
-attacker_freq=200
+attacker_freq=20
 attacker_samples=1
 max_global_step=405
 mapper_train_frac=1.0
@@ -32,17 +32,24 @@ sfl_datasets=("piqa")
 eia_enable=True
 eia_mapped_to=1
 
-# chatglm
-eia_lrs=(0.11 0.09 0.06)
-eia_epochs=(12000 24000)
-eia_temps=(0.5 0.3 0.2)
-eia_wds=(0.01)
 
-# LLaMA2
-#eia_lrs=(0.09 0.06 0.11)
-#eia_epochs=(72000)
+#GPT2
+#eia_lrs=(0.11 0.09 0.06)
+#eia_epochs=(12000 24000)
 #eia_temps=(0.5 0.3 0.2)
 #eia_wds=(0.01)
+
+# chatglm
+#eia_lrs=(0.11 0.09 0.06)
+#eia_epochs=(12000 24000)
+#eia_temps=(0.5 0.3 0.2)
+#eia_wds=(0.01)
+
+# LLaMA2
+eia_lrs=(0.09 0.06 0.11)
+eia_epochs=(72000)
+eia_temps=(0.5 0.3 0.2)
+eia_wds=(0.01)
 
 for mapper_dataset in "${mapper_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do

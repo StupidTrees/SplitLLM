@@ -18,7 +18,9 @@ python model_download.py --repo_id google-bert/bert-large-uncased
 python model_download.py --repo_id google/flan-t5-base
 python model_download.py --repo_id google/flan-ul2-base
 python model_download.py --repo_id meta-llama/Llama-2-7b-chat-hf
+python model_download.py --repo_id meta-llama/Llama-2-7b
 python model_download.py --repo_id meta-llama/Meta-Llama-3-8B 
+python model_download.py --repo_id lucyknada/microsoft_WizardLM-2-7B
 python model_download.py --repo_id lmsys/vicuna-7b-v1.5
 python model_download.py --repo_id THUDM/chatglm3-6b
 python model_download.py --repo_id google/flan-ul2

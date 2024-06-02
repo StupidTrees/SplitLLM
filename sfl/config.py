@@ -62,7 +62,7 @@ class FLConfig:
     noise_beta_dc: float = 0.1
     dataset_type: str = 'train'
     batch_size: int = 2
-    reducer_enable:bool = False
+    reducer_enable: bool = False
 
 
 @dataclass
@@ -85,6 +85,7 @@ class SIPAttackerArguments:
     target_system_sps: str = None
     target_model_load_bits: int = 8
     larger_better: bool = True
+    attack_all_layers: bool = False
 
 
 @dataclass
