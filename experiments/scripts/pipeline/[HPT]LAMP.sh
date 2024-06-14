@@ -16,7 +16,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='llama2'
+model_name='gpt2-large'
 
 sps="6-27"
 batch_size=2
@@ -30,7 +30,7 @@ sfl_datasets=("piqa")
 lamp_lrs=(0.09 0.06 0.11)
 lamp_betas=(0.85)
 lamp_epochs=(400 800)
-lamp_freqs=(100 200 400)
+lamp_freqs=(50 100 200)
 # 0.05 0.001 0.1)
 
 for sfl_dataset in "${sfl_datasets[@]}"; do
@@ -74,7 +74,7 @@ for sfl_dataset in "${sfl_datasets[@]}"; do
             --eia_enable False --attacker_freq "$attacker_freq" \
             --attacker_samples "$attacker_samples" \
             --max_global_step "$max_global_step" \
-            d--lamp_beta "$lamp_beta" \
+            --lamp_beta "$lamp_beta" \
             --lamp_lr "$lamp_lr" \
             --lamp_epochs "$lamp_epc" \
             --lamp_freq "$lamp_freq"

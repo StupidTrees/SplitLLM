@@ -15,7 +15,7 @@ from sfl.model.attacker.sip_attacker import SIPAttacker
 
 
 def sfl_with_attacker(args, unkown_args):
-    model, tokenizer = get_model_and_tokenizer(args.model_name)
+    model, tokenizer = get_model_and_tokenizer(args.model_name, load_bits=args.load_bits)
 
     # 配置切分学习
     client_ids = [str(i) for i in range(args.client_num)]
@@ -75,6 +75,7 @@ def sfl_with_attacker(args, unkown_args):
     )
     # 开始模拟
     model.train()
+    # print(model.device)
     simulator.simulate()
 
 

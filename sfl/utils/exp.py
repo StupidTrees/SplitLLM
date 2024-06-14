@@ -1,6 +1,7 @@
 import argparse
 import dataclasses
 import os
+from copy import deepcopy
 
 import torch
 from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor
@@ -9,8 +10,10 @@ from sfl import config
 from sfl.config import FLConfig, model_download_dir, mapper_path, reducer_path
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.dim_reduction import DimReduction
+from sfl.model.llm.falcon.falcon_wrapper import FalconForCausalLMSplit
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel, GPT2SplitClassificationModel
+from sfl.model.llm.gptj.gptj_wrapper import GPTJForCausalLMSplit
 from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
 from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificationSplitModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
@@ -19,6 +22,7 @@ from sfl.model.llm.wizard.wiard_wrapper import WizardForCausalLMSplit
 from sfl.simulator.dataset import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
     GSM8KFedDataset, WikiTextFedDataset, FedDataset, MixtureFedDataset, SensiMarkedFedDataset, \
     SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset, PIQAMiniFedDataset
+from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.utils.argparser import PrefixArgumentParser
 from sfl.utils.model import get_best_gpu
 
@@ -97,6 +101,7 @@ def add_train_mapper_params(parser):
     parser.add_argument('--epochs', type=int, default=15)
     parser.add_argument('--batch_size', type=int, default=6)
     parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--wd', type=float, default=0.01)
     parser.add_argument('--opt', type=str, default='adam')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--save_checkpoint', type=str2bool, default=False)
@@ -191,62 +196,6 @@ def add_sfl_params(parser):
                         default=-1)
     parser.add_argument('--reducer_alpha', type=int,
                         default=512)
-    # # sip
-    # parser.add_argument('--sip_enable', type=str2bool, default=True)
-    # parser.add_argument('--sip_path', type=str,
-    #                     default=attacker_path,
-    #                     help='trained attacker model for b2tr')
-    # parser.add_argument('--sip_model', type=str, default='gru', help='lstm, gru, linear')
-    # parser.add_argument('--sip_dataset', type=str,
-    #                     default='')
-    # parser.add_argument('--sip_train_frac', type=float, default=1.0)
-    # parser.add_argument('--sip_prefix', type=str, default='normal')
-    # parser.add_argument('--sip_b2tr_enable', type=str2bool, default=True)
-    # parser.add_argument('--sip_b2tr_layer', type=int, default=-1)
-    # parser.add_argument('--sip_b2tr_target_layer', type=int, default=-1)
-    # parser.add_argument('--sip_tr2t_enable', type=str2bool, default=True)
-    # parser.add_argument('--sip_tr2t_target_layer', type=int, default=-1)
-    # parser.add_argument('--sip_tr2t_layer', type=int, default=-1)
-    # # GMA
-    # parser.add_argument('--gma_enable', type=str2bool, default=True)
-    # parser.add_argument('--gma_epochs', type=int, default=30)
-    # parser.add_argument('--gma_beta', type=float, default=0.85)
-    # parser.add_argument('--gma_lr', type=float, default=0.09)
-    # parser.add_argument('--gma_init_temp', type=float, default=1.0)
-    # # TAG
-    # parser.add_argument('--tag_enable', type=str2bool, default=False)
-    # parser.add_argument('--tag_epochs', type=int, default=400)
-    # parser.add_argument('--tag_lr', type=float, default=0.09)
-    # parser.add_argument('--tag_beta', type=float, default=0.85)
-    # # LAMP
-    # parser.add_argument('--lamp_freq', type=int, default=30)
-    # # SMA
-    # parser.add_argument('--sma_enable', type=str2bool, default=False)
-    # parser.add_argument('--sma_epochs', type=int, default=100)
-    # parser.add_argument('--sma_lr', type=float, default=0.001)
-    # parser.add_argument('--sma_wd', type=float, default=0.01)
-    # parser.add_argument('--sma_at', type=str, default='b2tr')
-    # # GSMA
-    # parser.add_argument('--gsma_enable', type=str2bool, default=False)
-    # parser.add_argument('--gsma_epochs', type=int, default=100)
-    # parser.add_argument('--gsma_lr', type=float, default=0.001)
-    # parser.add_argument('--gsma_at', type=str, default='b2tr')
-    # # EIA
-    # parser.add_argument('--eia_enable', type=str2bool, default=False)
-    # parser.add_argument('--eia_epochs', type=int, default=500)
-    # parser.add_argument('--eia_lr', type=float, default=0.09)
-    # parser.add_argument('--eia_temp', type=float, default=0.1)
-    # parser.add_argument('--eia_wd', type=float, default=0.01)
-    # parser.add_argument('--eia_mapped_to', type=int, default=1)
-    # parser.add_argument('--eia_at', type=str, default='b2tr')
-    #
-
-    #
-    # # ALT
-    # parser.add_argument('--alt_enable', type=str2bool, default=False)
-    # parser.add_argument('--alt_steps', type=int, default=3)
-    # parser.add_argument('--alt_fwd_steps', type=int, default=64)
-    # parser.add_argument('--alt_bwd_steps', type=int, default=18)
 
 
 def get_fl_config(args) -> FLConfig:
@@ -270,7 +219,8 @@ def get_fl_config(args) -> FLConfig:
                       collect_intermediates=True,
                       collect_all_layers=args.collect_all_layers,
                       dataset_type=args.dataset_label,
-                      batch_size=args.batch_size
+                      batch_size=args.batch_size,
+                      lr=args.lr
                       )
     return config
 
@@ -302,6 +252,12 @@ def get_model_path(model_name):
         path = os.path.join(model_download_dir, f"THUDM/chatglm3-6b")
     elif model_name.startswith('wizard'):
         path = os.path.join(model_download_dir, f"lucyknada/microsoft_WizardLM-2-7B")
+    elif model_name.startswith('gptj'):
+        path = os.path.join(model_download_dir, f"EleutherAI/gpt-j-6b")
+    elif model_name.startswith('falcon'):
+        path = os.path.join(model_download_dir, f"tiiuae/falcon-7b-instruct")
+    elif model_name.startswith('codegen'):
+        path = os.path.join(model_download_dir, f"Salesforce/codegen25-7b-instruct_P")
     return path
 
 
@@ -332,7 +288,7 @@ def get_dim_reducer(args, aargs: ReducerArgument):
     model_name = aargs.target_model
     if model_name is None:
         model_name = args.model_name
-    if 'llama' in model_name or 'chatglm' in model_name or 'vicuna' in model_name:
+    if required_quantization(args.model_name):
         model_name += f"-{args.load_bits}bits"
     mapper_path = reducer_path + f'{model_name}/{dataset}/'
     matches = []
@@ -356,7 +312,36 @@ def get_dim_reducer(args, aargs: ReducerArgument):
     return None
 
 
+models_requiring_quantization = ['llama', 'vicuna', 'chatglm', 'wizard', 'gptj', 'falcon', 'codegen']
+
+
+def required_quantization(model_name):
+    return any([rq in model_name for rq in models_requiring_quantization])
+
+
+def load_model_in_param_keepers(model_name, fl_config, parts=None):
+    cross_model, _ = get_model_and_tokenizer(model_name)
+    cross_model.config_sfl(fl_config)
+    cross_model = cross_model.convert_to_lora_model()
+    pk = InMemoryParameterKeeper([])
+    if parts is None:
+        parts = ['bottom']
+    for key in ['pretrained']:
+        for part in parts:
+            if part == 'bottom':
+                params = cross_model.get_bottom_params()
+            elif part == 'top':
+                params = cross_model.get_top_params()
+            elif part == 'trunk':
+                params = cross_model.get_trunk_params()
+            pk.store_other_params(key, part,
+                                  [deepcopy(p.detach().cpu()) for nm, p in params])
+    del cross_model
+    return pk
+
+
 def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_bits=8, force_on_best_gpu=True,
+              do_not_specify_device_map=False,
               **kwargs):
     clz = GPT2SplitLMHeadModel
     if model_name.startswith('gpt2'):
@@ -372,11 +357,16 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
         clz = T5ForConditionalGenerationSplitModel
     elif 'chatglm' in model_name:
         clz = ChatGLMForConditionalGenerationSplit
-    elif 'llama' in model_name or 'vicuna' in model_name:
+    elif 'llama' in model_name or 'vicuna' in model_name or 'codegen' in model_name:
         clz = LLAMA2SplitLMHeadModel
     elif 'wizard' in model_name:
         clz = WizardForCausalLMSplit
-    if 'llama' in model_name or 'chatglm' in model_name or 'vicuna' in model_name or 'wizard' in model_name:
+    elif 'gptj' in model_name:
+        clz = GPTJForCausalLMSplit
+    elif 'falcon' in model_name:
+        clz = FalconForCausalLMSplit
+
+    if required_quantization(model_name):
         if load_bits <= 8:
             bnb_config = BitsAndBytesConfig(
                 load_in_8bit=load_bits == 8,  # load the model into memory using 8-bit precision
@@ -396,7 +386,10 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
         device_map = str(get_best_gpu())
     else:
         device_map = 'auto'
-    model = clz.from_pretrained(get_model_path(model_name), device_map=device_map, **kwargs)
+    if do_not_specify_device_map:
+        model = clz.from_pretrained(get_model_path(model_name), **kwargs)
+    else:
+        model = clz.from_pretrained(get_model_path(model_name), device_map=device_map, **kwargs)
     if tokenizer is not None and 'chatglm' not in model_name:
         if model.config.pad_token_id is not None:
             tokenizer.pad_token_id = model.config.pad_token_id
@@ -405,7 +398,9 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
     return model
 
 
-def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, force_on_best_gpu=True, **kwargs):
+def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, force_on_best_gpu=True,
+                            do_not_specify_device_map=False,
+                            **kwargs):
     if model_name.startswith('vit'):
         processor = ViTImageProcessor.from_pretrained(
             os.path.join(model_download_dir, f'google/{model_name}-patch16-224'))
@@ -413,7 +408,8 @@ def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, force_on
             os.path.join(model_download_dir, f'google/{model_name}-patch16-224'))
         return model, processor
     tokenizer = get_tokenizer(model_name)
-    model = get_model(model_name, task, num_labels, tokenizer, force_on_best_gpu=force_on_best_gpu, **kwargs)
+    model = get_model(model_name, task, num_labels, tokenizer, force_on_best_gpu=force_on_best_gpu,
+                      do_not_specify_device_map=do_not_specify_device_map, **kwargs)
 
     return model, tokenizer
 

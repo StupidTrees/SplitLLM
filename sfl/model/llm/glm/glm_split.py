@@ -65,8 +65,8 @@ class GLMTransformerSplit(GLMTransformer, SplitModel):
             # SFL打断
             inter, hidden_states = self.inject_between_blocks(hidden_states, index)
             if self.fl_config and index == self.fl_config.split_point_2 - 1:  # trunk-top
-                self._store_fx('att_msk', attention_mask)
-                self._store_fx('rot_pos', rotary_pos_emb)
+                self._store_fx('atk_attention_mask', attention_mask)
+                self._store_fx('atk_rotary_pos_emb', rotary_pos_emb)
             if inter is not None:
                 return inter
 

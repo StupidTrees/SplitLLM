@@ -13,6 +13,7 @@ from sfl.config import SIPAttackerArguments, DRA_train_label
 from sfl.model.attacker.attacker import Attacker
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator
+from sfl.utils.exp import required_quantization
 from sfl.utils.model import sentence_score_tokens, get_embed_size
 
 
@@ -30,6 +31,8 @@ class SIPAttacker(Attacker):
             res.dataset = args.dataset
         if res.target_model_name is None or len(res.target_model_name) == 0:
             res.target_model_name = args.model_name
+        if res.target_model_load_bits < 0:
+            res.target_model_load_bits = args.load_bits
         res.target_dataset = args.dataset
         res.target_system_sps = args.split_points
         if res.b2tr_layer < 0:
@@ -545,7 +548,7 @@ def get_sip_inverter(dra_config: SIPAttackerArguments):
 
     prefix = dra_config.prefix
     model_name = dra_config.target_model_name
-    if 'llama' in model_name:
+    if required_quantization(model_name):
         model_name += f"-{dra_config.target_model_load_bits}bits"
     attacker_path = dra_config.path + f'{model_name}/{dataset}/'
     print(attacker_path)

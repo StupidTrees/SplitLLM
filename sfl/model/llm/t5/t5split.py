@@ -227,6 +227,7 @@ class T5SplitStack(T5Stack, SplitModel):
             if self.is_decoder:
                 self.encoder_hidden_states = encoder_hidden_states
                 inter, hidden_states = self.inject_between_blocks(hidden_states, i)
+                self._store_fx('atk_encoder_inter', attention_mask)
                 if inter is not None:
                     return inter
 

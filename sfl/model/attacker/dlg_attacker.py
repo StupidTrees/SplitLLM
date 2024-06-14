@@ -15,12 +15,15 @@ from transformers.models.t5.modeling_t5 import T5Block, T5LayerNorm
 
 from sfl.config import FLConfig
 from sfl.model.attacker.attacker import Attacker
+from sfl.model.llm.falcon.falcon_wrapper import FalconForCausalLMSplit
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel
+from sfl.model.llm.gptj.gptj_wrapper import GPTJForCausalLMSplit
 from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
 from sfl.simulator.simulator import SFLSimulator, ParamRestored
+from sfl.utils.exp import load_model_in_param_keepers
 from sfl.utils.model import calc_shifted_loss_logits, get_output
 
 
@@ -53,6 +56,10 @@ class DLGAttacker(Attacker, ABC):
             mocker = T5DecoderTopMocker(llm.fl_config, llm)
         elif isinstance(llm, ChatGLMForConditionalGenerationSplit):
             mocker = ChatGLMTopMocker(llm.fl_config, llm)
+        elif isinstance(llm, GPTJForCausalLMSplit):
+            mocker = GPTJTopMocker(llm.fl_config, llm)
+        elif isinstance(llm, FalconForCausalLMSplit):
+            mocker = FalconTopMocker(llm.fl_config, llm)
         self.top_mocker = mocker
 
     def _gma_loss(self, inter, gradient, gt, beta=0.85, ppl=False, llm=None, **kwargs):
@@ -91,6 +98,12 @@ class TAGArguments:
     lr: float = 0.09
     init_temp: float = 1.0
     softmax: bool = True
+    cross_model: str = None
+
+
+def _extract_args_from_inters(all_inter):
+    atk_args = {k[4:]: v.fx for k, v in all_inter.items() if isinstance(k, str) and k.startswith('atk_')}
+    return atk_args
 
 
 class TAGAttacker(DLGAttacker):
@@ -98,20 +111,24 @@ class TAGAttacker(DLGAttacker):
 
     def __init__(self, fl_config: FLConfig, model: SplitWrapperModel):
         super().__init__(fl_config, model)
+        self.pk = None
+
+    def load_attacker(self, args, aargs, llm: SplitWrapperModel = None, tokenizer: Tokenizer = None):
+        super().load_attacker(args, aargs, llm, tokenizer)
+        if aargs.cross_model is not None and len(aargs.cross_model) > 0 and aargs.cross_model != 'none':
+            self.pk = load_model_in_param_keepers(aargs.cross_model, llm.fl_config, ['top'])
 
     def attack(self, args, aargs: arg_clz,
                llm: SplitWrapperModel, tokenizer: Tokenizer, simulator: SFLSimulator, batch,
                b2tr_inter, tr2t_inter, all_inter, init=None):
-        encoder_inter = all_inter.get('encoder', None)
-        attention_mask = all_inter.get('att_msk', None)
-        rotary_pos_emb = all_inter.get('rot_pos', None)
-        encoder_inter = None if encoder_inter is None else encoder_inter.fx.to(llm.device)
-        attention_mask = attention_mask.fx if attention_mask is not None else None
-        rotary_pos_emb = rotary_pos_emb.fx if rotary_pos_emb is not None else None
+        atk_args = _extract_args_from_inters(all_inter)
         gradient = tr2t_inter.grad.clone().to(llm.device)
         inter = tr2t_inter.fx.clone().to(llm.device)
-        with ParamRestored(llm=llm, param_keeper=simulator.parameter_keeper, key='pretrained',
-                           parts=['bottom', 'top', 'trunk'],
+        pk = simulator.parameter_keeper
+        if self.pk is not None:
+            pk = self.pk
+        with ParamRestored(llm=llm, param_keeper=pk, key='pretrained',
+                           parts=['top'],
                            write_back=False):
             if args.model_name == 'chatglm':
                 gradient = gradient.permute(1, 0, 2)
@@ -133,9 +150,7 @@ class TAGAttacker(DLGAttacker):
             optimizer = torch.optim.AdamW([gt], lr=aargs.lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01)
             for i in range(aargs.epochs):
                 optimizer.zero_grad()
-                grad_diff = self._gma_loss(inter, gradient, gt, beta=aargs.beta, encoder_inter=encoder_inter,
-                                           attention_mask=attention_mask,
-                                           rotary_pos_emb=rotary_pos_emb, llm=llm)
+                grad_diff = self._gma_loss(inter, gradient, gt, beta=aargs.beta, llm=llm, **atk_args)
                 grad_diff.backward()
                 optimizer.step()
         return gt
@@ -151,7 +166,7 @@ class LAMPAttacker(DLGAttacker):
     def __init__(self, fl_config: FLConfig, model: SplitWrapperModel):
         super().__init__(fl_config, model)
 
-    def _lamp(self, llm, inter, gradient, gt, beta=0.85, lamp_steps=50, **kwargs):
+    def _lamp(self, llm, inter, gradient, gt, beta=0.85, lamp_steps=100, **kwargs):
         inter.requires_grad = True
         best_gt, best_loss = None, None
         init_loss = None
@@ -234,12 +249,13 @@ class LAMPAttacker(DLGAttacker):
     def attack(self, args, aargs: arg_clz,
                llm: SplitWrapperModel, tokenizer: Tokenizer, simulator: SFLSimulator, batch,
                b2tr_inter, tr2t_inter, all_inter, init=None):
-        encoder_inter = all_inter.get('encoder', None)
-        attention_mask = all_inter.get('att_msk', None)
-        rotary_pos_emb = all_inter.get('rot_pos', None)
-        encoder_inter = None if encoder_inter is None else encoder_inter.fx.to(llm.device)
-        attention_mask = attention_mask.fx if attention_mask is not None else None
-        rotary_pos_emb = rotary_pos_emb.fx if rotary_pos_emb is not None else None
+        atk_args = _extract_args_from_inters(all_inter)
+        # encoder_inter = all_inter.get('encoder', None)
+        # attention_mask = all_inter.get('att_msk', None)
+        # rotary_pos_emb = all_inter.get('rot_pos', None)
+        # encoder_inter = None if encoder_inter is None else encoder_inter.fx.to(llm.device)
+        # attention_mask = attention_mask.fx if attention_mask is not None else None
+        # rotary_pos_emb = rotary_pos_emb.fx if rotary_pos_emb is not None else None
         gradient = tr2t_inter.grad.clone().to(llm.device)
         inter = tr2t_inter.fx.clone().to(llm.device)
         with ParamRestored(llm=llm, param_keeper=simulator.parameter_keeper, key='pretrained',
@@ -265,16 +281,11 @@ class LAMPAttacker(DLGAttacker):
             optimizer = torch.optim.AdamW([gt], lr=aargs.lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.01)
             for i in range(aargs.epochs):
                 optimizer.zero_grad()
-                grad_diff = self._gma_loss(inter, gradient, gt, llm=llm, beta=aargs.beta, encoder_inter=encoder_inter,
-                                           attention_mask=attention_mask,
-                                           rotary_pos_emb=rotary_pos_emb)
+                grad_diff = self._gma_loss(inter, gradient, gt, llm=llm, beta=aargs.beta, **atk_args)
                 grad_diff.backward()
                 optimizer.step()
                 if i % aargs.lamp_freq == 0:
-                    new_gt = self._lamp(llm, inter, gradient, gt.detach().clone(), beta=aargs.beta,
-                                        encoder_inter=encoder_inter,
-                                        attention_mask=attention_mask,
-                                        rotary_pos_emb=rotary_pos_emb)
+                    new_gt = self._lamp(llm, inter, gradient, gt.detach().clone(), beta=aargs.beta, **atk_args)
                     with torch.no_grad():
                         # copy new_gt's data to gt
                         gt.data = new_gt.data
@@ -308,15 +319,52 @@ class GPT2TopMocker(TopMocker):
         return self.head(x)
 
 
+class GPTJTopMocker(TopMocker):
+
+    def __init__(self, fl_config: FLConfig, model: GPTJForCausalLMSplit, **kwargs):
+        super().__init__(fl_config, model, **kwargs)
+        num_blocks = model.config.n_layer - fl_config.split_point_2
+        model.config_sfl(fl_config)
+        self.decoder = deepcopy(model.transformer.h[-num_blocks:])
+        self.ln = deepcopy(model.transformer.ln_f)
+        self.head = deepcopy(model.lm_head)
+
+    def forward(self, x, **kwargs):
+        for block in self.decoder:
+            x = block(x)[0]
+        x = self.ln(x)
+        return self.head(x)
+
+
+class FalconTopMocker(TopMocker):
+    def __init__(self, fl_config: FLConfig, model: FalconForCausalLMSplit, **kwargs):
+        super().__init__(fl_config, model, **kwargs)
+        num_blocks = model.config.num_hidden_layers - fl_config.split_point_2
+        model.config_sfl(fl_config)
+        self.layers = model.transformer.h[-num_blocks:]
+        self.ln = model.transformer.ln_f
+        self.head = model.lm_head
+
+    def forward(self, x, attention_mask, alibi, **kwargs):
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(x.device)
+        if alibi is not None:
+            alibi = alibi.to(x.device)
+        for block in self.layers:
+            x = block(x, attention_mask=attention_mask, alibi=alibi)[0]
+        x = self.ln(x)
+        return self.head(x)
+
+
 class LLAMA2TopMocker(TopMocker):
 
     def __init__(self, fl_config: FLConfig, model: LLAMA2SplitLMHeadModel, **kwargs):
         super().__init__(fl_config, model, **kwargs)
         num_blocks = model.config.num_hidden_layers - fl_config.split_point_2
         model.config_sfl(fl_config, None)
-        self.layers = deepcopy(model.model.layers[-num_blocks:])
-        self.ln = deepcopy(model.model.norm)
-        self.head = deepcopy(model.lm_head)
+        self.layers = model.model.layers[-num_blocks:]
+        self.ln = model.model.norm
+        self.head = model.lm_head
 
     def forward(self, x, **kwargs):
         past_seen_tokens = 0

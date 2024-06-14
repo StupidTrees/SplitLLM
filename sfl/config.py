@@ -63,6 +63,7 @@ class FLConfig:
     dataset_type: str = 'train'
     batch_size: int = 2
     reducer_enable: bool = False
+    lr: float = 2e-5
 
 
 @dataclass
@@ -83,7 +84,7 @@ class SIPAttackerArguments:
     target_model_name: str = None
     target_dataset: str = None
     target_system_sps: str = None
-    target_model_load_bits: int = 8
+    target_model_load_bits: int = -1
     larger_better: bool = True
     attack_all_layers: bool = False
 
@@ -98,5 +99,5 @@ class MapperConfig:
     prefix: str = 'normal'
     target_model_name: str = None
     target_dataset: str = None
-    target_model_load_bits: int = 8
+    target_model_load_bits: int = -1
     larger_better: bool = False

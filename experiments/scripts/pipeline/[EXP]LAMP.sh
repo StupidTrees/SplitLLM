@@ -1,7 +1,8 @@
-# 实验：Embedding Inversion Attack在不同数据集和模型上的实验
+# 实验：对Embedding Inversion Attack进行超参搜索
+seed=42
 
 dataset_label='train'
-exp_name='[EXP]EIA'
+exp_name='[EXP]LAMP'
 global_round=1
 client_steps=500
 noise_scale=0.0
@@ -13,70 +14,53 @@ self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
-collect_all_layers=False
+collect_all_layers=True
 
-eia_depth=6
-sps="$eia_depth-27"
+model_names=('gpt2-large')
+
+sps="6-27"
 batch_size=2
 
 attacker_freq=200
-attacker_samples=1
+attacker_samples=5
 max_global_step=605
-mapper_train_frac=1.0
-
-attacker_dataset='sensireplaced'
-seeds=(42)
-model_names=('chatglm')
 load_bits=8
-sfl_datasets=("sensimarked")
+
+sfl_datasets=("piqa" "codealpaca" "dialogsum" "sensimarked" "gsm8k" "wikitext")
+seeds=(42)
 
 for seed in "${seeds[@]}"; do
   for model_name in "${model_names[@]}"; do
     for sfl_dataset in "${sfl_datasets[@]}"; do
-      # 先训练Mapper
 
-      echo "Running train_mapper.py with seed=$seed, dataset=$attacker_dataset"
-      python ../py/train_mapper.py \
-        --model_name "$model_name" \
-        --seed "$seed" \
-        --dataset "$attacker_dataset" \
-        --attack_mode "b2tr" \
-        --target "${eia_depth}-1" \
-        --save_checkpoint True \
-        --log_to_wandb False \
-        --epochs 10 \
-        --dataset_train_frac "$mapper_train_frac" \
-        --dataset_test_frac 0.1\
-        --load_bits "$load_bits"
+      case_name="TAG@${model_name}@${sfl_dataset}-seed${seed}"
 
       if [ "$model_name" == "llama2" ]; then
-        eia_lr=0.11
-        eia_epc=72000
-        eia_temp=0.2
-        eia_wd=0.01
-      fi
-
-      if [ "$model_name" == "gpt2-large" ]; then
-        eia_lr=0.11
-        eia_epc=24000
-        eia_temp=0.3
-        eia_wd=0.01
+        lamp_lr=0.06
+        lamp_beta=0.85
+        lamp_epc=400
+        lamp_freq=100
       fi
 
       if [ "$model_name" == "chatglm" ]; then
-        eia_lr=0.11
-        eia_epc=24000
-        eia_temp=0.3
-        eia_wd=0.01
+        lamp_lr=0.06
+        lamp_beta=0.85
+        lamp_epc=800
+        lamp_freq=50
       fi
 
-      case_name="EIA@${model_name}-${sfl_dataset}"
-
+      if [ "$model_name" == "gpt2-large" ]; then
+        lamp_lr=0.11
+        lamp_beta=0.85
+        lamp_epc=800
+        lamp_freq=100
+      fi
       # 将其用于攻击
       echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
       python ../py/sim_with_attacker.py \
         --noise_mode "$noise_mode" \
         --case_name "$case_name" \
+        --seed "$seed" \
         --model_name "$model_name" \
         --split_points "$sps" \
         --global_round "$global_round" \
@@ -98,22 +82,17 @@ for seed in "${seeds[@]}"; do
         --collect_all_layers "$collect_all_layers" \
         --dataset_label "$dataset_label" \
         --batch_size "$batch_size" \
-        --tag_enable False \
+        --tag_enable True \
         --gma_enable False \
         --gsma_enable False \
         --sma_enable False \
-        --attacker_freq "$attacker_freq" \
+        --eia_enable False --attacker_freq "$attacker_freq" \
         --attacker_samples "$attacker_samples" \
         --max_global_step "$max_global_step" \
-        --eia_enable True \
-        --eia_lr "$eia_lr" \
-        --eia_epochs "$eia_epc" \
-        --eia_temp "$eia_temp" \
-        --eia_wd "$eia_wd" \
-        --eia_mapped_to 1 \
-        --mapper_target "${eia_depth}-1" \
-        --mapper_dataset "${attacker_dataset}" \
-        --mapper_train_frac "$mapper_train_frac"\
+        --lamp_beta "$lamp_beta" \
+        --lamp_lr "$lamp_lr" \
+        --lamp_epochs "$lamp_epc" \
+        --lamp_freq "$lamp_freq" \
         --load_bits "$load_bits"
     done
   done

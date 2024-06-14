@@ -2,6 +2,7 @@
 from typing import Any
 
 import numpy as np
+import torch
 import wandb
 from matplotlib import pyplot
 

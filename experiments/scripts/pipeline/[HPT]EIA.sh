@@ -16,7 +16,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='llama2'
+model_name='gptj'
 
 eia_depth=6
 sps="$eia_depth-27"
@@ -32,6 +32,11 @@ sfl_datasets=("piqa")
 eia_enable=True
 eia_mapped_to=1
 
+# Falcon
+#eia_lrs=(0.11 0.09)
+#eia_epochs=(12000 24000 36000)
+#eia_temps=(0.5 0.3)
+#eia_wds=(0.01)
 
 #GPT2
 #eia_lrs=(0.11 0.09 0.06)
@@ -40,16 +45,18 @@ eia_mapped_to=1
 #eia_wds=(0.01)
 
 # chatglm
-#eia_lrs=(0.11 0.09 0.06)
-#eia_epochs=(12000 24000)
+eia_lrs=(0.05)
+eia_epochs=(12000 24000)
+eia_temps=(0.5 0.3 0.2)
+eia_wds=(0.01)
+load_bits=8
+# LLaMA2
+#eia_lrs=(0.001 0.06 0.11)
+#eia_epochs=(72000)
 #eia_temps=(0.5 0.3 0.2)
 #eia_wds=(0.01)
 
-# LLaMA2
-eia_lrs=(0.09 0.06 0.11)
-eia_epochs=(72000)
-eia_temps=(0.5 0.3 0.2)
-eia_wds=(0.01)
+config_file='/data/stupidtree/project/SFL-LLM/experiments/scripts/config/mapper.yaml'
 
 for mapper_dataset in "${mapper_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
@@ -59,11 +66,12 @@ for mapper_dataset in "${mapper_datasets[@]}"; do
           for eia_wd in "${eia_wds[@]}"; do
 
             # 先训练Mapper
-
             echo "Running train_mapper.py with seed=$seed, dataset=$mapper_dataset"
             python ../py/train_mapper.py \
+             --config_file "$config_file" \
               --model_name "$model_name" \
               --seed "$seed" \
+              --batch_size 1\
               --dataset "$mapper_dataset" \
               --attack_mode "b2tr" \
               --target "${eia_depth}-1" \
@@ -71,7 +79,8 @@ for mapper_dataset in "${mapper_datasets[@]}"; do
               --log_to_wandb False \
               --epochs 10 \
               --dataset_train_frac "$mapper_train_frac" \
-              --dataset_test_frac 0.1
+              --dataset_test_frac 0.1\
+              --load_bits "$load_bits"
 
             case_name="EIA@${model_name}${eia_depth}_lr=${eia_lr},epc=${eia_epc},temp=${eia_temp},wd=${eia_wd}"
 
@@ -116,7 +125,8 @@ for mapper_dataset in "${mapper_datasets[@]}"; do
               --eia_mapped_to "$eia_mapped_to" \
               --mapper_target "${eia_depth}-1" \
               --mapper_dataset "${mapper_dataset}" \
-              --mapper_train_frac "$mapper_train_frac"
+              --mapper_train_frac "$mapper_train_frac"\
+              --load_bits "$load_bits"
           done
         done
       done

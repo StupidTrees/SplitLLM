@@ -35,7 +35,7 @@ class BaseSFLStrategy(FLStrategy):
 
     def client_step(self, client_id: str, global_round, client_epoch, llm: SplitWrapperModel, iterator: Iterator,
                     config: FLConfig):
-        optimizer = AdamW(llm.parameters(), lr=2e-5)
+        optimizer = AdamW(llm.parameters(), lr=config.lr)
         if self.task_type == 'classification':
             optimizer = Adam(llm.parameters(), lr=1e-4)
         avg_loss = 0

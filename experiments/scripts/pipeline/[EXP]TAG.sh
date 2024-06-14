@@ -16,7 +16,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_names=('llama2' 'chatglm' 'gpt2-large')
+model_names=('falcon')
 
 sps="6-27"
 batch_size=2
@@ -47,6 +47,12 @@ for seed in "${seeds[@]}"; do
       if [ "$model_name" == "gpt2-large" ]; then
         tag_lr=0.09
         tag_beta=0.85
+        tag_epc=600
+      fi
+
+      if [ "$model_name" == "falcon" ]; then
+        tag_lr=0.06
+        tag_beta=0.6
         tag_epc=600
       fi
 

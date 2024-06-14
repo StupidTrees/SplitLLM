@@ -10,7 +10,7 @@ from tqdm import tqdm
 sys.path.append(os.path.abspath('../../..'))
 from sfl.simulator.dataset import MixtureFedDataset
 from sfl.config import FLConfig
-from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_mapper_params
+from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_mapper_params, required_quantization
 from sfl.utils.model import get_best_gpu, set_random_seed
 from sfl.model.attacker.eia_attacker import LMMapper, LMMapperConfig
 
@@ -19,7 +19,7 @@ from sfl.config import DRA_train_label, DRA_test_label
 
 def get_save_path(save_dir, args):
     model_name = args.model_name
-    if 'llama' in model_name or 'chatglm' in model_name:
+    if required_quantization(args.model_name):
         model_name += f'-{args.load_bits}bits'
     p = os.path.join(save_dir,
                      f'{model_name}/{args.dataset}/{DRA_train_label[args.dataset]}*{args.dataset_train_frac:.3f}-{DRA_test_label[args.dataset]}*{args.dataset_test_frac:.3f}'
@@ -74,7 +74,7 @@ def train_mapper(args):
         print('Model exists, skipping...')
         return
 
-    model, tokenizer = get_model_and_tokenizer(args.model_name, load_bits=args.load_bits)
+    model, tokenizer = get_model_and_tokenizer(args.model_name)#, load_bits=args.load_bits, force_on_best_gpu=True)
     if ',' not in args.dataset:
         dataset_cls = get_dataset_class(args.dataset)
         dataset = dataset_cls(tokenizer, [])
@@ -102,16 +102,16 @@ def train_mapper(args):
     #     param.requires_grad = False
 
     # 开始训练Mapper
-    mapper = LMMapper(LMMapperConfig(), target_config=model.config)
-    if 'llama' not in args.model_name and 'chatglm' not in args.model_name:
-        device = get_best_gpu()
-        model.to(device)
+    mapper = LMMapper(LMMapperConfig(structure='linear', n_layers=2 if args.model_name in ['chatglm', 'gptj'] else 1),
+                      target_config=model.config)
+    if not hasattr(model.config, 'quantization_config') and model.device == 'cpu':
+        model.to(get_best_gpu())
 
     opt_cls = Adam
     if args.opt == 'adamw':
         opt_cls = AdamW
-    optimizer = opt_cls(mapper.parameters(), lr=args.lr, weight_decay=1e-5)
-    mapper.to(model.device)
+    optimizer = opt_cls(mapper.parameters(), lr=args.lr, weight_decay=args.wd)
+    # mapper.to(model.device)
 
     epoch = args.epochs
     if args.log_to_wandb:
@@ -119,7 +119,6 @@ def train_mapper(args):
                    name=f"{args.model_name}_{args.target}",
                    config=vars(args)
                    )
-    # evaluate(0, model, attack_model, tokenizer, dataloader_test, args.save_dir)
     with tqdm(total=epoch * len(dataloader)) as pbar:
         for epc in range(epoch):
             model.train(True)
@@ -130,8 +129,12 @@ def train_mapper(args):
                 attention_mask = batch['attention_mask'].to(model.device)
                 model(input_ids=input_ids, attention_mask=attention_mask)
                 inter_b2tr, inter_tr2t, _ = model.get_all_inter(detach=True)
-                mapped = mapper(inter_tr2t.fx.to(mapper.device))
-                loss = torch.nn.MSELoss()(mapped, inter_b2tr.fx.to(mapper.device).float())
+                if 'chatglm' in args.model_name:
+                    mapped = mapper(inter_tr2t.fx.to(mapper.device).float().permute(1, 0, 2))
+                    loss = torch.nn.MSELoss()(mapped, inter_b2tr.fx.to(mapper.device).float().permute(1, 0, 2))
+                else:
+                    mapped = mapper(inter_tr2t.fx.float().to(mapper.device))
+                    loss = torch.nn.MSELoss()(mapped, inter_b2tr.fx.float().to(mapper.device))
                 loss.backward()
                 optimizer.step()
                 pbar.set_description(
@@ -151,6 +154,6 @@ def train_mapper(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     add_train_mapper_params(parser)
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     set_random_seed(args.seed)
     train_mapper(args)

@@ -475,6 +475,8 @@ def get_embedding_layer(llm):
             return llm.transformer.wte
         elif hasattr(llm.transformer, 'embedding'):
             return llm.transformer.embedding
+        elif hasattr(llm.transformer, 'word_embeddings'):
+            return llm.transformer.word_embeddings
     elif hasattr(llm, 'bert'):
         return llm.bert.embeddings.word_embeddings
     return None

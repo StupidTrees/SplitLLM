@@ -17,7 +17,8 @@ import sfl
 from sfl.config import FLConfig, SIPInverterConfig, dxp_moe_range, gaussian_moe_range
 from sfl.model.attacker.sip_attacker import LSTMDRInverter, GRUDRInverter, LinearSIPInverter, LSTMDRAttackerConfig, \
     TransformerSIPInverterConfig
-from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_tokenizer
+from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_tokenizer, \
+    required_quantization
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
     evaluate_attacker_rouge, random_choose_noise
 
@@ -27,7 +28,7 @@ from sfl.config import DRA_train_label, DRA_test_label
 def get_save_path(fl_config, save_dir, args):
     model_name = args.model_name
     cut_layer = fl_config.split_point_1 if fl_config.attack_mode == "b2tr" else fl_config.split_point_2
-    if 'llama' in model_name:
+    if required_quantization(args.model_name):
         model_name += f'-{args.load_bits}bits'
     if ',' in args.dataset:
         p = os.path.join(save_dir,

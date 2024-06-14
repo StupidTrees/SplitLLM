@@ -16,7 +16,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='gpt2-large'
+model_name='falcon'
 
 sps="6-27"
 batch_size=2

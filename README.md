@@ -22,6 +22,9 @@ python model_download.py --repo_id meta-llama/Llama-2-7b
 python model_download.py --repo_id meta-llama/Meta-Llama-3-8B 
 python model_download.py --repo_id lucyknada/microsoft_WizardLM-2-7B
 python model_download.py --repo_id lmsys/vicuna-7b-v1.5
+python model_download.py --repo_id tiiuae/falcon-7b-instruct
+python model_download.py --repo_id Salesforce/codegen25-7b-instruct_P
+python model_download.py --repo_id EleutherAI/gpt-j-6b
 python model_download.py --repo_id THUDM/chatglm3-6b
 python model_download.py --repo_id google/flan-ul2
 python model_download.py --repo_id google/vit-large-patch16-224

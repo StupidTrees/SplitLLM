@@ -2,14 +2,14 @@
 seed=42
 
 dataset_label='train'
-exp_name='[EXP]SIP_cross_model'
+exp_name='[EXP]BiSR(b+f)_cross_model'
 global_round=1
 client_steps=500
 noise_scale=0.0
 noise_mode="none"
 data_shrink_frac=0.08
-test_data_shrink_frac=0.3
-evaluate_freq=300
+test_data_shrink_frac=0.1
+evaluate_freq=100
 self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
@@ -19,23 +19,33 @@ sps="6-27"
 batch_size=2
 
 attacker_freq=200
-attacker_samples=1
-max_global_step=405
+attacker_samples=5
+max_global_step=605
 
 collect_all_layers=True
 
 sfl_datasets=("piqa")
-sfl_model_name='falcon'
+sfl_model_name='codegen'
 
 sip_inverter_dataset='sensireplaced'
 sip_inverter_models=('llama2')
 sip_layer=6
 
+gma_lr=0.09
+gma_beta=0.85
+gma_epc=18
+gma_init_temp=1.2
+gsma_lr=0.005
+gsma_epc=800
+gsma_wd=0.02
+gsma_cross_model='llama2'
+load_bits=32
 # 0.05 0.001 0.1)
 
 for sfl_dataset in "${sfl_datasets[@]}"; do
   for sip_inverter_model in "${sip_inverter_models[@]}"; do
-    case_name="CM-${sfl_model_name}-${sfl_dataset}<<-${sip_inverter_model}-${sip_inverter_dataset}-l${sip_layer}"
+
+    case_name="CM-${sfl_model_name}-${sfl_dataset}<<-${sip_inverter_model}-${sip_inverter_dataset}-l${sip_layer}-SCM${sma_cross_model}"
 
     # 先训练攻击模型
     echo "Running train_inverter.py"
@@ -49,7 +59,7 @@ for sfl_dataset in "${sfl_datasets[@]}"; do
       --dataset_test_frac 0.1 \
       --save_checkpoint True \
       --log_to_wandb False\
-      --load_bits 32
+      --load_bits "$load_bits"
 
     # 将其用于攻击
     echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -80,16 +90,24 @@ for sfl_dataset in "${sfl_datasets[@]}"; do
       --max_global_step "$max_global_step" \
       --sip_dataset "$sip_inverter_dataset" \
       --tag_enable False \
-      --gma_enable False \
-      --gsma_enable False \
+      --gma_enable True \
+      --gsma_enable True \
       --sma_enable False \
       --eia_enable False \
       --sip_prefix "normal" \
       --sip_b2tr_enable True \
       --sip_b2tr_layer "$sip_layer" \
       --sip_tr2t_enable False \
-      --sip_attack_all_layers True \
-      --sip_target_model_name "$sip_inverter_model"\
-      --load_bits 32
+      --sip_attack_all_layers False \
+      --sip_target_model_name "$sip_inverter_model" \
+      --gma_beta "$gma_beta" \
+      --gma_epochs "$gma_epc" \
+      --gma_init_temp "$gma_init_temp" \
+      --gma_lr "$gma_lr" \
+      --gsma_lr "$gsma_lr" \
+      --gsma_epochs "$gsma_epc" \
+      --gsma_wd "$gsma_wd" \
+      --gsma_cross_model "$gsma_cross_model"\
+      --load_bits "$load_bits"
   done
 done

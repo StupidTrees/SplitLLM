@@ -80,8 +80,10 @@ class SFLSimulator(object):
                                                          [p.detach().cpu() for nm, p in self.llm.get_top_params()])
                 self.parameter_keeper.store_other_params(key, 'bottom',
                                                          [p.detach().cpu() for nm, p in self.llm.get_bottom_params()])
-        if not hasattr(self.llm.config, 'quantization_config'):
+        if not hasattr(self.llm.config, 'quantization_config') and llm.device == 'cpu':
             self.llm.to(self.device)
+        if llm.device != 'cpu':
+            self.device = llm.device
 
     def pre_ft(self, data_loader, parts=None, max_steps=1000):
         if not hasattr(self.llm.config, 'quantization_config'):

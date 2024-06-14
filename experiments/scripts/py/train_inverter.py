@@ -16,7 +16,7 @@ from sfl.model.attacker.sip_attacker import LSTMDRInverter, GRUDRInverter, Linea
     TransformerSIPInverterConfig, DecoderSIPInverter, AttnGRUDRInverter, TransformerGRUDRAttackerConfig, \
     GRUAttnSIPInverter, AttnSIPInverter, SIPInverterConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_dim_reducer, \
-    get_reducer_args
+    get_reducer_args, required_quantization
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
     evaluate_attacker_rouge, random_choose_noise
 
@@ -26,7 +26,7 @@ from sfl.config import DRA_train_label, DRA_test_label
 def get_save_path(fl_config, save_dir, args):
     model_name = args.model_name
     cut_layer = fl_config.split_point_1 if fl_config.attack_mode == "b2tr" else fl_config.split_point_2
-    if 'llama' in model_name:
+    if required_quantization(args.model_name):
         model_name += f'-{args.load_bits}bits'
     if ',' in args.dataset:
         p = os.path.join(save_dir,
@@ -223,9 +223,9 @@ def train_attacker(args):
         cfg = TransformerSIPInverterConfig()
         inverter_clz = AttnSIPInverter
     attack_model = inverter_clz(cfg, model.config, reduce_dim=None if reducer is None else reducer.config.alpha)
-    if 'llama' not in args.model_name and 'chatglm' not in args.model_name:
-        device = get_best_gpu()
-        model.to(device)
+    if not required_quantization(args.model_name) and model.device == 'cpu':
+        model.to(get_best_gpu())
+
 
     opt_cls = Adam
     if args.opt == 'adamw':

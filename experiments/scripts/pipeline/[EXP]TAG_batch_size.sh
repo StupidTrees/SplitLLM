@@ -2,65 +2,67 @@
 seed=42
 
 dataset_label='train'
-exp_name='[HPT]TAG'
+exp_name='[EXP]TAG_batch_size'
 global_round=1
 client_steps=500
 noise_scale=0.0
 noise_mode="none"
 data_shrink_frac=0.08
 test_data_shrink_frac=0.3
-evaluate_freq=300
+evaluate_freq=800
 self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='falcon'
+model_names=('gpt2-large')
 
 sps="6-27"
-batch_size=2
 
-attacker_freq=200
-attacker_samples=1
-max_global_step=405
+attacker_freq=300
+attacker_samples=5
+max_global_step=605
 
-sfl_datasets=("piqa")
+sfl_datasets=("piqa-mini")
+seeds=(42)
+batch_sizes=(1 2 3 4 5 6 7 8)
 
+for batch_size in "${batch_sizes[@]}"; do
+  for seed in "${seeds[@]}"; do
+    for model_name in "${model_names[@]}"; do
+      for sfl_dataset in "${sfl_datasets[@]}"; do
 
-tag_lrs=(0.09 0.06 0.11)
-tag_betas=(0.6 0.85)
-tag_epochs=(400 600 800 1000 1200)
+        case_name="TAG@${model_name}@${sfl_dataset}-bs${batch_size}"
 
-#chatglm
-#tag_lrs=(0.09 0.06 0.11)
-#tag_betas=(0.6 0.85)
-#tag_epochs=(400 600 800 1000 1200)
+        if [ "$model_name" == "llama2" ]; then
+          tag_lr=0.09
+          tag_beta=0.85
+          tag_epc=600
+        fi
+        if [ "$model_name" == "chatglm" ]; then
+          tag_lr=0.11
+          tag_beta=0.85
+          tag_epc=800
+        fi
+        if [ "$model_name" == "gpt2-large" ]; then
+          tag_lr=0.09
+          tag_beta=0.85
+          tag_epc=600
+        fi
 
-# gpt2
-#tag_lrs=(0.09 0.06 0.11)
-#tag_betas=(0.6 0.85)
-#tag_epochs=(400 600 800 1000 1200)
-
-## llama2
-#tag_lrs=(0.09 0.06 0.11)
-#tag_betas=(0.6 0.85)
-#tag_epochs=(400 600 800 1000)
-# 0.05 0.001 0.1)
-
-
-for sfl_dataset in "${sfl_datasets[@]}"; do
-  for tag_lr in "${tag_lrs[@]}"; do
-    for tag_epc in "${tag_epochs[@]}"; do
-      for tag_beta in "${tag_betas[@]}"; do
-
-        case_name="TAG@${model_name}@${sfl_dataset}@${tag_lr}@${tag_beta}@${tag_epc}"
+        if [ "$model_name" == "falcon" ]; then
+          tag_lr=0.06
+          tag_beta=0.6
+          tag_epc=600
+        fi
 
         # 将其用于攻击
         echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
         python ../py/sim_with_attacker.py \
           --noise_mode "$noise_mode" \
           --case_name "$case_name" \
+          --seed "$seed" \
           --model_name "$model_name" \
           --split_points "$sps" \
           --global_round "$global_round" \
@@ -91,8 +93,7 @@ for sfl_dataset in "${sfl_datasets[@]}"; do
           --max_global_step "$max_global_step" \
           --tag_beta "$tag_beta" \
           --tag_lr "$tag_lr" \
-          --tag_epochs "$tag_epc"\
-          --load_bits 32
+          --tag_epochs "$tag_epc"
       done
     done
   done
