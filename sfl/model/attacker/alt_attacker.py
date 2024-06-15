@@ -30,7 +30,7 @@ class ALTArguments:
 
 class ALTAttacker(Attacker, ABC):
     """
-    前后向交替优化攻击模型
+    Attacker that combines TAG and EIA attacks
     """
     arg_clz = ALTArguments
 

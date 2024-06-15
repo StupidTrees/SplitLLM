@@ -29,7 +29,7 @@ from sfl.utils.model import calc_shifted_loss_logits, get_output
 
 class DLGAttacker(Attacker, ABC):
     """
-    DLG攻击模型
+    DLG Attacker
     """
 
     def __init__(self, fl_config: FLConfig, model: SplitWrapperModel):
@@ -46,7 +46,7 @@ class DLGAttacker(Attacker, ABC):
         assert llm.fl_config is not None
         # if method == 'lamp':
         #     ppl_llm = llm#get_model_and_tokenizer('gpt2')[0]
-        # !需要在LoRA加上去之前进行复制
+        # !Add before LoRA
         if isinstance(llm, GPT2SplitLMHeadModel):
             mocker = GPT2TopMocker(llm.fl_config, llm)
         elif isinstance(llm, LLAMA2SplitLMHeadModel):
@@ -167,6 +167,9 @@ class LAMPAttacker(DLGAttacker):
         super().__init__(fl_config, model)
 
     def _lamp(self, llm, inter, gradient, gt, beta=0.85, lamp_steps=100, **kwargs):
+        """
+        Copied from the original implementation
+        """
         inter.requires_grad = True
         best_gt, best_loss = None, None
         init_loss = None
@@ -178,22 +181,6 @@ class LAMPAttacker(DLGAttacker):
             with torch.no_grad():
                 for sen_id in range(batch_size):
                     if sample_idx != 0:
-                        # if self.method == 'bisr':
-                        #     # randomly select 1~seq_len*0.1 tokens
-                        #     num_tokens = np.random.randint(1, int(seq_len * 0.2))
-                        #     # randomly select the positions of the tokens
-                        #     token_indexes = np.random.choice(range(seq_len), num_tokens)
-                        #     # for each position, randomly change the last dimension of the token
-                        #     for i in token_indexes:
-                        #         second_idx = np.random.choice([-1, -2, -3])
-                        #         max_idx = torch.argmax(new_gt[sen_id, i, :])
-                        #         second_max_idx = torch.argsort(new_gt[sen_id, i, :])[second_idx]
-                        #         # swap the two tokens
-                        #         new_gt[sen_id, i, max_idx], new_gt[sen_id, i, second_max_idx] = new_gt[
-                        #                                                                             sen_id, i, second_max_idx], \
-                        #                                                                         new_gt[
-                        #                                                                             sen_id, i, max_idx]
-                        # else:
                         perm_ids = np.arange(seq_len)
                         if sample_idx != 0:
                             if sample_idx % 4 == 0:  # swap two tokens
@@ -241,21 +228,15 @@ class LAMPAttacker(DLGAttacker):
                 if sample_idx != 0:
                     changed = sample_idx % 4
             pbar.update()
-        # if not (changed is None):
-        #     change = ['Swapped tokens', 'Moved token', 'Moved sequence', 'Put prefix at the end'][changed]
-        #     print(change)
+        if not (changed is None):
+            change = ['Swapped tokens', 'Moved token', 'Moved sequence', 'Put prefix at the end'][changed]
+            print(change)
         return best_gt
 
     def attack(self, args, aargs: arg_clz,
                llm: SplitWrapperModel, tokenizer: Tokenizer, simulator: SFLSimulator, batch,
                b2tr_inter, tr2t_inter, all_inter, init=None):
         atk_args = _extract_args_from_inters(all_inter)
-        # encoder_inter = all_inter.get('encoder', None)
-        # attention_mask = all_inter.get('att_msk', None)
-        # rotary_pos_emb = all_inter.get('rot_pos', None)
-        # encoder_inter = None if encoder_inter is None else encoder_inter.fx.to(llm.device)
-        # attention_mask = attention_mask.fx if attention_mask is not None else None
-        # rotary_pos_emb = rotary_pos_emb.fx if rotary_pos_emb is not None else None
         gradient = tr2t_inter.grad.clone().to(llm.device)
         inter = tr2t_inter.fx.clone().to(llm.device)
         with ParamRestored(llm=llm, param_keeper=simulator.parameter_keeper, key='pretrained',

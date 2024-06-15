@@ -47,7 +47,7 @@ def evaluate(epc, md, mapper, test_data_loader, args):
         f'Epoch {epc} Test Rouge_l_f1: {mase_avg / dl_len}')  # , Test2 Rouge_l_f1: {rouge_l_f1_x / dl_len if attacker2 else 0}')
     p = get_save_path(args.save_dir, args)
     if mase_avg / dl_len < args.save_threshold and args.save_checkpoint:
-         mapper.save_pretrained(p + f'epoch_{epc}_mse_{mase_avg / dl_len:.6f}')
+        mapper.save_pretrained(p + f'epoch_{epc}_mse_{mase_avg / dl_len:.6f}')
     if args.log_to_wandb:
         log_dict = {'epoch': epc, 'test_mse': mase_avg / dl_len}
         wandb.log(log_dict)
@@ -74,7 +74,7 @@ def train_mapper(args):
         print('Model exists, skipping...')
         return
 
-    model, tokenizer = get_model_and_tokenizer(args.model_name)#, load_bits=args.load_bits, force_on_best_gpu=True)
+    model, tokenizer = get_model_and_tokenizer(args.model_name)  # , load_bits=args.load_bits, force_on_best_gpu=True)
     if ',' not in args.dataset:
         dataset_cls = get_dataset_class(args.dataset)
         dataset = dataset_cls(tokenizer, [])
@@ -102,7 +102,7 @@ def train_mapper(args):
     #     param.requires_grad = False
 
     # 开始训练Mapper
-    mapper = LMMapper(LMMapperConfig(structure='linear', n_layers=2 if args.model_name in ['chatglm', 'gptj'] else 1),
+    mapper = LMMapper(LMMapperConfig(structure='linear', n_layers=2),
                       target_config=model.config)
     if not hasattr(model.config, 'quantization_config') and model.device == 'cpu':
         model.to(get_best_gpu())
@@ -131,10 +131,16 @@ def train_mapper(args):
                 inter_b2tr, inter_tr2t, _ = model.get_all_inter(detach=True)
                 if 'chatglm' in args.model_name:
                     mapped = mapper(inter_tr2t.fx.to(mapper.device).float().permute(1, 0, 2))
-                    loss = torch.nn.MSELoss()(mapped, inter_b2tr.fx.to(mapper.device).float().permute(1, 0, 2))
+                    # loss = torch.nn.MSELoss(reduction='sum')(mapped, inter_b2tr.fx.to(mapper.device).float().permute(1, 0, 2))
+                    loss = 0
+                    for x, y in zip(mapped, inter_b2tr.fx.to(mapper.device).float().permute(1, 0, 2)):
+                        loss += (x-y).pow(2).sum()
                 else:
                     mapped = mapper(inter_tr2t.fx.float().to(mapper.device))
-                    loss = torch.nn.MSELoss()(mapped, inter_b2tr.fx.float().to(mapper.device))
+                    loss = 0
+                    for x, y in zip(mapped, inter_b2tr.fx.float().to(mapper.device)):
+                        loss += (x-y).pow(2).sum()
+                    # loss = torch.nn.MSELoss()(mapped, inter_b2tr.fx.float().to(mapper.device))
                 loss.backward()
                 optimizer.step()
                 pbar.set_description(

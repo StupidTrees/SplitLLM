@@ -56,23 +56,23 @@ class LMMapper(PreTrainedModel):
                     name_or_path = name_or_path[:-1]
                 name_or_path = name_or_path.split('/')[-1]
             self.config.target_model = name_or_path
-        self.mapper = Linear(config.n_embed, self.config.n_embed)
-        # self.mapper = torch.nn.Sequential()
-        # hidden_size = config.n_embed
-        # if config.structure == 'linear':
-        #     for i in range(config.n_layers):
-        #         if config.n_layers > 1 and i != config.n_layers - 1:
-        #             self.mapper.add_module(f'linear_{i}', Linear(config.n_embed, hidden_size))
-        #             self.mapper.add_module(f'activation_{i}', torch.nn.ReLU())
-        #         elif config.n_layers > 1 and i == config.n_layers - 1:
-        #             self.mapper.add_module(f'linear_{i}', Linear(hidden_size, config.n_embed))
-        #         else:
-        #             self.mapper.add_module(f'linear_{i}', Linear(config.n_embed, config.n_embed))
-        # elif config.structure == 'gru':
-        #     self.mapper.add_module('gru', torch.nn.GRU(config.n_embed, 512, batch_first=True))
-        #     self.mapper.add_module('tf', TakeFirst())
-        #     self.mapper.add_module('relu', torch.nn.ReLU())
-        #     self.mapper.add_module('mlp', torch.nn.Linear(512, config.n_embed))
+        # self.mapper = Linear(config.n_embed, self.config.n_embed)
+        self.mapper = torch.nn.Sequential()
+        hidden_size = config.n_embed
+        if config.structure == 'linear':
+            for i in range(config.n_layers):
+                if config.n_layers > 1 and i != config.n_layers - 1:
+                    self.mapper.add_module(f'linear_{i}', Linear(config.n_embed, hidden_size))
+                    self.mapper.add_module(f'activation_{i}', torch.nn.SiLU())
+                elif config.n_layers > 1 and i == config.n_layers - 1:
+                    self.mapper.add_module(f'linear_{i}', Linear(hidden_size, config.n_embed))
+                else:
+                    self.mapper.add_module(f'linear_{i}', Linear(config.n_embed, config.n_embed))
+        elif config.structure == 'gru':
+            self.mapper.add_module('gru', torch.nn.GRU(config.n_embed, 512, batch_first=True))
+            self.mapper.add_module('tf', TakeFirst())
+            self.mapper.add_module('relu', torch.nn.SiLU())
+            self.mapper.add_module('mlp', torch.nn.Linear(512, config.n_embed))
 
     def forward(self, hidden_states):
         if hidden_states.dtype == torch.float16:
@@ -210,18 +210,8 @@ class EmbeddingInversionAttacker(Attacker):
                     else:
                         it = llm(inputs_embeds=dmy)
                     loss = 0
-                    if isinstance(llm, ChatGLMForConditionalGenerationSplit):
-                        for x, y in zip(it, target):
-                            # calculate mse, avoid overflow
-                            loss += ((x - y) ** 2).sum()
-                            # overflow avoid
-                            # loss += torch.nn.functional.mse_loss(x, y, reduction='mean')
-                        # loss = torch.nn.functional.mse_loss(it, target, reduction='sum')
-                        # for x, y in zip(it, target):
-                        #     loss += torch.abs(x - y).sum()
-                    else:
-                        for x, y in zip(it, target):
-                            loss += ((x - y) ** 2).sum()
+                    for x, y in zip(it, target):
+                        loss += ((x - y) ** 2).sum()
                     # + 0.1 * torch.abs(x - y).sum().float()
                     loss.backward()
                     opt.step()

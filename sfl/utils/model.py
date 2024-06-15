@@ -426,6 +426,8 @@ def dist_corr(x, y):
     """
     Compute the distance correlation function
     """
+    x = x.float()
+    y = y.float()
     n = x.size(0)
     a = torch.cdist(x, x)
     b = torch.cdist(y, y)

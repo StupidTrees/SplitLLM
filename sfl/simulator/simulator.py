@@ -18,7 +18,7 @@ from sfl.utils.model import get_best_gpu
 
 class SFLSimulator(object):
     """
-    SFL实验模拟
+    SFL Experiment Simulator
     """
 
     def __init__(self, client_ids, strategy: FLStrategy, llm: SplitWrapperModel, tokenizer, dataset: FedDataset,
@@ -91,10 +91,9 @@ class SFLSimulator(object):
         self.llm.train()
         if parts is None:
             parts = ['top', 'bottom']
-        # 不收集中间结果
+        # Does not collect intermediates
         bk_ci = self.llm.fl_config.collect_intermediates
         self.llm.fl_config.collect_intermediates = False
-        # 冻结Trunk
         frozen_params = []
         frozen_states = []
         for part in {'top', 'bottom', 'trunk'} - set(parts):
@@ -108,7 +107,7 @@ class SFLSimulator(object):
                 frozen_states.append(p.requires_grad)
                 p.requires_grad = False
                 frozen_params.append(p)
-        # 微调bottom和top
+        # fine-tune the model
         tune = [p for p in self.llm.parameters() if p.requires_grad]
         optimizer = AdamW(tune, lr=1e-5)
         total_step = 0
@@ -130,7 +129,7 @@ class SFLSimulator(object):
                 if total_step >= max_steps:
                     break
 
-        # 恢复
+        # Restore the model
         for p, r in zip(frozen_params, frozen_states):
             p.requires_grad = r
         self.llm.fl_config.collect_intermediates = bk_ci
@@ -281,7 +280,7 @@ class SFLSimulator(object):
 
     def _client_one_step_done(self, client_id, mini_step, batch, logs=None):
         """
-        统计前传、反传的中间数据量
+        Count the communication overhead
         """
         local_step, global_step = self.get_current_step(client_id, mini_step)
         local_epoch = self.local_epochs[client_id]
@@ -299,8 +298,6 @@ class SFLSimulator(object):
                 b2tr_inter.grad) + tensor_bytes(tr2t_inter.fx)
             self.communication_overhead_uplink[self.current_global_round][client_id][local_epoch] += tensor_bytes(
                 tr2t_inter.grad) + tensor_bytes(b2tr_inter.fx)
-
-        # 进行log
 
         if logs is None:
             logs = {}

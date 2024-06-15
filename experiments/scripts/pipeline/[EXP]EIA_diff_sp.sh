@@ -28,7 +28,7 @@ model_name='llama2'
 load_bits=8
 sfl_dataset='piqa'
 eia_depth=6
-eia_depths=(6 2 8 10)
+eia_depths=(2 4 6 8 10)
 
 for eia_depth in "${eia_depths[@]}"; do
   sps="$eia_depth-27"
@@ -42,7 +42,7 @@ for eia_depth in "${eia_depths[@]}"; do
       --target "${eia_depth}-1" \
       --save_checkpoint True \
       --log_to_wandb False \
-      --epochs 10 \
+      --epochs 4 \
       --dataset_train_frac "$mapper_train_frac" \
       --dataset_test_frac 0.1 \
       --load_bits "${load_bits}" \

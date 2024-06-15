@@ -138,9 +138,6 @@ class BaseSFLStrategy(FLStrategy):
                                   b2tr_inter: Intermediate, tr2t_inter: Intermediate,
                                   all_inter: dict[int, Intermediate],
                                   batch, logs):
-        """
-        每个batch，都触发这个攻击函数
-        """
         pass
 
     def sample_attacker_triggered(self, global_round, client_id, local_epoch, local_step,

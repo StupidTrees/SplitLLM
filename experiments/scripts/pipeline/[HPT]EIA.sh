@@ -16,13 +16,13 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='gptj'
+model_name='chatglm'
 
 eia_depth=6
 sps="$eia_depth-27"
 batch_size=2
 
-attacker_freq=20
+attacker_freq=200
 attacker_samples=1
 max_global_step=405
 mapper_train_frac=1.0
@@ -45,9 +45,9 @@ eia_mapped_to=1
 #eia_wds=(0.01)
 
 # chatglm
-eia_lrs=(0.05)
-eia_epochs=(12000 24000)
-eia_temps=(0.5 0.3 0.2)
+eia_lrs=(0.09)
+eia_epochs=(48000)
+eia_temps=(0.3)
 eia_wds=(0.01)
 load_bits=8
 # LLaMA2
@@ -71,15 +71,16 @@ for mapper_dataset in "${mapper_datasets[@]}"; do
              --config_file "$config_file" \
               --model_name "$model_name" \
               --seed "$seed" \
-              --batch_size 1\
               --dataset "$mapper_dataset" \
               --attack_mode "b2tr" \
               --target "${eia_depth}-1" \
               --save_checkpoint True \
               --log_to_wandb False \
-              --epochs 10 \
+              --epochs 20 \
               --dataset_train_frac "$mapper_train_frac" \
               --dataset_test_frac 0.1\
+              --lr 0.0005\
+              --wd 0.01\
               --load_bits "$load_bits"
 
             case_name="EIA@${model_name}${eia_depth}_lr=${eia_lr},epc=${eia_epc},temp=${eia_temp},wd=${eia_wd}"

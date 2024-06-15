@@ -4,7 +4,7 @@ from copy import deepcopy
 
 class ParameterKeeper(ABC):
     """
-    用于在内存/磁盘中维护维护Client/Server的模型参数
+    Maintaining Client/Server's Parameters in Memory/Disk
     """
 
     def __init__(self, client_ids: list[str]):
