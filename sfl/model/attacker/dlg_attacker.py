@@ -14,7 +14,7 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 from transformers.models.t5.modeling_t5 import T5Block, T5LayerNorm
 
 from sfl.config import FLConfig
-from sfl.model.attacker.attacker import Attacker
+from sfl.model.attacker.base import Attacker
 from sfl.model.llm.falcon.falcon_wrapper import FalconForCausalLMSplit
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
 from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel
@@ -29,7 +29,7 @@ from sfl.utils.model import calc_shifted_loss_logits, get_output
 
 class DLGAttacker(Attacker, ABC):
     """
-    DLG Attacker
+    Base Class for Gradient-matching-based Attackers
     """
 
     def __init__(self, fl_config: FLConfig, model: SplitWrapperModel):
@@ -40,13 +40,11 @@ class DLGAttacker(Attacker, ABC):
         self.model_type = model.type
 
     def load_attacker(self, args, aargs, llm: SplitWrapperModel = None, tokenizer: Tokenizer = None):
+        # this cannot be removed
         print(get_output("test", tokenizer, llm))
-        # self.top_mocker = get_dlg_mocker(llm)
+        # Load the mimic Top Model
         mocker = None
         assert llm.fl_config is not None
-        # if method == 'lamp':
-        #     ppl_llm = llm#get_model_and_tokenizer('gpt2')[0]
-        # !Add before LoRA
         if isinstance(llm, GPT2SplitLMHeadModel):
             mocker = GPT2TopMocker(llm.fl_config, llm)
         elif isinstance(llm, LLAMA2SplitLMHeadModel):
@@ -72,10 +70,8 @@ class DLGAttacker(Attacker, ABC):
             loss = calc_shifted_loss_logits(x, torch.softmax(gt, dim=-1))
         grad = torch.autograd.grad(loss, inter, create_graph=True)
         grad_diff = 0
+        # TAG gradient-matching loss
         for gx, gy in zip(grad, gradient.to(loss.device)):
-            # if self.method == 'dlg':
-            #     grad_diff += ((gx - gy) ** 2).sum()
-            # else:
             grad_diff += beta * ((gx - gy) ** 2).sum() + (1 - beta) * (torch.abs(gx - gy)).sum()
         if ppl:
             with torch.no_grad():
@@ -83,11 +79,6 @@ class DLGAttacker(Attacker, ABC):
                 ppl = llm(input_ids=input_ids, labels=input_ids).loss
                 grad_diff += 0.2 * ppl
         return grad_diff
-
-    # def fit(self, inter, gradient, epochs=300, adjust=0, beta=0.85, lr=0.09, gt_init=None, init_temp=1.0,
-    #         model_name=None, lamp=False, lamp_freq=30, softmax=True, **kwargs):
-    #
-    #     return gt
 
 
 @dataclass
@@ -107,6 +98,9 @@ def _extract_args_from_inters(all_inter):
 
 
 class TAGAttacker(DLGAttacker):
+    """
+    TAG Gradient Attacker, used for TAG, BiSR and BiSR(b)
+    """
     arg_clz = TAGArguments
 
     def __init__(self, fl_config: FLConfig, model: SplitWrapperModel):
@@ -161,6 +155,9 @@ class LAMPArguments(TAGArguments):
 
 
 class LAMPAttacker(DLGAttacker):
+    """
+    LAMP Attacker, used for LAMP
+    """
     arg_clz = LAMPArguments
 
     def __init__(self, fl_config: FLConfig, model: SplitWrapperModel):
@@ -274,6 +271,9 @@ class LAMPAttacker(DLGAttacker):
 
 
 class TopMocker(nn.Module):
+    """
+    Mimic the Top part of LLM
+    """
     def __init__(self, fl_config: FLConfig, llm: SplitWrapperModel, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fl_config = fl_config

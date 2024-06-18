@@ -2,7 +2,7 @@ from typing import Optional, Union, Tuple
 
 import torch
 from torch import nn
-from transformers import ViTForImageClassification, ViTModel, ViTConfig
+from transformers import ViTModel, ViTConfig
 from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
 from transformers.models.vit.modeling_vit import ViTEmbeddings, ViTPooler, ViTEncoder
 

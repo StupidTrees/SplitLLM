@@ -46,7 +46,7 @@ pre_ft_data_label='train'
 pre_ft_data_shrink_frac=0.1
 
 for seed in "${seeds[@]}"; do
-  for dataset in "${datasets[@]}"; do
+  for data in "${datasets[@]}"; do
     for noise in "${noises[@]}"; do
       for mocker_a in "${dlg_adjust[@]}"; do
         for mocker_b in "${dlg_beta[@]}"; do

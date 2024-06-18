@@ -8,9 +8,10 @@ import wandb
 from torch.optim import Adam, AdamW
 from tqdm import tqdm
 
+
 sys.path.append(os.path.abspath('../../..'))
-from sfl.simulator.dataset import MixtureFedDataset
 import sfl
+from sfl.data.base import MixtureFedDataset
 from sfl.config import FLConfig, dxp_moe_range, gaussian_moe_range
 from sfl.model.attacker.sip_attacker import LSTMDRInverter, GRUDRInverter, LinearSIPInverter, LSTMDRAttackerConfig, \
     TransformerSIPInverterConfig, DecoderSIPInverter, AttnGRUDRInverter, TransformerGRUDRAttackerConfig, \

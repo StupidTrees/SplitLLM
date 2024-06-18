@@ -1,20 +1,18 @@
 import os
 import sys
-from copy import deepcopy
 
 import wandb
-from matplotlib import pyplot as plt
+
 
 sys.path.append(os.path.abspath('../../..'))
 
-from sfl.simulator.strategy import BaseSFLStrategy
 from sfl.utils.model import set_random_seed
 from sfl.simulator.simulator import SFLSimulator
 from sfl.utils.exp import *
+from sfl.strategies.basic import BaseSFLStrategy
 from sklearn.manifold import TSNE
 
 
-# 定义Client本地学习策略
 class MultiLayerDRAFLStrategy(BaseSFLStrategy):
     """
     每一轮触发攻击：攻击每一层的中间输出

@@ -1,6 +1,8 @@
+import abc
 import random
+from abc import ABC
 from copy import deepcopy
-from typing import Iterator
+from typing import Iterator, Any
 
 import torch
 import wandb
@@ -8,12 +10,55 @@ from tqdm import tqdm
 from transformers import AdamW
 
 from sfl.config import FLConfig
-from sfl.model.llm.split_model import SplitWrapperModel
-from sfl.simulator.dataset import FedDataset
-from sfl.simulator.param_keeper import InMemoryParameterKeeper, ParameterKeeper
-from sfl.simulator.strategy import FLStrategy
+from sfl.data.base import FedDataset
+from sfl.model.llm.split_model import SplitWrapperModel, SplitModel
+from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.utils.data import size_str, tensor_bytes
-from sfl.utils.model import get_best_gpu
+from sfl.utils.model import get_best_gpu, Intermediate
+
+
+class FLStrategy(ABC):
+    """
+    Abstract class for Federated Learning Strategy
+    """
+
+    def __init__(self, fl_config, simulator=None):
+        self.simulator = simulator
+        self.fl_config: FLConfig = fl_config
+        self.client_logs = {}
+        self.task_type = 'lm'
+
+    @abc.abstractmethod
+    def client_step(self, client_id: str, global_round, client_epoch, model: SplitModel, iterator: Iterator,
+                    config: FLConfig):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def callback_intermediate_result(self, global_round, client_id, local_epoch, local_step, global_step,
+                                     b2tr_inter: Intermediate, tr2t_inter: Intermediate,
+                                     all_inter: dict[int, Intermediate],
+                                     batch, logs):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def client_evaluate(self, global_round, client_id, log):
+        raise NotImplementedError
+
+    def aggregation_step(self, global_round, params: dict[str, Any]):
+        res = None
+        for k, v in params.items():
+            if res is None:
+                res = deepcopy(v)
+            else:
+                for p, p1 in zip(res, v):
+                    p.data += p1.data
+        for p in res:
+            p.data /= len(params)
+        return res
+
+    def step_done(self, client_id, mini_step, batch, logs=None):
+        self.simulator._client_one_step_done(client_id, mini_step, batch, logs)
+
 
 
 class SFLSimulator(object):
@@ -431,3 +476,6 @@ class ParamRestored:
             if self.write_back:
                 self.pk.store_other_params(self.key, part, updated_params)
         self.llm.config_sfl(self.cfg_bk, self.pk)
+
+
+

@@ -18,7 +18,7 @@ collect_all_layers=True
 
 model_name='chatglm'
 
-eia_depth=6
+eia_depth=2
 sps="$eia_depth-27"
 batch_size=2
 
@@ -56,8 +56,6 @@ load_bits=8
 #eia_temps=(0.5 0.3 0.2)
 #eia_wds=(0.01)
 
-config_file='/data/stupidtree/project/SFL-LLM/experiments/scripts/config/mapper.yaml'
-
 for mapper_dataset in "${mapper_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
     for eia_lr in "${eia_lrs[@]}"; do
@@ -68,7 +66,6 @@ for mapper_dataset in "${mapper_datasets[@]}"; do
             # 先训练Mapper
             echo "Running train_mapper.py with seed=$seed, dataset=$mapper_dataset"
             python ../py/train_mapper.py \
-             --config_file "$config_file" \
               --model_name "$model_name" \
               --seed "$seed" \
               --dataset "$mapper_dataset" \
@@ -79,8 +76,6 @@ for mapper_dataset in "${mapper_datasets[@]}"; do
               --epochs 20 \
               --dataset_train_frac "$mapper_train_frac" \
               --dataset_test_frac 0.1\
-              --lr 0.0005\
-              --wd 0.01\
               --load_bits "$load_bits"
 
             case_name="EIA@${model_name}${eia_depth}_lr=${eia_lr},epc=${eia_epc},temp=${eia_temp},wd=${eia_wd}"
@@ -124,9 +119,9 @@ for mapper_dataset in "${mapper_datasets[@]}"; do
               --eia_temp "$eia_temp" \
               --eia_wd "$eia_wd" \
               --eia_mapped_to "$eia_mapped_to" \
-              --mapper_target "${eia_depth}-1" \
-              --mapper_dataset "${mapper_dataset}" \
-              --mapper_train_frac "$mapper_train_frac"\
+              --eia_mapper_targets "${eia_depth}-1" \
+              --eia_mapper_dataset "${mapper_dataset}" \
+              --eia_mapper_train_frac "$mapper_train_frac"\
               --load_bits "$load_bits"
           done
         done

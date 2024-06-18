@@ -7,6 +7,7 @@ from transformers import GenerationConfig, AdamW
 
 sys.path.append(os.path.abspath('../../..'))
 
+from sfl.model.attacker.sip_attacker import SIPAttacker
 from sfl.utils.model import calculate_rouge_text, set_random_seed
 from sfl.utils.exp import *
 
@@ -44,7 +45,9 @@ def sfl_with_attacker(args):
     model, tokenizer = get_model_and_tokenizer(args.model_name)
 
     # 加载攻击模型
-    attacker, attacker2 = get_dra_attacker(get_dra_config(args))
+
+    sip_attacker = SIPAttacker()
+    sip_attacker.load_attacker(args, sip_attacker.parse_arguments(args, 'sip'))
     attacked_samples = []
 
     # 配置联邦学习
@@ -59,7 +62,7 @@ def sfl_with_attacker(args):
 
     def hook(hidden):
         with torch.no_grad():
-            attacked = attacker(hidden.to(attacker.device))
+            attacked = sip_attacker.inverter_b2tr(hidden.to(sip_attacker.inverter_b2tr.device))
             attacked_samples.append(attacked)
 
     model.config_sfl(config, None, [hook])
@@ -69,7 +72,7 @@ def sfl_with_attacker(args):
         name=f"C-Dxp{args.noise_scale_dxp}-{args.dataset}.{args.dataset_label}-Pre{args.pre_ft_dataset}.{args.pre_ft_data_label}.{args.pre_ft_data_shrink_frac:.2f}",
         config=args
     )
-    attacker.to(device)
+    sip_attacker.inverter_b2tr.to(device)
     model.to(device)
     # 加载Pre-FT数据集
     if args.pre_ft_dataset is not None and len(args.pre_ft_dataset) > 0:

@@ -2,15 +2,14 @@
 from typing import Any
 
 import numpy as np
-import torch
 import wandb
 from matplotlib import pyplot
 
 from sfl.config import FLConfig
 from sfl.strategies.basic import BaseSFLStrategy
-from sfl.utils.model import FLConfigHolder, saliency_analysis_direct, Intermediate, evaluate_attacker_rouge, \
-    saliency_analysis_generative, draw_generative_saliency_maps, draw_direct_saliency_maps, saliency_analysis_decoder, \
-    saliency_analysis_atk, saliency_analysis_atk_mid
+from sfl.utils.interpret import draw_generative_saliency_maps, saliency_analysis_atk, saliency_analysis_atk_mid, \
+    draw_direct_saliency_maps, saliency_analysis_direct, saliency_analysis_generative, saliency_analysis_decoder
+from sfl.utils.model import FLConfigHolder, Intermediate, evaluate_attacker_rouge
 
 
 class SLStrategyWithAttacker(BaseSFLStrategy):
@@ -124,7 +123,7 @@ class SLStrategyWithAttacker(BaseSFLStrategy):
                                   b2tr_inter: Intermediate, tr2t_inter: Intermediate,
                                   all_inter: dict[Any, Intermediate],
                                   batch, logs):
-        # 逐个调用Attacker
+        # Call attackers sequentially
         init_map = {}
         for name, attacker, atk_args, init_from in self.attackers:
             attack_res = attacker.attack(self.args, atk_args, self.llm, self.tokenizer, self.simulator, batch,
@@ -140,7 +139,7 @@ class SLStrategyWithAttacker(BaseSFLStrategy):
                 self.__log_atk_res(eval_res, client_id, name)
                 init_map[name] = attack_res
 
-        # 分析Entanglement
+        # Entangle analysis
         sip_inv_res = init_map.get('SIP_b2tr', None)
         if sip_inv_res is None:
             sip_inv_res = init_map.get('SIP_tr2t', None)

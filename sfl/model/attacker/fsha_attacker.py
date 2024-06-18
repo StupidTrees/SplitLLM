@@ -1,4 +1,3 @@
-# 梯度劫持攻击
 import dataclasses
 import os
 

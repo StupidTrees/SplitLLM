@@ -9,15 +9,41 @@ from torch.nn import ModuleList
 from transformers import PretrainedConfig, PreTrainedModel, GPT2Config
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
-from sfl.config import SIPAttackerArguments, DRA_train_label
-from sfl.model.attacker.attacker import Attacker
+from sfl.config import DRA_train_label, attacker_path
+from sfl.model.attacker.base import Attacker
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator
 from sfl.utils.exp import required_quantization
 from sfl.utils.model import sentence_score_tokens, get_embed_size
 
 
+@dataclasses.dataclass
+class SIPAttackerArguments:
+    enable: bool = True
+    path: str = attacker_path
+    b2tr_enable: bool = True
+    b2tr_layer: int = -1
+    b2tr_target_layer: int = -1
+    tr2t_enable: bool = True
+    tr2t_layer: int = -1
+    tr2t_target_layer: int = -1
+    model: str = 'gru'  # DRAttacker Model
+    dataset: str = None  # what data the DRAttacker is trained on
+    # train_label: str = 'validation'  # training data of that model
+    train_frac: float = 1.0  # percentage of data used for training
+    prefix: str = 'normal'
+    target_model_name: str = None
+    target_dataset: str = None
+    target_system_sps: str = None
+    target_model_load_bits: int = -1
+    larger_better: bool = True
+    attack_all_layers: bool = False
+
+
 class SIPAttacker(Attacker):
+    """
+    Learning-based SIP Attacker, used for BiSR and SIP-only
+    """
     arg_clz = SIPAttackerArguments
 
     def __init__(self):
@@ -101,7 +127,7 @@ class SIPInverterConfig(PretrainedConfig):
 
 class SIPInverter(PreTrainedModel):
     """
-    DRA攻击模型
+    SIP Inversion Model
     """
 
     config_class = SIPInverterConfig
@@ -407,29 +433,6 @@ class GRUAttnSIPInverter(SIPInverter):
         gru_x = torch.dropout(gru_x, p=self.config.dropout, train=self.training)
         out = self.attn(x, gru_x, gru_x)[0]
         return self.mlp(out)
-
-
-# class GRUCrossAttnDRAttacker(DRAttacker):
-#     config_class = TransformerGRUDRAttackerConfig
-#
-#     def __init__(self, config: TransformerGRUDRAttackerConfig, *args, **kwargs):
-#         super().__init__(config, *args, **kwargs)
-#         self.gru = nn.GRU(input_size=self.config.n_embed, hidden_size=self.config.hidden_size, batch_first=True,
-#                           bidirectional=config.bidirectional)
-#         hidden_size = self.config.hidden_size
-#         if config.bidirectional:
-#             hidden_size *= 2
-#         self.decoder = GPT2Block(GPT2Config(n_embd=hidden_size, n_head=config.nhead))
-#         self.mlp = nn.Linear(hidden_size, self.config.vocab_size)
-#
-#     def forward(self, x):
-#         x = super().forward(x)
-#         # x[batch_size, seq_len, n_embed]
-#         # output [batch_size,seq_len, vocab_size]
-#         x, _ = self.gru(x)  # hidden [batch_size, seq_len, n_embed]
-#         x = torch.dropout(x, p=self.config.dropout, train=self.training)
-#         x = self.decoder(x)[0]
-#         return self.mlp(x)
 
 
 @dataclasses.dataclass

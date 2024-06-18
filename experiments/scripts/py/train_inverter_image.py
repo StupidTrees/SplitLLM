@@ -7,9 +7,9 @@ import wandb
 from tqdm import tqdm
 from transformers import AdamW
 
-sys.path.append(os.path.abspath('../../..'))
-from sfl.simulator.dataset import MixtureFedDataset
 
+sys.path.append(os.path.abspath('../../..'))
+from sfl.data.base import MixtureFedDataset
 from sfl.config import FLConfig
 from sfl.model.attacker.sip_attacker import ViTDRAttacker, ViTDRAttackerConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params

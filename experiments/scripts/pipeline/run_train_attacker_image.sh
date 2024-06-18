@@ -12,12 +12,12 @@ dataset_test_frac=1.0
 
 
 for seed in "${seeds[@]}"; do
-  for dataset in "${datasets[@]}"; do
+  for data in "${datasets[@]}"; do
     for mode in "${attack_mode[@]}"; do
       for sp1 in "${sp1s[@]}"; do
         sps="${sp1}-${sp2}"
         echo "Running train_attacker_image.py with seed=$seed, dataset=$dataset,mode=$mode, split=$sps"
-        python ../py/train_attacker_image.py \
+        python ../py/train_inverter_image.py \
           --model_name "$model_name" \
           --seed "$seed" \
           --dataset "$dataset" \

@@ -4,8 +4,6 @@ dataset_label='train'
 exp_name='[EXP]EIA_diff_sp'
 global_round=1
 client_steps=500
-noise_scale=0.0
-noise_mode="none"
 data_shrink_frac=0.08
 test_data_shrink_frac=0.3
 evaluate_freq=300
@@ -27,8 +25,7 @@ seeds=(42)
 model_name='llama2'
 load_bits=8
 sfl_dataset='piqa'
-eia_depth=6
-eia_depths=(2 4 6 8 10)
+eia_depths=(6 8 10)
 
 for eia_depth in "${eia_depths[@]}"; do
   sps="$eia_depth-27"
@@ -48,9 +45,9 @@ for eia_depth in "${eia_depths[@]}"; do
       --load_bits "${load_bits}" \
 
     if [ "$model_name" == "llama2" ]; then
-      eia_lr=0.11
-      eia_epc=72000
-      eia_temp=0.2
+      eia_lr=0.09
+      eia_epc=36000
+      eia_temp=0.3
       eia_wd=0.01
     fi
 
@@ -73,14 +70,12 @@ for eia_depth in "${eia_depths[@]}"; do
     # 将其用于攻击
     echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
     python ../py/sim_with_attacker.py \
-      --noise_mode "$noise_mode" \
       --case_name "$case_name" \
       --model_name "$model_name" \
       --split_points "$sps" \
       --global_round "$global_round" \
       --seed "$seed" \
       --dataset "$sfl_dataset" \
-      --noise_scale_dxp "$noise_scale" \
       --exp_name "$exp_name" \
       --sip_b2tr_enable False \
       --sip_tr2t_enable False \
@@ -108,10 +103,9 @@ for eia_depth in "${eia_depths[@]}"; do
       --eia_epochs "$eia_epc" \
       --eia_temp "$eia_temp" \
       --eia_wd "$eia_wd" \
-      --eia_mapped_to "$eia_depth" \
-      --mapper_target "${eia_depth}-1" \
-      --mapper_dataset "${attacker_dataset}" \
-      --mapper_train_frac "$mapper_train_frac" \
+      --eia_mapper_targets "${eia_depth}-1" \
+      --eia_mapper_dataset "${attacker_dataset}" \
+      --eia_mapper_train_frac "$mapper_train_frac" \
       --load_bits "$load_bits"
   done
 done

@@ -7,14 +7,15 @@ from torch import nn, float16
 
 from sfl.config import FLConfig
 from sfl.model.llm.dim_reduction import DimReduction
-from sfl.model.llm.noise import GaussianPerturber
+from sfl.model.noise.dxp import DxPrivacy
+from sfl.model.noise.fdp import GaussianPerturber
 from sfl.simulator.param_keeper import ParameterKeeper
-from sfl.utils.model import Intermediate
+from sfl.utils.model import Intermediate, get_embedding_layer
 
 
 class SplitModel(nn.Module, ABC):
     """
-    用于模拟三块切分SFL的模型。需要实现对切分位置前向传播和反向传播中间结果的存取
+    The model simulated for three-part split SFL (private-label)
     """
 
     def __init__(self):
@@ -41,6 +42,8 @@ class SplitModel(nn.Module, ABC):
                 self.b2tr_hooks.append(hk)
         if config.noise_mode == 'gaussian':
             self.perturbers['gaussian'].change_noise_scale(config.noise_scale_gaussian)
+        if config.noise_mode == 'dxp':
+            self.perturbers['dxp'] = DxPrivacy(get_embedding_layer(self), self.config.vocab_size, config.noise_scale_dxp)
 
     def change_noise(self, noise_scale, noise_mode=None):
         if noise_mode is not None:
@@ -114,7 +117,7 @@ class SplitModel(nn.Module, ABC):
 
 class SplitWrapperModel(SplitModel, ABC):
     """
-    最外层的切分模型,需要实现对top-trunk-bottom三个区域参数的读取与加载
+    Outer wrapper for SplitModel
 
     """
 
@@ -126,8 +129,8 @@ class SplitWrapperModel(SplitModel, ABC):
     @abstractmethod
     def get_adapter_module_regex(self):
         """
-        获得要加上Adapter的Module名称的正则表达式
-        :return:
+        Get the regex pattern for modules that need to be adapted by LoRA
+        :return: str
         """
         raise NotImplementedError
 
@@ -224,20 +227,15 @@ class SplitWrapperModel(SplitModel, ABC):
                 yield nm, p
 
     def convert_to_lora_model(self, restore_rest=True):
-        """
-        为Trunk部分加上LoRA适配器
-        :return:
-         """
         if self.adapter_added:
             return self
         if (not self.fl_config.use_lora_at_top) and (not self.fl_config.use_lora_at_bottom) and (
                 not self.fl_config.use_lora_at_trunk):
             return self
-
         lora_config = LoraConfig(target_modules=self.get_adapter_module_regex())
         res = get_peft_model(self, lora_config)
         if restore_rest:
-            # PEFT会冻结所有模型参数，需要恢复其他部分
+            # PEFT will freeze all model parameters, need to restore the rest
             if not self.fl_config.use_lora_at_trunk:
                 for name, param in res.get_trunk_params(trainable_only=False):
                     if param.dtype == torch.float32:

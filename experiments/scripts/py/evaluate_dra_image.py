@@ -6,9 +6,11 @@ import wandb
 from tqdm import tqdm
 from transformers import AdamW
 
-sys.path.append(os.path.abspath('../../..'))
 
-from sfl.simulator.strategy import BaseSFLStrategy
+sys.path.append(os.path.abspath('../../..'))
+from sfl.model.attacker.sip_attacker import SIPAttacker
+from sfl.model.llm.split_model import SplitWrapperModel
+from sfl.strategies.basic import BaseSFLStrategy
 
 from sfl.utils.model import Intermediate, set_random_seed, evaluate_attacker_mse, convert_to_image, evaluate_accuracy, \
     evaluate_perplexity
@@ -16,12 +18,12 @@ from sfl.simulator.simulator import SFLSimulator
 from sfl.utils.exp import *
 
 
-# 定义Client本地学习策略
 class ImageFLStrategy(BaseSFLStrategy):
 
     def __init__(self, args, llm, tokenizer, test_loader, attacker, sample_batch):
-        super().__init__(args, llm, tokenizer, test_loader,attacker)
+        super().__init__(args, llm, tokenizer, test_loader, attacker)
         self.sample_batch = sample_batch
+        self.attacker = attacker
 
     def client_evaluate(self, global_round, client_id, log):
         if self.task_type == 'classification':
@@ -29,7 +31,7 @@ class ImageFLStrategy(BaseSFLStrategy):
         elif self.task_type == 'lm':
             ppl = evaluate_perplexity(self.simulator.llm, self.test_loader)
             log['test-ppl'] = ppl
-        log_sample_image(self.llm, self.dra1, self.sample_batch)
+        log_sample_image(self.llm, self.attacker, self.sample_batch)
 
     def client_step(self, client_id: str, global_round, client_epoch, llm: SplitWrapperModel, iterator: Iterator,
                     config: FLConfig):
@@ -76,16 +78,15 @@ class ImageFLStrategy(BaseSFLStrategy):
 
 def sfl_with_attacker(args):
     model, tokenizer = get_model_and_tokenizer(args.model_name)
-
-    # 配置联邦学习
     client_ids = [str(i) for i in range(args.client_num)]
     config = get_fl_config(args)
-
-    # 加载TAG攻击模型
     model.config_sfl(config, None)
     model.train()
+
     # 加载DRA攻击模型
-    attacker, attacker2 = get_dra_attacker(get_dra_config(args))
+    sip_attacker = SIPAttacker()
+    sip_attacker.load_attacker(args, sip_attacker.parse_arguments(args, 'sip'))
+    attacker = sip_attacker.inverter_b2tr
 
     # 加载数据集
     fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids,

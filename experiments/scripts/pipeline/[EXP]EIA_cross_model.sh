@@ -94,9 +94,9 @@ for seed in "${seeds[@]}"; do
       --eia_wd "$eia_wd" \
       --eia_mapped_to 1 \
       --eia_cross_model "$eia_cross_model" \
-      --mapper_target "${eia_depth}-1" \
-      --mapper_dataset "${attacker_dataset}" \
-      --mapper_train_frac "$mapper_train_frac" \
+      --eia_mapper_targets "${eia_depth}-1" \
+      --eia_mapper_dataset "${attacker_dataset}" \
+      --eia_mapper_train_frac "$mapper_train_frac" \
       --load_bits "$load_bits"
   done
 done

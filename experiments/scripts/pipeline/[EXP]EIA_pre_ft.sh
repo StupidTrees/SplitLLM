@@ -101,9 +101,9 @@ for pre_ft_max_steps in "${pre_ft_steps[@]}"; do
     --eia_temp "$eia_temp" \
     --eia_wd "$eia_wd" \
     --eia_mapped_to 1 \
-    --mapper_target "${eia_depth}-1" \
-    --mapper_dataset "${attacker_dataset}" \
-    --mapper_train_frac "$mapper_train_frac" \
+    --eia_mapper_targets "${eia_depth}-1" \
+    --eia_mapper_dataset "${attacker_dataset}" \
+    --eia_mapper_train_frac "$mapper_train_frac" \
     --pre_ft_dataset "$pre_ft_dataset" \
     --pre_ft_max_steps "$pre_ft_max_steps"\
     --load_bits "$load_bits"

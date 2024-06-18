@@ -8,6 +8,7 @@ from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor
 
 from sfl import config
 from sfl.config import FLConfig, model_download_dir, mapper_path, reducer_path
+from sfl.data.base import MixtureFedDataset
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.dim_reduction import DimReduction
 from sfl.model.llm.falcon.falcon_wrapper import FalconForCausalLMSplit
@@ -19,8 +20,8 @@ from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificati
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
 from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
 from sfl.model.llm.wizard.wiard_wrapper import WizardForCausalLMSplit
-from sfl.simulator.dataset import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
-    GSM8KFedDataset, WikiTextFedDataset, FedDataset, MixtureFedDataset, SensiMarkedFedDataset, \
+from sfl.data.datasets import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
+    GSM8KFedDataset, WikiTextFedDataset, FedDataset, SensiMarkedFedDataset, \
     SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset, PIQAMiniFedDataset
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.utils.argparser import PrefixArgumentParser
@@ -148,9 +149,9 @@ def add_sfl_params(parser):
     parser.add_argument('--dataset_max_seq_len', type=int, default=-1)
     parser.add_argument('--max_global_step', type=int, default=-1)
     parser.add_argument('--dataset_label', type=str, default='train')
-    parser.add_argument('--data_shrink_frac', type=float, default=0.15, help='shrink dataset to this fraction')
+    parser.add_argument('--data_shrink_frac', type=float, default=0.15, help='shrink data to this fraction')
     parser.add_argument('--test_data_label', type=str, default='test')
-    parser.add_argument('--test_data_shrink_frac', type=float, default=0.15, help='shrink dataset to this fraction')
+    parser.add_argument('--test_data_shrink_frac', type=float, default=0.15, help='shrink data to this fraction')
     parser.add_argument('--evaluate_freq', type=int, default=25)
     parser.add_argument('--collect_all_layers', type=str2bool, default=False,
                         help='collect intermediates of all layers')
@@ -178,15 +179,6 @@ def add_sfl_params(parser):
     parser.add_argument('--log_to_wandb', type=str2bool, default=True)
     parser.add_argument('--attacker_freq', type=int, default=25, help='attack every * steps')
     parser.add_argument('--attacker_samples', type=int, default=10, help='attack how many batches each time')
-
-    parser.add_argument('--mapper_enable', type=str2bool, default=False)
-    parser.add_argument('--mapper_train_frac', type=float, default=1.0)
-    parser.add_argument('--mapper_path', type=str, default=mapper_path)
-    parser.add_argument('--mapper_dataset', type=str,
-                        default='')
-    parser.add_argument('--mapper_target', type=str,
-                        default='')
-
     parser.add_argument('--reducer_enable', type=str2bool, default=False)
     parser.add_argument('--reducer_train_frac', type=float, default=1.0)
     parser.add_argument('--reducer_train_label', type=str, default='train')
@@ -320,6 +312,10 @@ def required_quantization(model_name):
 
 
 def load_model_in_param_keepers(model_name, fl_config, parts=None):
+    """
+    Load the pre-trained weights of the model into the parameter keeper.
+    :return: parameter keeper
+    """
     cross_model, _ = get_model_and_tokenizer(model_name)
     cross_model.config_sfl(fl_config)
     cross_model = cross_model.convert_to_lora_model()
@@ -453,35 +449,3 @@ def get_dataset_class(dataset_name):
     else:
         raise AttributeError
     return dataset_cls
-
-#
-# def get_fsha_attacker(dra_config: SIPAttackerArguments):
-#     dataset = dra_config.dataset
-#     if dataset is None:
-#         dataset = dra_config.target_dataset
-#     model_name = dra_config.target_model_name
-#     if model_name == 'llama2':
-#         model_name += f"-{dra_config.target_model_load_bits}bits"
-#     attacker_path = fsha_path + f'{model_name}/{dataset}/'
-#     match = False
-#     for d in os.listdir(attacker_path):
-#         pattern = f'{DRA_train_label[dra_config.dataset]}*{dra_config.train_frac:.3f}'
-#         if ',' in dra_config.dataset:
-#             pattern = f'Tr{dra_config.train_frac:.3f}'
-#         if d.startswith(pattern):
-#             attacker_path = os.path.join(attacker_path, d) + '/'
-#             match = True
-#             break
-#     assert match
-#     attacker_path_1 = None
-#     if dra_config.b2tr_enable:
-#         sp1 = int(dra_config.target_sps.split('-')[0])
-#         if dra_config.b2tr_sp >= 0:
-#             sp1 = dra_config.b2tr_sp
-#         attacker_path_1 = attacker_path + f'/b2tr-{sp1}/'
-#         l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[-1]
-#         attacker_path_1 = os.path.join(attacker_path_1, l)
-#
-#     attacker = FSHAAttacker.from_pretrained(attacker_path_1)
-#
-#     return attacker

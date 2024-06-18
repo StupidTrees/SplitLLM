@@ -8,8 +8,8 @@ from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttenti
 from transformers.models.roberta.modeling_roberta import RobertaEncoder, RobertaEmbeddings, RobertaPooler
 
 from sfl.config import FLConfig
-from sfl.model.llm.noise import DxPrivacy
 from sfl.model.llm.split_model import SplitModel
+from sfl.model.noise.dxp import DxPrivacy
 from sfl.simulator.param_keeper import ParameterKeeper
 
 logger = logging.getLogger(__name__)

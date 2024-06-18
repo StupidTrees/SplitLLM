@@ -5,12 +5,11 @@ import torch
 from transformers import BertModel
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions, \
     BaseModelOutputWithPoolingAndCrossAttentions
-from transformers.models.bert.modeling_bert import BertEncoder, BertEmbeddings, BertPooler
+from transformers.models.bert.modeling_bert import BertEncoder
 
 from sfl.config import FLConfig
-from sfl.model.llm.noise import DxPrivacy
 from sfl.model.llm.split_model import SplitModel
-from sfl.simulator.param_keeper import ParameterKeeper
+from sfl.model.noise.dxp import DxPrivacy
 
 logger = logging.getLogger(__name__)
 

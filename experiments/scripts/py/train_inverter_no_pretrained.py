@@ -9,16 +9,16 @@ import wandb
 from torch.optim import Adam
 from tqdm import tqdm
 
+
 sys.path.append(os.path.abspath('../../..'))
 from sfl.simulator.simulator import SFLSimulator
-from sfl.simulator.strategy import BaseSFLStrategy
-from sfl.simulator.dataset import MixtureFedDataset
+from sfl.data.base import MixtureFedDataset
+from sfl.strategies.basic import BaseSFLStrategy
 import sfl
-from sfl.config import FLConfig, SIPInverterConfig, dxp_moe_range, gaussian_moe_range
+from sfl.config import FLConfig, dxp_moe_range, gaussian_moe_range
 from sfl.model.attacker.sip_attacker import LSTMDRInverter, GRUDRInverter, LinearSIPInverter, LSTMDRAttackerConfig, \
-    TransformerSIPInverterConfig
-from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_tokenizer, \
-    required_quantization
+    SIPInverterConfig
+from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, required_quantization
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
     evaluate_attacker_rouge, random_choose_noise
 

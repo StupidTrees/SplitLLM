@@ -6,9 +6,7 @@ from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttenti
 from transformers.models.t5.modeling_t5 import T5Stack
 
 from sfl.config import FLConfig
-from sfl.model.llm.noise import DxPrivacy
 from sfl.model.llm.split_model import SplitModel
-from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.utils.model import Intermediate
 
 logger = logging.getLogger(__name__)
@@ -20,10 +18,6 @@ class T5SplitStack(T5Stack, SplitModel):
         super().__init__(config, *args, **kwargs)
         self.num_encoder_layers = self.config.num_layers
         self.encoder_hidden_states = None
-
-    def config_sfl(self, config: FLConfig, *args, **kwargs):
-        super().config_sfl(config, *args, **kwargs)
-        self.perturbers['dxp'] = DxPrivacy(self.embed_tokens, self.config.vocab_size, self.fl_config.noise_scale_dxp)
 
     def get_all_inter(self, detach=True):
         b2tr, tr2t, res = super(T5SplitStack, self).get_all_inter(detach)

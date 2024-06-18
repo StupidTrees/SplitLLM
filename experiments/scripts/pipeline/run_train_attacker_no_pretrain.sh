@@ -16,7 +16,7 @@ noise_scale_gaussian=0.2
 noise_scale_dxp=0.2
 
 for seed in "${seeds[@]}"; do
-  for dataset in "${datasets[@]}"; do
+  for data in "${datasets[@]}"; do
     for model in "${models[@]}"; do
       for mode in "${attack_mode[@]}"; do
         for sp1 in "${sp1s[@]}"; do

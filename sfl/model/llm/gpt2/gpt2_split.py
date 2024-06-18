@@ -5,22 +5,15 @@ import torch
 from transformers import GPT2Model
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
 
-from sfl.config import FLConfig
-from sfl.model.llm.noise import DxPrivacy
 from sfl.model.llm.split_model import SplitModel
-from sfl.simulator.param_keeper import ParameterKeeper
 
 logger = logging.getLogger(__name__)
 
 
 class GPT2SplitModel(GPT2Model, SplitModel):
     """
-    GPT2主模型，主要在FP过程中收集中间输出和梯度
+    GPT2 Split Model
     """
-
-    def config_sfl(self, config: FLConfig, *args, **kwargs):
-        super(GPT2SplitModel, self).config_sfl(config,*args, **kwargs)
-        self.perturbers['dxp'] = DxPrivacy(self.wte, self.config.vocab_size, config.noise_scale_dxp)
 
     def forward(
             self,

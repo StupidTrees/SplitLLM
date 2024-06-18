@@ -7,8 +7,9 @@ import wandb
 from torch.optim import Adam, AdamW
 from tqdm import tqdm
 
+
 sys.path.append(os.path.abspath('../../..'))
-from sfl.simulator.dataset import MixtureFedDataset
+from sfl.data.base import MixtureFedDataset
 from sfl.config import FLConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_mapper_params, required_quantization
 from sfl.utils.model import get_best_gpu, set_random_seed

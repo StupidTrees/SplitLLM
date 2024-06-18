@@ -7,10 +7,11 @@ import wandb
 from torch.optim import Adam, AdamW
 from tqdm import tqdm
 
+from sfl.data.base import MixtureFedDataset
+
 sys.path.append(os.path.abspath('../../..'))
 from sfl.model.llm.dim_reduction import DimReduction, DRConfig
 from sfl.model.llm.split_model import SplitWrapperModel
-from sfl.simulator.dataset import MixtureFedDataset
 from sfl.config import FLConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_reducer_params
 from sfl.utils.model import get_best_gpu, set_random_seed, FLConfigHolder

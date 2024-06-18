@@ -10,7 +10,6 @@ from sfl.model.llm.glm.configuration_chatglm import ChatGLMConfig
 from sfl.model.llm.glm.glm_split import ChatGLMSplitModel
 from sfl.model.llm.glm.modeling_chatglm import ChatGLMForConditionalGeneration
 from sfl.model.llm.split_model import SplitWrapperModel
-from sfl.simulator.param_keeper import ParameterKeeper
 
 
 class ChatGLMForConditionalGenerationSplit(ChatGLMForConditionalGeneration, SplitWrapperModel):

@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-from transformers import PretrainedConfig
-
 data_root = '/data/stupidtree/data'
 
 dataset_cache_dir = f'{data_root}/sfl/datasets/'
@@ -41,8 +39,8 @@ class FLConfig:
     global_round: int = 0
     client_epoch: int = 3
     client_steps: int = 50
-    max_global_step: int = -1  # 最多进行的global steo
-    client_evaluate_freq: int = 10  # 几个Step上报一次
+    max_global_step: int = -1  # maximum global step
+    client_evaluate_freq: int = 10  # evaluate every n client steps
     client_per_round: float = 1.0
     split_point_1: int = 2
     split_point_2: int = 10
@@ -50,10 +48,10 @@ class FLConfig:
     use_lora_at_bottom: bool = False
     use_lora_at_top: bool = False
     use_lora_at_embed: bool = False
-    collect_intermediates: bool = True  # 是否记录中间结果
-    collect_all_layers: bool = False  # 是否记录所有层的中间结果
+    collect_intermediates: bool = True  # record intermediate results or not
+    collect_all_layers: bool = False  # record all layers or not
     trigger_hook: bool = False
-    top_and_bottom_from_scratch: str = 'False'  # 设置为True，Client将不采用预训练的Top和Bottom参数
+    top_and_bottom_from_scratch: str = 'False'  # 'True' or 'False', whether to train top and bottom from scratch
     attack_mode: str | None = None  # 'b2tr' or 'tr2b' or 'self' or None
     noise_mode: str = 'none'
     noise_scale_dxp: float = 0.0
@@ -64,40 +62,3 @@ class FLConfig:
     batch_size: int = 2
     reducer_enable: bool = False
     lr: float = 2e-5
-
-
-@dataclass
-class SIPAttackerArguments:
-    enable: bool = True
-    path: str = attacker_path
-    b2tr_enable: bool = True
-    b2tr_layer: int = -1
-    b2tr_target_layer: int = -1
-    tr2t_enable: bool = True
-    tr2t_layer: int = -1
-    tr2t_target_layer: int = -1
-    model: str = 'gru'  # DRAttacker Model
-    dataset: str = None  # what dataset the DRAttacker is trained on
-    # train_label: str = 'validation'  # training dataset of that model
-    train_frac: float = 1.0  # percentage of dataset used for training
-    prefix: str = 'normal'
-    target_model_name: str = None
-    target_dataset: str = None
-    target_system_sps: str = None
-    target_model_load_bits: int = -1
-    larger_better: bool = True
-    attack_all_layers: bool = False
-
-
-@dataclass
-class MapperConfig:
-    path: str = mapper_path
-    from_layer: int = 6
-    to_layer: int = 1
-    dataset: str = None  # what dataset the DRAttacker is trained on
-    train_frac: float = 1.0  # percentage of dataset used for training
-    prefix: str = 'normal'
-    target_model_name: str = None
-    target_dataset: str = None
-    target_model_load_bits: int = -1
-    larger_better: bool = False

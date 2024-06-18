@@ -8,6 +8,9 @@ from sfl.utils.argparser import PrefixArgumentParser
 
 
 class Attacker(ABC):
+    """
+    Base class for all attackers
+    """
     arg_clz = None
 
     @abstractmethod

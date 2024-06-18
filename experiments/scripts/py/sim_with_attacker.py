@@ -3,34 +3,35 @@ import sys
 
 import wandb
 
+
 sys.path.append(os.path.abspath('../../..'))
+from sfl.model.attacker.sma_attacker import SmashedDataMatchingAttacker
 from sfl.model.attacker.alt_attacker import ALTAttacker
 from sfl.strategies.sl_strategy_with_attacker import SLStrategyWithAttacker
 from sfl.utils.model import set_random_seed
 from sfl.simulator.simulator import SFLSimulator
 from sfl.utils.exp import *
 from sfl.model.attacker.dlg_attacker import TAGAttacker, LAMPAttacker
-from sfl.model.attacker.eia_attacker import SmashedDataMatchingAttacker, EmbeddingInversionAttacker
+from sfl.model.attacker.eia_attacker import EmbeddingInversionAttacker
 from sfl.model.attacker.sip_attacker import SIPAttacker
 
 
 def sfl_with_attacker(args, unkown_args):
     model, tokenizer = get_model_and_tokenizer(args.model_name, load_bits=args.load_bits)
 
-    # 配置切分学习
+    # Config SL
     client_ids = [str(i) for i in range(args.client_num)]
     config = get_fl_config(args)
-    # 如果有DimReducer,配置
+    # Config DimReducer if needed
     dim_reducer = None
     reducer_args = get_reducer_args()
     if reducer_args.enable:
         config.reducer_enable = True
         dim_reducer = get_dim_reducer(args, reducer_args)
-    # 配置FL
     model.config_sfl(config, dim_reducer=dim_reducer)
     model.train()
 
-    # 加载数据集
+    # Load dataset
     fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids,
                               shrink_frac=args.data_shrink_frac)
     test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[])
@@ -38,7 +39,7 @@ def sfl_with_attacker(args, unkown_args):
                                                        shrink_frac=args.test_data_shrink_frac,
                                                        max_seq_len=args.dataset_max_seq_len)
     sample_batch = next(iter(fed_dataset.get_dataloader_unsliced(3, 'train')))
-    # 配置攻击者
+    # Set up attackers
     # Name | AttackerObj | ConfigPrefix | Initialized From
     attackers_conf = [('SIP', SIPAttacker(), 'sip', None),
                       ('ALT', ALTAttacker(config, model), 'alt', 'SIP_b2tr'),
@@ -49,17 +50,18 @@ def sfl_with_attacker(args, unkown_args):
                       ('TAG', TAGAttacker(config, model), 'tag', None),
                       ('LAMP', LAMPAttacker(config, model), 'lamp', None),
                       ]
-    # 配置联邦切分学习策略和模拟器
+    # Initialize strategy
     strategy = SLStrategyWithAttacker(args, config, model, tokenizer,
                                       test_loader=test_loader,
                                       sample_batch=sample_batch,
                                       attackers_conf=attackers_conf)
+    # Initialize simulator
     simulator = SFLSimulator(client_ids=client_ids,
                              strategy=strategy,
                              llm=model,
                              tokenizer=tokenizer,
                              dataset=fed_dataset, config=config, args=args)
-    # 加载Pre-FT数据集
+    # Run pre-fine-tuning, if needed
     if args.pre_ft_dataset is not None and len(args.pre_ft_dataset) > 0:
         pre_ft_dataset = get_dataset(args.pre_ft_dataset, tokenizer=tokenizer, client_ids=[])
         pre_ft_loader = pre_ft_dataset.get_dataloader_unsliced(args.batch_size, args.pre_ft_data_label)
@@ -67,15 +69,14 @@ def sfl_with_attacker(args, unkown_args):
 
     args_dict = vars(args)
     args_dict.update(unkown_args)
-    # 配置wandb
+    # Config wandb
     wandb.init(
         project=args.exp_name,
         name=args.case_name,
         config=args_dict
     )
-    # 开始模拟
+    # Simulator run
     model.train()
-    # print(model.device)
     simulator.simulate()
 
 

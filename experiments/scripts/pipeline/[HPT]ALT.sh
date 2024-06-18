@@ -128,7 +128,7 @@ for sfl_dataset in "${sfl_datasets[@]}"; do
                       --alt_f_lr "${eia_lr}" \
                       --alt_f_temp "${eia_temp}" \
                       --alt_f_wd "${eia_wd}" \
-                      --mapper_dataset "sensireplaced"
+                      --eia_mapper_dataset "sensireplaced"
                   done
                 done
               done

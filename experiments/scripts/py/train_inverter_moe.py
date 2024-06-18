@@ -8,9 +8,10 @@ import wandb
 from torch.optim import Adam
 from tqdm import tqdm
 
+
 sys.path.append(os.path.abspath('../../..'))
+from sfl.data.base import MixtureFedDataset
 from experiments.scripts.py.train_inverter import get_save_path, evaluate
-from sfl.simulator.dataset import MixtureFedDataset
 from sfl.config import FLConfig, DRA_test_label, DRA_train_label, dxp_moe_range, gaussian_moe_range, dc_moe_range
 from sfl.model.attacker.sip_attacker import MOEDRInverter, MOEDRAttackerConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params

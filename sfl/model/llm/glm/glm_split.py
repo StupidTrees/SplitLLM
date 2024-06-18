@@ -11,7 +11,6 @@ from sfl.model.llm.glm.configuration_chatglm import ChatGLMConfig
 from sfl.model.llm.glm.modeling_chatglm import ChatGLMModel, GLMTransformer, default_init, Embedding, RotaryEmbedding, \
     PrefixEncoder
 from sfl.model.llm.split_model import SplitModel
-from sfl.simulator.param_keeper import ParameterKeeper
 
 logger = logging.getLogger(__name__)
 
