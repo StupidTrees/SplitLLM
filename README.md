@@ -1,4 +1,17 @@
-## 环境准备
+
+<p align="left"><img src="./doc/img/logo.png" width=400></p>
+
+# SplitLLM: Split Learning Framework for Privacy Attacks
+SplitLLM is a Split Learning simulation framework designed for Large Language Models (LLMs).
+It enables flexible and scalable model fine-tuning under a split learning architecture. 
+The framework is compatible with Hugging Face models.
+
+SplitLLM supports extensible integration of privacy attack experiments, including mainstream DRAs like DLG, TAG, LAMP. 
+The proposed Bidirectional Semi-white-box Reconstruction (BiSR) attack is also demonstrated in the example.
+
+### Quick Start
+
+### Environment Setup
 
 ```shell
 conda env create -n sfl python=3.11
@@ -7,32 +20,30 @@ conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=
 pip install -r requirements.txt
 ```
 
-## 模型下载
-1. 前往`sfl/config`，修改dataset_cache_dir，model_download_dir，model_cache_dir为本地路径
-2. 运行下载脚本，可能需要代理
+### Model Download
+1. Go to `sfl/config` and modify `dataset_cache_dir`，`model_download_dir`，`model_cache_dir` to your own path
+2. Run the following commands to download models, some of them may require a qualified huggingface token
 ```shell
 cd experiments/script
-python model_download.py --repo_id gpt2-large
-python model_download.py --repo_id FacebookAI/roberta-large
-python model_download.py --repo_id google-bert/bert-large-uncased
-python model_download.py --repo_id google/flan-t5-base
-python model_download.py --repo_id google/flan-ul2-base
 python model_download.py --repo_id meta-llama/Llama-2-7b-chat-hf
-python model_download.py --repo_id meta-llama/Llama-2-7b
-python model_download.py --repo_id meta-llama/Meta-Llama-3-8B 
-python model_download.py --repo_id lucyknada/microsoft_WizardLM-2-7B
-python model_download.py --repo_id lmsys/vicuna-7b-v1.5
-python model_download.py --repo_id tiiuae/falcon-7b-instruct
-python model_download.py --repo_id Salesforce/codegen25-7b-instruct_P
-python model_download.py --repo_id EleutherAI/gpt-j-6b
+python model_download.py --repo_id gpt2-large
 python model_download.py --repo_id THUDM/chatglm3-6b
-python model_download.py --repo_id google/flan-ul2
-python model_download.py --repo_id google/vit-large-patch16-224
-
+...
+#python model_download.py --repo_id FacebookAI/roberta-large
+#python model_download.py --repo_id google-bert/bert-large-uncased
+#python model_download.py --repo_id google/flan-t5-base
+#python model_download.py --repo_id google/flan-ul2-base
+#python model_download.py --repo_id meta-llama/Meta-Llama-3-8B 
+#python model_download.py --repo_id lucyknada/microsoft_WizardLM-2-7B
+#python model_download.py --repo_id lmsys/vicuna-7b-v1.5
+#python model_download.py --repo_id tiiuae/falcon-7b-instruct
+#python model_download.py --repo_id Salesforce/codegen25-7b-instruct_P
+#python model_download.py --repo_id EleutherAI/gpt-j-6b
+#python model_download.py --repo_id google/flan-ul2
+#python model_download.py --repo_id google/vit-large-patch16-224
 ```
 
-
-## 数据集下载
+### Download Datasets
 ```shell
 cd $dataset_cache_dir
 git clone https://huggingface.co/datasets/wikitext.git
@@ -46,46 +57,30 @@ git clone https://huggingface.co/datasets/frgfm/imagewoof.git
 ```
 
 
-## 运行实验脚本
-- 运行python脚本`experiments/scripts/pipeline/[EXP]XXX.sh` 
+### Run the Experiment Demo
+- Run the script in `experiments/scripts/pipeline/demo_bisr.sh` 
 
-上述过程**需要配置wandb**: 在本地环境使用
+Note that the script requires wandb to be installed and configured.
 
-```shell
-wandb login
-```
-来登陆自己的wandb账号，运行结果将上传至wandb可视化
+## Split Learning Simulation
 
-
-## SFL模拟
-训练完攻击模型吼，使用sfl_with_attacker相关的notebook/py文件/脚本，进行SFL模拟
-
-## 实现说明
-
-模拟SFL的实现，即一个模型分为
+In SL, a model is divided into three parts:
 
 | Bottom Layers | Trunk Layers（Adapters） | Top Layers |
 |---------------|------------------------|------------|
 
-其中Trunk是一个模型的主干部分，Bottom-Layers和Top-Layers是模型的头尾部分。
+where Bottom-Layers and Top-Layers are input and output end of the model, and Trunk-Layers are the middle part of the model. 
 
-为了进行SFL模拟，**不采用在代码实现上对模型进行真实分割的方式，而采用对模型的不同部分参数进行独立维护的方式**，且以串行方式模拟Client训练，并不进行真实的Client并行。
 
-模拟过程如下：
+To simulate Split Federated Learning (SFL), we do not employ the approach of physically splitting the model in code implementation. Instead, we independently maintain different parts of the model's parameters. We simulate Client training in a serial manner, without actual Client parallelism.
 
-1. 某一轮联邦学习开始，选取Client 0, 1, 2
-2. 从磁盘上加载Client 0的模型参数（包含bottom和top layers，以及它对应的一份Server上的trunk）到GPU上的模型中
-3. Client 0进行本地训练，更新模型所有参数，过程和集中式学习一致
-4. Client 0训练完成，保存模型参数到磁盘
-5. 从磁盘上加载Client 1的模型参数到GPU上的模型中
+The simulation process is as follows:
+
+1. At the start of a round of federated learning, select Clients 0, 1, and 2.
+2. Load the model parameters of Client 0 (including bottom and top layers, and its corresponding trunk on the Server) from disk into the GPU model.
+3. Client 0 performs local training, updating all model parameters, following the process consistent with centralized learning.
+4. Once Client 0 completes training, save the model parameters to disk.
+5. Load the model parameters of Client 1 from disk into the GPU model.
 6. ...
-7. 该轮联邦学习结束，聚合磁盘上的所有client对应的那份trunk参数得到平均trunk，然后把所有client的trunk参数更新为平均trunk
-8. 重复1-7
-
-## Example
-
-使用GPT2作为Example。GPT2有12个Transformer Blocks，以Block为单位进行切分，
-
-| Bottom Layers | Trunk Layers（Adapters） | Top Layers |
-|---------------|------------------------|------------|
-| bottom parts + 1 Blocks| 10 Blocks|  1 Blocks + top parts|
+7. At the end of the federated learning round, aggregate the trunk parameters corresponding to all clients on disk to obtain the average trunk. Then, update the trunk parameters of all clients to the average trunk.
+8. Repeat steps 1-7. 
