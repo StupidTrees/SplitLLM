@@ -1,0 +1,13 @@
+API_KEY = ""
+
+# special tokens
+DEFAULT_PAD_TOKEN = '[PAD]'
+DEFAULT_EOS_TOKEN = '</s>'
+DEFAULT_BOS_TOKEN = '<s>'
+DEFAULT_UNK_TOKEN = '<unk>'
+
+# entity labels
+LOW_ENTITY_SET = ["PERSON"]
+MID_ENTITY_SET = ['DATE', 'MONEY', 'PERCENT', 'QUANTITY', 'TIME']
+HIGH_ENTITY_SET = ["DATE", "MONEY", "PERCENT", "QUANTITY", "TIME", "GPE", "LOC",
+              "PERSON", "WORK_OF_ART", "ORG", "NORP", "LAW", "FAC", "LANGUAGE"]
