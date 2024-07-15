@@ -216,7 +216,6 @@ def get_fl_config(args) -> FLConfig:
                       )
     return config
 
-
 def get_model_path(model_name):
     path = ''
     if model_name.startswith('gpt2'):

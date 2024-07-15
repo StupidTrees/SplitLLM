@@ -18,7 +18,7 @@ collect_all_layers=True
 
 model_name='chatglm'
 
-eia_depth=2
+eia_depth=6
 sps="$eia_depth-27"
 batch_size=2
 
@@ -45,10 +45,10 @@ eia_mapped_to=1
 #eia_wds=(0.01)
 
 # chatglm
-eia_lrs=(0.09)
+eia_lrs=(0.09 0.11 0.06)
 eia_epochs=(48000)
-eia_temps=(0.3)
-eia_wds=(0.01)
+eia_temps=(0.3 0.2)
+eia_wds=(0.01 0.02)
 load_bits=8
 # LLaMA2
 #eia_lrs=(0.001 0.06 0.11)

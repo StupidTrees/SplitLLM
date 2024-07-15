@@ -2,7 +2,7 @@
 seed=42
 
 dataset_label='train'
-exp_name='[EXP]BiSR(b+f)_pre_ft'
+exp_name='[RBT]BiSR(b+f)_pre_ft'
 global_round=1
 client_steps=500
 noise_scale=0.0
@@ -19,18 +19,18 @@ collect_all_layers=True
 sps="6-27"
 batch_size=2
 
-attacker_freq=300
-attacker_samples=1
+attacker_freq=200
+attacker_samples=5
 max_global_step=605
 
 sip_inverter_dataset='sensireplaced'
 
-model_name='llama2'
+model_name='gpt2-large'
 sfl_dataset="piqa" #("gsm8k" "wikitext") #"piqa" "codealpaca" "dialogsum" "sensimarked"
 
 load_bits=8
 pre_ft_dataset='codealpaca'
-pre_ft_steps=(0 4800 9600 14400 19200 24000)
+pre_ft_steps=(14400) #0 4800 9600 14400 18000
 
 
 for pre_ft_max_steps in "${pre_ft_steps[@]}"; do

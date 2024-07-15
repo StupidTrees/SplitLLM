@@ -7,7 +7,6 @@ import wandb
 from torch.optim import Adam, AdamW
 from tqdm import tqdm
 
-
 sys.path.append(os.path.abspath('../../..'))
 from sfl.data.base import MixtureFedDataset
 from sfl.config import FLConfig
@@ -29,10 +28,6 @@ def get_save_path(save_dir, args):
 
 
 def evaluate(epc, md, mapper, test_data_loader, args):
-    """
-    恢复的评价指标选用ROUGE
-    :return: ROUGE-1, ROUGE-2, ROUGE-L, ROUGE-L-P, ROUGE-L-R
-    """
     mapper.eval()
     dl_len = len(test_data_loader)
     mase_avg = 0
@@ -59,7 +54,7 @@ def evaluate(epc, md, mapper, test_data_loader, args):
 
 def train_mapper(args):
     """
-    训练层间映射
+    Train the mapper, which maps the deep layer's intermediate representations to the shallow layer's intermediate
     :param args:
     """
     config = FLConfig(collect_intermediates=True,
@@ -101,9 +96,7 @@ def train_mapper(args):
     # # freeze all parts:
     # for name, param in model.named_parameters():
     #     param.requires_grad = False
-
-    # 开始训练Mapper
-    mapper = LMMapper(LMMapperConfig(structure='linear', n_layers=2),
+    mapper = LMMapper(LMMapperConfig(structure='linear', n_layers=3 if 'chatglm' in args.model_name else 2),
                       target_config=model.config)
     if not hasattr(model.config, 'quantization_config') and model.device == 'cpu':
         model.to(get_best_gpu())
@@ -135,12 +128,12 @@ def train_mapper(args):
                     # loss = torch.nn.MSELoss(reduction='sum')(mapped, inter_b2tr.fx.to(mapper.device).float().permute(1, 0, 2))
                     loss = 0
                     for x, y in zip(mapped, inter_b2tr.fx.to(mapper.device).float().permute(1, 0, 2)):
-                        loss += (x-y).pow(2).sum()
+                        loss += (x - y).pow(2).sum()
                 else:
                     mapped = mapper(inter_tr2t.fx.float().to(mapper.device))
                     loss = 0
                     for x, y in zip(mapped, inter_b2tr.fx.float().to(mapper.device)):
-                        loss += (x-y).pow(2).sum()
+                        loss += (x - y).pow(2).sum()
                     # loss = torch.nn.MSELoss()(mapped, inter_b2tr.fx.float().to(mapper.device))
                 loss.backward()
                 optimizer.step()
@@ -148,8 +141,6 @@ def train_mapper(args):
                     f'Epoch {epc} Loss {loss.item():.5f}')
                 pbar.update(1)
                 item_count += 1
-
-            # 计算测试集上的ROGUE
             if (epc + 1) % args.checkpoint_freq == 0:
                 evaluate(epc, model, mapper, dataloader_test, args)
             # if args.log_to_wandb:

@@ -25,7 +25,7 @@ seeds=(42)
 model_name='llama2'
 load_bits=8
 sfl_dataset='piqa'
-eia_depths=(6 8 10)
+eia_depths=(10)
 
 for eia_depth in "${eia_depths[@]}"; do
   sps="$eia_depth-27"

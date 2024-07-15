@@ -1,16 +1,17 @@
+import argparse
 import os
 import sys
 
 import wandb
 
-
 sys.path.append(os.path.abspath('../../..'))
+from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, get_reducer_args, get_dim_reducer, get_dataset, \
+    add_sfl_params, args_to_dict
 from sfl.model.attacker.sma_attacker import SmashedDataMatchingAttacker
 from sfl.model.attacker.alt_attacker import ALTAttacker
 from sfl.strategies.sl_strategy_with_attacker import SLStrategyWithAttacker
 from sfl.utils.model import set_random_seed
 from sfl.simulator.simulator import SFLSimulator
-from sfl.utils.exp import *
 from sfl.model.attacker.dlg_attacker import TAGAttacker, LAMPAttacker
 from sfl.model.attacker.eia_attacker import EmbeddingInversionAttacker
 from sfl.model.attacker.sip_attacker import SIPAttacker
@@ -47,6 +48,7 @@ def sfl_with_attacker(args, unkown_args):
                       ('BiSR(f)', SmashedDataMatchingAttacker(), 'sma', f'SIP_b2tr'),
                       ('BiSR(b+f)', SmashedDataMatchingAttacker(), 'gsma', 'BiSR(b)'),
                       ('EIA', EmbeddingInversionAttacker(), 'eia', None),
+                      ('BiSR(f2)', EmbeddingInversionAttacker(), 'xma', f'SIP_b2tr'),
                       ('TAG', TAGAttacker(config, model), 'tag', None),
                       ('LAMP', LAMPAttacker(config, model), 'lamp', None),
                       ]
@@ -61,11 +63,6 @@ def sfl_with_attacker(args, unkown_args):
                              llm=model,
                              tokenizer=tokenizer,
                              dataset=fed_dataset, config=config, args=args)
-    # Run pre-fine-tuning, if needed
-    if args.pre_ft_dataset is not None and len(args.pre_ft_dataset) > 0:
-        pre_ft_dataset = get_dataset(args.pre_ft_dataset, tokenizer=tokenizer, client_ids=[])
-        pre_ft_loader = pre_ft_dataset.get_dataloader_unsliced(args.batch_size, args.pre_ft_data_label)
-        simulator.pre_ft(pre_ft_loader, ['bottom', 'top'], max_steps=args.pre_ft_max_steps)
 
     args_dict = vars(args)
     args_dict.update(unkown_args)
@@ -75,6 +72,13 @@ def sfl_with_attacker(args, unkown_args):
         name=args.case_name,
         config=args_dict
     )
+
+    # Run pre-fine-tuning, if needed
+    if args.pre_ft_dataset is not None and len(args.pre_ft_dataset) > 0:
+        pre_ft_dataset = get_dataset(args.pre_ft_dataset, tokenizer=tokenizer, client_ids=[])
+        pre_ft_loader = pre_ft_dataset.get_dataloader_unsliced(args.batch_size, args.pre_ft_data_label)
+        simulator.pre_ft(pre_ft_loader, ['bottom', 'top'], max_steps=args.pre_ft_max_steps)
+
     # Simulator run
     model.train()
     simulator.simulate()

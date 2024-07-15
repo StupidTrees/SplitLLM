@@ -60,7 +60,6 @@ class FLStrategy(ABC):
         self.simulator._client_one_step_done(client_id, mini_step, batch, logs)
 
 
-
 class SFLSimulator(object):
     """
     SFL Experiment Simulator
@@ -144,7 +143,7 @@ class SFLSimulator(object):
         for part in {'top', 'bottom', 'trunk'} - set(parts):
             if part == 'top':
                 ls = self.llm.get_top_params()
-            elif part == ' trunk':
+            elif part == 'trunk':
                 ls = self.llm.get_trunk_params()
             else:
                 ls = self.llm.get_bottom_params()
@@ -165,6 +164,11 @@ class SFLSimulator(object):
                     outputs = self.llm(input_ids=input_ids, labels=input_ids, attention_mask=attention_mask)
                     loss = outputs.loss
                     pbar.set_description(f'Pre-FT Loss {loss.item():.3f}')
+                    if total_step % 100 == 0:
+                        total_norm = 0
+                        for nm, p in self.llm.get_bottom_params():
+                            total_norm += p.norm().item()
+                        wandb.log({'pre_ft_loss': loss.item(), 'pre_ft_norm': total_norm, 'pre_ft_step': total_step})
                     loss.backward()
                     optimizer.step()
                     pbar.update(1)
@@ -476,6 +480,3 @@ class ParamRestored:
             if self.write_back:
                 self.pk.store_other_params(self.key, part, updated_params)
         self.llm.config_sfl(self.cfg_bk, self.pk)
-
-
-
