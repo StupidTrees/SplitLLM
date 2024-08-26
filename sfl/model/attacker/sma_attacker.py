@@ -11,6 +11,7 @@ from sfl.simulator.simulator import SFLSimulator, ParamRestored
 from sfl.utils.exp import load_model_in_param_keepers
 from sfl.utils.model import get_embedding_layer, FLConfigHolder, evaluate_attacker_rouge
 
+
 @dataclass
 class SMArguments:
     enable: bool = False
@@ -49,16 +50,24 @@ class SmashedDataMatchingAttacker(Attacker):
 
     def attack(self, args, aargs: SMArguments, llm: SplitWrapperModel, tokenizer: Tokenizer,
                simulator: SFLSimulator, batch, b2tr_inter, tr2t_inter, all_inters, init=None):
-        inter = b2tr_inter
-        if aargs.at == 'tr2t':
+
+        if aargs.at == 'b2tr':
+            inter = b2tr_inter
+        elif aargs.at == 'tr2t':
             inter = tr2t_inter
+        else:
+            inter = all_inters[int(aargs.at)]
         pk = simulator.parameter_keeper
         if self.pk:
             pk = self.pk
         with ParamRestored(llm=llm, param_keeper=pk, key='pretrained',
                            parts=['bottom']):
             with FLConfigHolder(llm) as ch:
-                llm.fl_config.attack_mode = aargs.at
+                if aargs.at in ['b2tr', 'tr2t']:
+                    llm.fl_config.attack_mode = aargs.at
+                else:
+                    llm.fl_config.split_point_1 = int(aargs.at)
+                    llm.fl_config.attack_mode = 'b2tr'
                 llm.fl_config.collect_intermediates = False
                 llm.fl_config.noise_mode = 'none'
                 ch.change_config()

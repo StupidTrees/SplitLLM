@@ -2,11 +2,14 @@ datasets==2.15.0
 numpy==1.26.2
 pynvml==11.5.0
 regex==2023.10.3
-torch==2.0.1
-transformers==4.31.0
+torch==2.3.0
+transformers==4.40.0
 rouge-score==0.1.2
 rouge==1.0.1
 wandb
 bitsandbytes
 sentencepiece
 nltk
+peft
+torchvision==0.15.2
+trl

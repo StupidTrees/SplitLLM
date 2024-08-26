@@ -15,13 +15,15 @@ class FedDataset(ABC):
     """
 
     def __init__(self, tokenizer, client_ids: list[str], dataset, types: list[str], shrink_frac=1.0,
-                 num_labels=0):
+                 num_labels=0, completion_only=False, uni_length: int = -1):
         self.tokenizer = tokenizer
         self.client_ids = client_ids
         self.client_data_indices = {}
         self.all_dataset = dataset
         self.dataset = {}
+        self.completion_only = completion_only
         self.num_labels = num_labels
+        self.uni_length = uni_length
         for type in types:
             self.dataset[type] = self.all_dataset[type].select(range(int(len(self.all_dataset[type]) * shrink_frac)))
             sliced = random_slicing(range(len(self.dataset[type])), len(client_ids), sgm=0.15)
@@ -49,9 +51,9 @@ class FedDataset(ABC):
                               collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len),
                               batch_size=batch_size,
                               shuffle=True), \
-                   DataLoader(self._pre_process(ds_split['test'], batch_size),
-                              collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len),
-                              batch_size=batch_size, shuffle=True)
+                DataLoader(self._pre_process(ds_split['test'], batch_size),
+                           collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len),
+                           batch_size=batch_size, shuffle=True)
         return DataLoader(self._pre_process(ds, batch_size), batch_size=batch_size, shuffle=True,
                           collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len))
 

@@ -6,7 +6,9 @@ import torch
 from tokenizers import Tokenizer
 from torch import nn, Tensor
 from torch.nn import ModuleList
+from torch.nn.functional import gelu
 from transformers import PretrainedConfig, PreTrainedModel, GPT2Config
+from transformers.activations import ACT2FN
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
 from sfl.config import DRA_train_label, attacker_path
@@ -132,7 +134,8 @@ class SIPInverter(PreTrainedModel):
 
     config_class = SIPInverterConfig
 
-    def __init__(self, config: SIPInverterConfig, target_config: PretrainedConfig = None, reduce_dim=None, *args,
+    def __init__(self, config: SIPInverterConfig, target_config: PretrainedConfig = None, reduce_dim=None,
+                 *args,
                  **kwargs):
         super().__init__(config, *args, **kwargs)
         if target_config:
@@ -202,6 +205,20 @@ class LSTMDRAttackerConfig(SIPInverterConfig):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.model_name = 'lstm'
+
+
+@dataclasses.dataclass
+class InverterForAttentionConfig(SIPInverterConfig):
+    hidden_size: int = 256
+    num_head: int = 12
+    dropout: float = 0.1
+    num_layers = 2
+    bidirectional = False
+    uni_length: int = 512
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.model_name = 'for_attention'
 
 
 @dataclasses.dataclass
@@ -291,6 +308,190 @@ class GRUDRInverter(SIPInverter):
         hidden, _ = self.gru(x)  # hidden [batch_size, seq_len, n_embed]
         hidden = torch.dropout(hidden, p=self.config.dropout, train=self.training)
         return self.mlp(hidden)
+
+
+@dataclasses.dataclass
+class LSTMDRAttackerInterConfig(SIPInverterConfig):
+    hidden_size: int = 256
+    inter_size: int = -1
+    act_fn: str = ''
+    dropout: float = 0.1
+    num_layers = 2
+    bidirectional = False
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.model_name = 'lstm'
+
+
+class GRUDRInverterWithAct(SIPInverter):
+    config_class = LSTMDRAttackerInterConfig
+
+    def __init__(self, config: LSTMDRAttackerInterConfig, target_config=None, *args, **kwargs):
+        super().__init__(config, target_config=target_config, *args, **kwargs)
+        if target_config is not None:
+            if hasattr(target_config, 'hidden_act'):
+                self.config.act_fn = target_config.hidden_act
+            elif hasattr(target_config, 'activation_function'):
+                self.config.act_fn = target_config.activation_function
+        print(self.config)
+        self.red = nn.Linear(self.config.inter_size, self.config.n_embed)
+        self.act = ACT2FN[self.config.act_fn]
+        self.gru = nn.GRU(input_size=self.config.n_embed, hidden_size=self.config.hidden_size, batch_first=True,
+                          bidirectional=config.bidirectional)
+        hidden_size = self.config.hidden_size
+        if config.bidirectional:
+            hidden_size *= 2
+        self.mlp = nn.Linear(hidden_size, self.config.vocab_size)
+
+    def forward(self, x):
+        x = super().forward(x)
+        # x[batch_size, seq_len, n_embed]
+        # output [batch_size,seq_len, vocab_size]
+        o6 = x = self.red(self.act(x))
+        hidden, _ = self.gru(x)  # hidden [batch_size, seq_len, n_embed]
+        hidden = torch.dropout(hidden, p=self.config.dropout, train=self.training)
+        return o6, self.mlp(hidden)
+
+
+class InverterForAttention(SIPInverter):
+    def __init__(self, config: InverterForAttentionConfig, target_config: PretrainedConfig = None, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+        if target_config:
+            self.target_config = target_config
+            self.config.num_head = target_config.num_attention_heads
+            self.config.n_embed = get_embed_size(target_config)
+            self.config.vocab_size = target_config.vocab_size
+            name_or_path = target_config.name_or_path
+            if '/' in name_or_path:
+                if name_or_path.endswith('/'):
+                    name_or_path = name_or_path[:-1]
+                name_or_path = name_or_path.split('/')[-1]
+            self.config.target_model = name_or_path
+
+
+class GRUInverterForAttention(InverterForAttention):
+    config_class = LSTMDRAttackerConfig
+
+    def __init__(self, config: InverterForAttentionConfig, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+        self.input_size = self.config.num_head * 512
+        self.gru = nn.GRU(input_size=self.input_size, hidden_size=self.config.hidden_size, batch_first=True,
+                          bidirectional=config.bidirectional)
+        hidden_size = self.config.hidden_size
+        if config.bidirectional:
+            hidden_size *= 2
+        # self.mlp = nn.Linear(hidden_size, self.config.n_embed)
+        # self.mlp2 = nn.Linear(self.config.n_embed, self.config.vocab_size)
+        self.out = nn.Linear(hidden_size, self.config.vocab_size)
+
+    def forward(self, x):
+        x = super().forward(x)
+        bs, n_head, seq_len = x.shape[:-1]
+        # x[batch_size, n_head, seq_len, seq_len]
+        x1 = x.permute(0, 2, 3, 1).contiguous()
+        x1 = x1.view(bs, seq_len, -1)
+        last_dim = x1.shape[-1]
+        if last_dim < self.input_size:
+            x1 = torch.cat([x1, torch.zeros((bs, seq_len, self.input_size - last_dim), device=x1.device)], dim=-1)
+        else:
+            x1 = x1[:, :, :self.input_size]
+
+        hidden1, _ = self.gru(x1)  # hidden [batch_size, seq_len*seq_len, n_embed]
+        hidden1 = torch.dropout(hidden1, p=self.config.dropout, train=self.training)
+        # pred_hidden_state = self.mlp(hidden1)
+        # output = self.mlp2(pred_hidden_state)
+        # return pred_hidden_state, output
+        return None, self.out(hidden1)
+
+
+class GRUInverterForAttentionUni(InverterForAttention):
+    config_class = LSTMDRAttackerConfig
+
+    def __init__(self, config: InverterForAttentionConfig, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+        self.gru = nn.GRU(input_size=self.config.uni_length * self.config.num_head,
+                          hidden_size=self.config.hidden_size,
+                          batch_first=True,
+                          bidirectional=config.bidirectional)
+        hidden_size = self.config.hidden_size
+        if config.bidirectional:
+            hidden_size *= 2
+        self.mlp = nn.Linear(hidden_size, self.config.n_embed)
+        self.out = nn.Linear(self.config.n_embed, self.config.vocab_size)
+
+    def forward(self, x):
+        x = super().forward(x)
+        bs, n_head, seq_len = x.shape[:-1]  # x [batch_size, n_head, seq_len, seq_len]
+        x = x.permute(0, 2, 3, 1).contiguous().view(bs, seq_len, -1)  # x[batch_size, seq_len, seq_len* n_head]
+        hidden1 = torch.dropout(torch.relu(self.gru(x)[0]), p=self.config.dropout, train=self.training)
+        pred_hidden_state = self.mlp(hidden1)
+        output = self.out(pred_hidden_state)
+        return pred_hidden_state, output
+
+
+class GRUInverterForAttention2(InverterForAttention):
+    config_class = InverterForAttentionConfig
+
+    def __init__(self, config: InverterForAttentionConfig, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+
+        sub_input = self.config.num_head
+        self.gru1 = nn.GRU(input_size=sub_input, hidden_size=self.config.hidden_size, batch_first=True,
+                           bidirectional=config.bidirectional)
+        self.gru2 = nn.GRU(input_size=sub_input, hidden_size=self.config.hidden_size, batch_first=True,
+                           bidirectional=config.bidirectional)
+        hidden_size = self.config.hidden_size
+        if config.bidirectional:
+            hidden_size *= 2
+        self.mlp = nn.Linear(hidden_size * 2, self.config.n_embed)
+        self.mlp2 = nn.Linear(self.config.n_embed, self.config.vocab_size)
+
+    def forward(self, x):
+        x = super().forward(x)
+        x = x.permute(0, 2, 3, 1)
+        x1 = x.sum(dim=1)  # x[batch_size, seq_len,n_head]
+        x2 = x.sum(dim=2)  # x[batch_size, seq_len,n_head]
+        hidden1, _ = self.gru1(x1)  # hidden [batch_size, seq_len, n_embed]
+        hidden1 = torch.dropout(hidden1, p=self.config.dropout, train=self.training)
+        hidden2, _ = self.gru2(x2)  # hidden [batch_size, seq_len, n_embed]
+        hidden2 = torch.dropout(hidden2, p=self.config.dropout, train=self.training)
+        hidden = torch.cat([hidden1, hidden2], dim=-1)  # [batch_size, seq_len, n_embed*2]
+        hidden_state = self.mlp(hidden)
+        output = self.mlp2(hidden_state)
+        return hidden_state, output
+
+
+class GRUInverterForAttention3(InverterForAttention):
+    config_class = InverterForAttentionConfig
+
+    def __init__(self, config: InverterForAttentionConfig, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+
+        sub_input = self.config.num_head
+        self.gru1 = nn.GRU(input_size=sub_input, hidden_size=self.config.hidden_size, batch_first=True,
+                           bidirectional=config.bidirectional)
+        self.gru2 = nn.GRU(input_size=sub_input, hidden_size=self.config.hidden_size, batch_first=True,
+                           bidirectional=config.bidirectional)
+        hidden_size = self.config.hidden_size
+        if config.bidirectional:
+            hidden_size *= 2
+        self.mlp = nn.Linear(hidden_size * 2, self.config.n_embed)
+        self.mlp2 = nn.Linear(self.config.n_embed, self.config.vocab_size)
+
+    def forward(self, x):
+        x = super().forward(x)  # x[batch_size, n_head, seq_len, seq_len]
+        x = x.permute(0, 2, 3, 1)
+        x1 = x.sum(dim=1)  # x[batch_size, seq_len,n_head]
+        x2 = x.sum(dim=2)  # x[batch_size, seq_len,n_head]
+        hidden1, _ = self.gru1(x1)  # hidden [batch_size, seq_len, n_embed]
+        hidden1 = torch.dropout(hidden1, p=self.config.dropout, train=self.training)
+        hidden2, _ = self.gru2(x2)  # hidden [batch_size, seq_len, n_embed]
+        hidden2 = torch.dropout(hidden2, p=self.config.dropout, train=self.training)
+        hidden = torch.cat([hidden1, hidden2], dim=-1)  # [batch_size, seq_len, n_embed*2]
+        hidden_state = self.mlp(hidden)
+        output = self.mlp2(hidden_state)
+        return hidden_state, output
 
 
 class MOEDRInverter(SIPInverter):
@@ -523,7 +724,7 @@ def get_inverter_class(attack_model):
     attacker_cls = LSTMDRInverter
     if attack_model == 'lstm':
         attacker_cls = LSTMDRInverter
-    elif attack_model == 'gru':
+    elif attack_model in ['gru','gru-bi']:
         attacker_cls = GRUDRInverter
     elif attack_model == 'linear':
         attacker_cls = LinearSIPInverter

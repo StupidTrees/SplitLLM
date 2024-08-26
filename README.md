@@ -14,9 +14,9 @@ The proposed Bidirectional Semi-white-box Reconstruction (BiSR) attack is also d
 ### Environment Setup
 
 ```shell
-conda env create -n sfl python=3.11
+conda create -n sfl python=3.11
 conda activate sfl
-conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.7 -c pytorch -c nvidia
+conda install pytorch==2.3.0 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.7 -c pytorch -c nvidia
 pip install -r requirements.txt
 ```
 
@@ -54,6 +54,9 @@ git clone https://huggingface.co/datasets/gsm8k.git
 git clone https://huggingface.co/datasets/imdb.git
 git clone https://huggingface.co/datasets/Hello-SimpleAI/HC3-Chinese.git
 git clone https://huggingface.co/datasets/frgfm/imagewoof.git
+git clone https://huggingface.co/datasets/SetFit/qnli.git
+git clone https://huggingface.co/datasets/linxinyuan/cola.git
+
 ```
 
 

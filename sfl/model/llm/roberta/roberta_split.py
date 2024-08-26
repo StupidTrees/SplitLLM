@@ -24,10 +24,10 @@ class RobertaSplitModel(RobertaModel, SplitModel):
     def get_all_inter(self, detach=True):
         return self.encoder.get_all_inter(detach)
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None, b2tr_hooks=None):
-        super(RobertaSplitModel, self).config_sfl(config, param_keeper, b2tr_hooks)
+    def config_sfl(self, config: FLConfig, *args, **kwargs):
+        super(RobertaSplitModel, self).config_sfl(config, *args, **kwargs)
         self.perturbers['dxp'] = DxPrivacy(self.embeddings, self.config.vocab_size, self.fl_config.noise_scale_dxp)
-        self.encoder.config_sfl(config, param_keeper, b2tr_hooks)
+        self.encoder.config_sfl(config, *args, **kwargs)
 
     def forward(
             self,
@@ -50,7 +50,8 @@ class RobertaSplitModel(RobertaModel, SplitModel):
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
+        if self.fl_config.split_mode == 'attention':
+            output_attentions = True
         if self.config.is_decoder:
             use_cache = use_cache if use_cache is not None else self.config.use_cache
         else:
@@ -215,6 +216,11 @@ class RobertaSplitEncoder(RobertaEncoder, SplitModel):
             """
             SFL: 打断前传
             """
+            if self.fl_config and self.fl_config.attack_mode and self.fl_config.split_mode == 'attention':
+                if i == self.fl_config.split_point_1 - 1 and self.fl_config.attack_mode == 'b2tr':
+                    return all_self_attentions
+                elif i == self.fl_config.split_point_2 and self.fl_config.attack_mode == 'tr2t':
+                    return all_self_attentions
             interrupt, hidden_states = self.inject_between_blocks(hidden_states, i)
             if interrupt is not None:
                 return interrupt

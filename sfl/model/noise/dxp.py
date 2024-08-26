@@ -38,6 +38,13 @@ class DxPrivacy(Perturber):
 
         all_words = torch.tensor(list([i for i in range(self.vocab_size)])).to(inputs_embeds.device)
         all_embeds = self.embedder(all_words)
+        is_half = inputs_embeds.dtype == torch.float16 or all_embeds.dtype == torch.float16
+        if is_half:
+            inputs_embeds = inputs_embeds.float()
+            all_embeds = all_embeds.float()
         cosine_similarities = torch.matmul(inputs_embeds, all_embeds.transpose(0, 1))
         max_token = torch.argmax(cosine_similarities, dim=-1)
-        return all_embeds[max_token]
+        res = all_embeds[max_token]
+        if is_half:
+            res = res.half()
+        return res

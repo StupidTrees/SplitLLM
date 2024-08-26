@@ -49,9 +49,9 @@ def evaluate_attacker_rouge(tok, attacker_logits, batch):
         mask = batch['input_santi_mask']
         zero_indexes = torch.where(mask == 0)
         masked_atk_ids = attacker_logits.argmax(dim=-1)
-        masked_atk_ids[zero_indexes] = tok.eos_token_id
+        masked_atk_ids[zero_indexes] = tok.unk_token_id
         masked_gt_ids = batch['input_ids'].clone()
-        masked_gt_ids[zero_indexes] = tok.eos_token_id
+        masked_gt_ids[zero_indexes] = tok.unk_token_id
         atk_txts = [decode_with_extra_space(tok, s) for s in masked_atk_ids]
         gt_txts = [decode_with_extra_space(tok, s) for s in masked_gt_ids]
     else:
@@ -71,8 +71,14 @@ def calculate_token_acc(tok, texts, labels):
         # calculate overlap number
         overlap = len(generated_tokens & reference_tokens)
         # calculate precision and recall
-        precision = overlap / len(generated_tokens)
-        recall = overlap / len(reference_tokens)
+        if len(generated_tokens) == 0:
+            precision = 0
+        else:
+            precision = overlap / len(generated_tokens)
+        if len(reference_tokens) == 0:
+            recall = 0
+        else:
+            recall = overlap / len(reference_tokens)
         # calculate f1
         if precision + recall == 0:
             f1 = 0
@@ -437,7 +443,7 @@ def dist_corr(x, y):
     return dcor
 
 
-def random_choose_noise(input_scales=None, mode='dxp'):
+def random_choose_noise(input_scales=None, mode='dxp',extra_choices=None):
     if input_scales is None:
         if mode == 'dxp':
             input_scales = dxp_moe_range
@@ -453,11 +459,12 @@ def random_choose_noise(input_scales=None, mode='dxp'):
                range(len(scales))]
     numbers += [0, 0, 0, 0]
     plus_one = max(scales) * 2
-    plus_zero = min(scales) / 2
     if mode == 'dxp' or mode == 'gaussian':
         numbers += [plus_one]
-    if mode == 'dc':
-        numbers += [plus_zero]
+    elif mode == 'dc':
+        numbers = list(scales) + [0, 0, 0]
+    if extra_choices:
+        numbers += extra_choices
     return random.choice(numbers)
 
 
@@ -512,3 +519,63 @@ class FLConfigHolder:
         # change self.llm.fl_config's kw to value
         self.llm.config_sfl(self.llm.fl_config, *args, **kwargs)
         # get an instance of fl_cnfig with its collect_intermediates set to False
+
+
+class ParamRestored:
+
+    def __init__(self, llm, param_keeper = None, parts=None, key: str = '',
+                 write_back=True,
+                 disable_inter_collection=True):
+        self.parts = parts
+        self.llm = llm
+        self.pk = param_keeper
+        self.key = key
+        self.write_back = write_back
+        self.disable_inter_collection = disable_inter_collection
+        self.cfg_bk = None
+        self.backup_params = None
+
+    def __enter__(self):
+        self.cfg_bk = deepcopy(self.llm.fl_config)
+        if self.disable_inter_collection:
+            cfg = self.llm.fl_config
+            cfg.collect_intermediates = False
+            self.llm.config_sfl(cfg, self.pk)
+
+        if self.pk is not None and self.key not in self.pk.other_params:
+            for part in self.pk.other_params['pretrained']:
+                self.pk.store_other_params(self.key, part,
+                                           self.pk.get_other_params('pretrained',
+                                                                    part))
+        if self.parts is None:
+            self.parts = ['top', 'bottom']
+        self.backup_params = {}
+        for part in self.parts:
+            if part == 'top':
+                self.backup_params[part] = [p.detach().cpu() for nm, p in self.llm.get_top_params()]
+                if self.pk:
+                    self.llm.load_top_params(self.pk.get_other_params(self.key, part))
+            elif part == 'bottom':
+                self.backup_params[part] = [p.detach().cpu() for nm, p in self.llm.get_bottom_params()]
+                if self.pk:
+                    self.llm.load_bottom_params(self.pk.get_other_params(self.key, part))
+            elif part == 'trunk':
+                self.backup_params[part] = [p.detach().cpu() for nm, p in self.llm.get_trunk_params()]
+                if self.pk:
+                    self.llm.load_trunk_params(self.pk.get_other_params(self.key, part))
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for part in self.parts:
+            updated_params = []
+            if part == 'top':
+                updated_params = [p.detach().cpu() for nm, p in self.llm.get_top_params()]
+                self.llm.load_top_params(self.backup_params[part])
+            elif part == 'bottom':
+                updated_params = [p.detach().cpu() for nm, p in self.llm.get_bottom_params()]
+                self.llm.load_bottom_params(self.backup_params[part])
+            elif part == 'trunk':
+                updated_params = [p.detach().cpu() for nm, p in self.llm.get_trunk_params()]
+                self.llm.load_trunk_params(self.backup_params[part])
+            if self.write_back and self.pk:
+                self.pk.store_other_params(self.key, part, updated_params)
+        self.llm.config_sfl(self.cfg_bk, self.pk)

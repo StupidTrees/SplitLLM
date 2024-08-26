@@ -2,26 +2,35 @@ import argparse
 import os
 import random
 import sys
+from unicodedata import bidirectional
 
 import torch
 import wandb
 from torch.optim import Adam, AdamW
 from tqdm import tqdm
 
-
 sys.path.append(os.path.abspath('../../..'))
 import sfl
 from sfl.data.base import MixtureFedDataset
-from sfl.config import FLConfig, dxp_moe_range, gaussian_moe_range
+from sfl.config import FLConfig, dxp_moe_range, gaussian_moe_range, lora_path
 from sfl.model.attacker.sip_attacker import LSTMDRInverter, GRUDRInverter, LinearSIPInverter, LSTMDRAttackerConfig, \
     TransformerSIPInverterConfig, DecoderSIPInverter, AttnGRUDRInverter, TransformerGRUDRAttackerConfig, \
     GRUAttnSIPInverter, AttnSIPInverter, SIPInverterConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_dim_reducer, \
     get_reducer_args, required_quantization
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
-    evaluate_attacker_rouge, random_choose_noise
+    evaluate_attacker_rouge, random_choose_noise, FLConfigHolder, calc_shifted_loss, dist_corr
 
 from sfl.config import DRA_train_label, DRA_test_label
+
+
+def get_lora_path(args, type):
+    model_name = args.model_name
+    if required_quantization(args.model_name):
+        model_name += f'-{args.load_bits}bits'
+    p = os.path.join(lora_path,
+                     f'{model_name}/{args.dataset}/{type}/')
+    return p
 
 
 def get_save_path(fl_config, save_dir, args):
@@ -42,6 +51,8 @@ def get_save_path(fl_config, save_dir, args):
         attacker_prefix = f'{fl_config.noise_mode}:{fl_config.noise_scale_dxp}/'
     elif fl_config.noise_mode == 'gaussian':
         attacker_prefix = f'{fl_config.noise_mode}:{fl_config.noise_scale_gaussian}/'
+    elif fl_config.noise_mode == 'dc':
+        attacker_prefix = f'{fl_config.noise_mode}:{fl_config.noise_scale_dc}/'
     elif fl_config.noise_mode == 'mix':
         attacker_prefix = 'mix/'
     if 'moe' in args.attack_model:
@@ -137,6 +148,38 @@ def evaluate(epc, md, attacker, tok, test_data_loader, args):
 #     return rouge_1 / dl_len, rouge_2 / dl_len, rouge_l_f1 / dl_len, rouge_l_p / dl_len, rouge_l_r / dl_len
 
 
+def pre_no_peek(noise_scale, llm, data_loader, max_steps=560):
+    opt = AdamW([p for p in llm.parameters() if p.requires_grad], lr=1e-5)
+    pbar = tqdm(total=max_steps)
+    step = 0
+    llm.train(True)
+    with FLConfigHolder(llm) as ch:
+        llm.fl_config.attack_mode = None
+        llm.fl_config.collect_intermediates = True
+        llm.fl_config.collect_all_layers = True
+        ch.change_config()
+        for epc in range(100):
+            for batch in data_loader:
+                opt.zero_grad()
+                input_ids = batch['input_ids'].to(llm.device)
+                attention_mask = batch['attention_mask'].to(llm.device)
+                outputs = llm(input_ids=input_ids, attention_mask=attention_mask, labels=input_ids)
+                loss = outputs.loss
+                b2tr, tr2t, all_inter = llm.get_all_inter(detach=False)
+                embed = all_inter['embedding']
+                dcor = dist_corr(embed.fx, b2tr.fx)
+                loss += noise_scale * dcor
+                loss.backward()
+                opt.step()
+                pbar.set_description(f'Loss {loss.item()}:.5f, DCOR {dcor.item():.5f}')
+                pbar.update(1)
+                step += 1
+                if step >= max_steps:
+                    break
+            if step >= max_steps:
+                break
+
+
 def train_attacker(args):
     """
     训练攻击模型
@@ -148,7 +191,11 @@ def train_attacker(args):
                       attack_mode=args.attack_mode,
                       noise_mode=args.noise_mode,
                       noise_scale_dxp=args.noise_scale_dxp,
-                      noise_scale_gaussian=args.noise_scale_gaussian
+                      noise_scale_gaussian=args.noise_scale_gaussian,
+                      noise_scale_dc=args.noise_scale_dc,
+                      use_lora_at_bottom=True,
+                      use_lora_at_trunk=True,
+                      use_lora_at_top=True
                       )
 
     p = get_save_path(config, args.save_dir, args)
@@ -188,9 +235,10 @@ def train_attacker(args):
         config.reducer_enable = True
 
     model.config_sfl(config, dim_reducer=reducer)
+
     # freeze all parts:
-    for name, param in model.named_parameters():
-        param.requires_grad = False
+    # for name, param in model.named_parameters():
+    #     param.requires_grad = False
 
     def get_output(text, encoder_model, attack_model):
         t = tokenizer(text, return_tensors="pt")
@@ -199,6 +247,8 @@ def train_attacker(args):
         r = tokenizer.decode(res.argmax(dim=-1)[-1], skip_special_tokens=True)
         return r
 
+    if args.noise_mode == 'dc':
+        pre_no_peek(args.noise_scale_dc, model, dataloader, max_steps=605)
     # 开始训练Attack Model
     inverter_clz = LSTMDRInverter
     cfg = LSTMDRAttackerConfig()
@@ -208,6 +258,9 @@ def train_attacker(args):
     elif args.attack_model == 'gru':
         inverter_clz = GRUDRInverter
         cfg = LSTMDRAttackerConfig()
+    elif args.attack_model == 'gru-bi':
+        inverter_clz = GRUDRInverter
+        cfg = LSTMDRAttackerConfig(bidirectional=True)
     elif args.attack_model == 'linear':
         inverter_clz = LinearSIPInverter
         cfg = SIPInverterConfig()
@@ -226,7 +279,6 @@ def train_attacker(args):
     attack_model = inverter_clz(cfg, model.config, reduce_dim=None if reducer is None else reducer.config.alpha)
     if not required_quantization(args.model_name) and model.device == 'cpu':
         model.to(get_best_gpu())
-
 
     opt_cls = Adam
     if args.opt == 'adamw':
@@ -253,6 +305,8 @@ def train_attacker(args):
                     model.change_noise(random_choose_noise(sfl.config.dxp_moe_range))
                 elif args.noise_mode == 'gaussian' and args.noise_scale_gaussian < 0:
                     model.change_noise(random_choose_noise(sfl.config.gaussian_moe_range, mode='gaussian'))
+                elif args.noise_mode == 'dc-sim' and args.noise_scale_dc_sim < 0:
+                    model.change_noise(random_choose_noise(sfl.config.dc_moe_range, mode='dc'))
                 elif args.noise_mode == 'mix':
                     noise_mode = random.choice(['none', 'dxp', 'gaussian'])
                     if noise_mode == 'none':

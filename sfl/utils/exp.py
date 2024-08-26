@@ -7,8 +7,8 @@ import torch
 from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor
 
 from sfl import config
-from sfl.config import FLConfig, model_download_dir, mapper_path, reducer_path
-from sfl.data.base import MixtureFedDataset
+from sfl.config import FLConfig, model_download_dir, reducer_path
+from sfl.data.base import MixtureFedDataset, FedDataset
 from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.dim_reduction import DimReduction
 from sfl.model.llm.falcon.falcon_wrapper import FalconForCausalLMSplit
@@ -20,9 +20,6 @@ from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificati
 from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
 from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
 from sfl.model.llm.wizard.wiard_wrapper import WizardForCausalLMSplit
-from sfl.data.datasets import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
-    GSM8KFedDataset, WikiTextFedDataset, FedDataset, SensiMarkedFedDataset, \
-    SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset, PIQAMiniFedDataset
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.utils.argparser import PrefixArgumentParser
 from sfl.utils.model import get_best_gpu
@@ -81,6 +78,7 @@ def add_train_dra_params(parser):
     parser.add_argument('--noise_mode', type=str, default='none')
     parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
     parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
+    parser.add_argument('--noise_scale_dc', type=float, default=0.0)
     parser.add_argument('--save_checkpoint', type=str2bool, default=False)
     parser.add_argument('--checkpoint_freq', type=int, default=5)
     parser.add_argument('--save_threshold', type=float, default=0.1)
@@ -165,7 +163,8 @@ def add_sfl_params(parser):
     parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
     parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
     parser.add_argument('--noise_scale_grad', type=float, default=0.0)
-    parser.add_argument('--noise_beta_dc', type=float, default=0.1)
+    parser.add_argument('--noise_scale_dc', type=float, default=0.1)
+    parser.add_argument('--noise_scale_dc_sim', type=int, default=10)
     parser.add_argument('--client_num', type=int, default=1)
     parser.add_argument('--global_round', type=int, default=4)
     parser.add_argument('--client_from_scratch', type=str2bool, default=False)
@@ -188,6 +187,7 @@ def add_sfl_params(parser):
                         default=-1)
     parser.add_argument('--reducer_alpha', type=int,
                         default=512)
+    parser.add_argument('--completion_only', type=str2bool, default=False)
 
 
 def get_fl_config(args) -> FLConfig:
@@ -207,7 +207,8 @@ def get_fl_config(args) -> FLConfig:
                       noise_scale_dxp=args.noise_scale_dxp,  # 噪声大小
                       noise_scale_gaussian=args.noise_scale_gaussian,  # 噪声大小
                       noise_scale_grad=args.noise_scale_grad,
-                      noise_beta_dc=args.noise_beta_dc,
+                      noise_scale_dc=args.noise_scale_dc,
+                      noise_scale_dc_sim=args.noise_scale_dc_sim,
                       collect_intermediates=True,
                       collect_all_layers=args.collect_all_layers,
                       dataset_type=args.dataset_label,
@@ -215,6 +216,7 @@ def get_fl_config(args) -> FLConfig:
                       lr=args.lr
                       )
     return config
+
 
 def get_model_path(model_name):
     path = ''
@@ -409,7 +411,7 @@ def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, force_on
     return model, tokenizer
 
 
-def get_dataset(dataset_name, tokenizer, client_ids=None, shrink_frac=1.0) -> FedDataset:
+def get_dataset(dataset_name, tokenizer, client_ids=None, shrink_frac=1.0, completion_only=False) -> FedDataset:
     if client_ids is None:
         client_ids = []
     if ',' in dataset_name:
@@ -417,12 +419,33 @@ def get_dataset(dataset_name, tokenizer, client_ids=None, shrink_frac=1.0) -> Fe
         dataset_classes = [get_dataset_class(dn) for dn in dataset_names]
         return MixtureFedDataset(tokenizer, client_ids, shrink_frac, dataset_names, dataset_classes)
     else:
-        return get_dataset_class(dataset_name)(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=shrink_frac)
+        return get_dataset_class(dataset_name)(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=shrink_frac,
+                                               completion_only=completion_only)
 
 
 def get_dataset_class(dataset_name):
+    from sfl.data.datasets import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
+        GSM8KFedDataset, WikiTextFedDataset, SensiMarkedFedDataset, \
+        SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset, PIQAMiniFedDataset, \
+        QNLIFedDataset, MRPCFedDataset
     if dataset_name == 'piqa':
         dataset_cls = PIQAFedDataset
+    elif dataset_name == 'qnli':
+        dataset_cls = QNLIFedDataset
+    elif dataset_name == 'mrpc':
+        dataset_cls = MRPCFedDataset
+    elif dataset_name == 'stsb':
+        from sfl.data.datasets import STSBFedDataset
+        dataset_cls = STSBFedDataset
+    elif dataset_name == 'rte':
+        from sfl.data.datasets import RTEFedDataset
+        dataset_cls = RTEFedDataset
+    elif dataset_name == 'cola':
+        from sfl.data.datasets import CoLAFedDataset
+        dataset_cls = CoLAFedDataset
+    elif dataset_name == 'wikitext103':
+        from sfl.data.datasets import WikiText103FedDataset
+        dataset_cls = WikiText103FedDataset
     elif dataset_name == 'piqa-mini':
         dataset_cls = PIQAMiniFedDataset
     elif dataset_name == 'gsm8k':

@@ -7,9 +7,10 @@ import wandb
 from torch.optim import Adam, AdamW
 from tqdm import tqdm
 
-from sfl.data.base import MixtureFedDataset
 
 sys.path.append(os.path.abspath('../../..'))
+from sfl.data.base import MixtureFedDataset
+
 from sfl.model.llm.dim_reduction import DimReduction, DRConfig
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.config import FLConfig

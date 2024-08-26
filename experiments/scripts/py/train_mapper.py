@@ -96,8 +96,7 @@ def train_mapper(args):
     # # freeze all parts:
     # for name, param in model.named_parameters():
     #     param.requires_grad = False
-    mapper = LMMapper(LMMapperConfig(structure='linear', n_layers=3 if 'chatglm' in args.model_name else 2),
-                      target_config=model.config)
+    mapper = LMMapper(LMMapperConfig(structure='linear', n_layers=2), target_config=model.config)
     if not hasattr(model.config, 'quantization_config') and model.device == 'cpu':
         model.to(get_best_gpu())
 
@@ -134,7 +133,8 @@ def train_mapper(args):
                     loss = 0
                     for x, y in zip(mapped, inter_b2tr.fx.float().to(mapper.device)):
                         loss += (x - y).pow(2).sum()
-                    # loss = torch.nn.MSELoss()(mapped, inter_b2tr.fx.float().to(mapper.device))
+
+
                 loss.backward()
                 optimizer.step()
                 pbar.set_description(
@@ -146,7 +146,7 @@ def train_mapper(args):
             # if args.log_to_wandb:
             #     log_dict = {'epoch': epc
             #                 }
-            #     wandb.log(log_dict)
+            #     wandb.log(log_dict
 
 
 if __name__ == '__main__':

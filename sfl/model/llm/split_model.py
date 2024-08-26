@@ -9,6 +9,7 @@ from sfl.config import FLConfig
 from sfl.model.llm.dim_reduction import DimReduction
 from sfl.model.noise.dxp import DxPrivacy
 from sfl.model.noise.fdp import GaussianPerturber
+from sfl.model.noise.nopeek import NoPeekSimulatedPerturber
 from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.utils.model import Intermediate, get_embedding_layer
 
@@ -28,6 +29,7 @@ class SplitModel(nn.Module, ABC):
         self.noise_mode = None
         self.dim_reducer = None
         self.perturbers = {'gaussian': GaussianPerturber()}
+        self.inner_loop = False # set true when calling forward during a forward
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks: list = None,
                    dim_reducer: DimReduction = None, *args, **kwargs):
@@ -43,7 +45,10 @@ class SplitModel(nn.Module, ABC):
         if config.noise_mode == 'gaussian':
             self.perturbers['gaussian'].change_noise_scale(config.noise_scale_gaussian)
         if config.noise_mode == 'dxp':
-            self.perturbers['dxp'] = DxPrivacy(get_embedding_layer(self), self.config.vocab_size, config.noise_scale_dxp)
+            self.perturbers['dxp'] = DxPrivacy(get_embedding_layer(self), self.config.vocab_size,
+                                               config.noise_scale_dxp)
+        if config.noise_mode == 'dc-sim':
+            self.perturbers['dc-sim'] = NoPeekSimulatedPerturber(config.noise_scale_dc_sim)
 
     def change_noise(self, noise_scale, noise_mode=None):
         if noise_mode is not None:
@@ -72,13 +77,24 @@ class SplitModel(nn.Module, ABC):
         self.intermediate_fx[layer_index] = fx
 
     def inject_after_embedding(self, inputs_embeds):
+        if self.inner_loop:
+            return inputs_embeds
         if self.noise_mode in ['dxp', 'both']:
             return self.perturbers['dxp'](inputs_embeds)
-        if self.noise_mode == 'dc':
+        if self.noise_mode in ['dc','dc-sim']:
             self._store_fx('embedding', inputs_embeds)
+        if self.noise_mode == 'dc-sim':
+            self.perturbers[self.noise_mode].store_embedding(inputs_embeds)
         return inputs_embeds
 
     def inject_between_blocks(self, hidden_states, i):
+        if self.inner_loop:
+            if i == self.fl_config.split_point_1 - 1 and self.fl_config.attack_mode == 'b2tr':
+                return hidden_states, hidden_states
+            elif i == self.fl_config.split_point_2 and self.fl_config.attack_mode == 'tr2t':
+                return hidden_states, hidden_states
+            return None, hidden_states
+
         to_save = hidden_states
         if self.dim_reducer and self.fl_config and self.fl_config.reducer_enable and i == self.dim_reducer.config.layer - 1:
             half = hidden_states.dtype == float16
@@ -88,8 +104,8 @@ class SplitModel(nn.Module, ABC):
                 hidden_states = hidden_states.half()
         if self.fl_config and self.fl_config.attack_mode:
             if i == self.fl_config.split_point_1 - 1 and self.fl_config.attack_mode == 'b2tr':
-                if self.noise_mode == 'gaussian':
-                    return self.perturbers['gaussian'](hidden_states), hidden_states
+                if self.noise_mode in ['gaussian', 'dc-sim']:
+                    return self.perturbers[self.noise_mode](hidden_states), hidden_states
                 return to_save, hidden_states
             elif i == self.fl_config.split_point_2 and self.fl_config.attack_mode == 'tr2t':
                 return to_save, hidden_states
@@ -98,8 +114,9 @@ class SplitModel(nn.Module, ABC):
             for hook in self.b2tr_hooks:
                 hook(to_save)
 
-        if self.fl_config is not None and self.noise_mode == 'gaussian' and i == self.fl_config.split_point_1 - 1:
-            to_save = hidden_states = self.perturbers['gaussian'](to_save)
+        if self.fl_config is not None and self.noise_mode in ['gaussian',
+                                                              'dc-sim'] and i == self.fl_config.split_point_1 - 1:
+            to_save = hidden_states = self.perturbers[self.noise_mode](to_save)
         if self.training and self.fl_config is not None and self.fl_config.collect_intermediates:
             if i == self.fl_config.split_point_1 - 1:  # bottom-trunk
                 to_save.retain_grad()

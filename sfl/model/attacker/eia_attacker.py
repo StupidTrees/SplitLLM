@@ -8,10 +8,13 @@ from torch import nn
 from torch.nn import Linear
 from tqdm import tqdm
 from transformers import PretrainedConfig, PreTrainedModel
+from transformers.activations import ACT2FN
 
 from sfl.config import DRA_train_label, mapper_path
 from sfl.model.attacker.base import Attacker
+from sfl.model.llm.glm.configuration_chatglm import ChatGLMConfig
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
+from sfl.model.llm.glm.modeling_chatglm import MLP
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator, ParamRestored
 from sfl.utils.exp import required_quantization
@@ -66,6 +69,8 @@ class LMMapper(PreTrainedModel):
                     self.mapper.add_module(f'linear_{i}', Linear(hidden_size, config.n_embed))
                 else:
                     self.mapper.add_module(f'linear_{i}', Linear(config.n_embed, config.n_embed))
+        elif config.structure == 'glm':
+            self.mapper.add_module(f'mlp', MLP(ChatGLMConfig(hidden_size=config.n_embed, ffn_hidden_size=hidden_size//2)))
         elif config.structure == 'gru':
             self.mapper.add_module('gru', torch.nn.GRU(config.n_embed, 512, batch_first=True))
             self.mapper.add_module('tf', TakeFirst())
@@ -88,6 +93,7 @@ class EIAArguments:
     mapper_path: str = mapper_path
     mapper_dataset: str = ''
     mapper_targets: str = None
+    mapped_to:int = -1
     epochs: int = 72000
     lr: float = 0.09
     wd: float = 0.01
@@ -98,6 +104,8 @@ class EIAArguments:
 def get_eia_mapper(aarg: EIAArguments):
     dataset = aarg.mapper_dataset
     model_name = aarg.mapper_target_model_name
+    if aarg.cross_model is not None and len(aarg.cross_model) > 0:
+        model_name = aarg.cross_model
     if required_quantization(model_name):
         model_name += f"-{aarg.mapper_target_model_load_bits}bits"
     mapper_path = aarg.mapper_path + f'{model_name}/{dataset}/'
@@ -120,6 +128,17 @@ def get_eia_mapper(aarg: EIAArguments):
     if mapper_path_1:
         return LMMapper.from_pretrained(mapper_path_1)
     return None
+
+
+def sample_gumbel(shape, eps=1e-20):
+    U = torch.rand(shape)
+    return -torch.log(-torch.log(U + eps) + eps)
+
+
+def gumbel_softmax_sample(logits, temperature):
+    return torch.softmax(logits / temperature, dim=-1)
+    # y = logits + sample_gumbel(logits.size()).to(logits.device)
+    # return torch.softmax(y / temperature, dim=-1)
 
 
 class EmbeddingInversionAttacker(Attacker):
@@ -145,7 +164,7 @@ class EmbeddingInversionAttacker(Attacker):
         return res
 
     def load_attacker(self, args, aargs: EIAArguments, llm: SplitWrapperModel = None, tokenizer: Tokenizer = None):
-        if aargs.mapper_targets is not None and len(aargs.mapper_targets) > 0:
+        if aargs.mapped_to >=0 and aargs.mapper_targets is not None and len(aargs.mapper_targets) > 0:
             self.mapper = get_eia_mapper(aargs)
 
     def attack(self, args, aargs: EIAArguments, llm: SplitWrapperModel, tokenizer: Tokenizer,
@@ -153,31 +172,39 @@ class EmbeddingInversionAttacker(Attacker):
             dict[str, Any]:
         if self.mapper:
             self.mapper.to(llm.device)
-        inter = b2tr_inter
-        if aargs.at == 'tr2t':
+        if aargs.at == 'b2tr':
+            inter = b2tr_inter
+        elif aargs.at == 'tr2t':
             inter = tr2t_inter
+        else:
+            inter = all_inters[int(aargs.at)]
         pk = simulator.parameter_keeper
         if self.pk:
             pk = self.pk
         with ParamRestored(llm=llm, param_keeper=pk, key='pretrained',
-                           parts=['bottom']):
+                           parts=['bottom','trunk']):
             with FLConfigHolder(llm) as ch:
-                llm.fl_config.attack_mode = aargs.at
+                if aargs.at in ['tr2t', 'b2tr']:
+                    llm.fl_config.attack_mode = aargs.at
+                else:
+                    llm.fl_config.attack_mode = 'b2tr'
                 llm.fl_config.collect_intermediates = False
                 llm.fl_config.noise_mode = 'none'
                 if self.mapper and aargs.mapper_targets is not None:
                     llm.fl_config.split_point_1 = int(aargs.mapper_targets.split('-')[1])
+                elif aargs.at != 'b2tr' and aargs.at != 'tr2t':
+                    llm.fl_config.split_point_1 = int(aargs.at)
+                    llm.fl_config.attack_mode = 'b2tr'
                 ch.change_config()
                 if init is not None:
                     dummy = init.clone().detach().to(llm.device)  # (batch_size, seq_len, vocab_size)
                 else:
                     dummy = torch.rand((inter.fx.shape[0], inter.fx.shape[1], llm.config.vocab_size)).to(llm.device)
-                    # if isinstance(llm, ChatGLMForConditionalGenerationSplit):
-                    #     dummy = dummy.permute(1, 0, 2)
+                    if isinstance(llm, ChatGLMForConditionalGenerationSplit):
+                        dummy = dummy.permute(1, 0, 2)
                 # dummy = torch.softmax(dummy / temp, -1)  # (batch_size, seq_len, vocab_size)
                 pbar = tqdm(total=aargs.epochs)
-                avg_rglf = 0
-                avg_step = 0
+                rglf = 0
                 target = inter.fx.to(llm.device).float()
                 if isinstance(llm, ChatGLMForConditionalGenerationSplit):
                     target = target.permute(1, 0, 2)
@@ -188,9 +215,10 @@ class EmbeddingInversionAttacker(Attacker):
                 embedding_matrix = get_embedding_matrix(llm).float()  # (vocab, embed_size)
                 for e in range(aargs.epochs):
                     opt.zero_grad()
-                    dmy = torch.softmax(dummy.float() / aargs.temp, -1) @ embedding_matrix
+                    dmy = gumbel_softmax_sample(dummy.float(), aargs.temp) @ embedding_matrix
                     if isinstance(llm, ChatGLMForConditionalGenerationSplit):
-                        dmy = torch.softmax(dummy / aargs.temp, -1) @ embedding_matrix
+                        dmy = gumbel_softmax_sample(dummy, aargs.temp) @ embedding_matrix
+                        dmy = dmy.transpose(1,0).contiguous()
                         it = llm(inputs_embeds=dmy)
                         it = it.permute(1, 0, 2).float()
                     else:
@@ -203,10 +231,9 @@ class EmbeddingInversionAttacker(Attacker):
                     opt.step()
                     if e % 10 == 0:
                         rg, _, _ = evaluate_attacker_rouge(tokenizer, dummy, batch)
-                        avg_rglf += rg["rouge-l"]["f"]
-                        avg_step += 1
+                        rglf = rg["rouge-l"]["f"]
 
                     pbar.set_description(
-                        f'Epoch {e}/{aargs.epochs} Loss: {loss.item():.5f} ROUGE: {0 if avg_step == 0 else avg_rglf / avg_step :.5f}')
+                        f'Epoch {e}/{aargs.epochs} Loss: {loss.item():.5f} ROUGE: {rglf:.5f}')
                     pbar.update(1)
         return dummy

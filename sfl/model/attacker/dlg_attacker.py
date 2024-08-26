@@ -7,9 +7,9 @@ import torch
 import tqdm
 from tokenizers import Tokenizer
 from torch import nn
+from torch.backends.cuda import SDPBackend
 from torch.nn import CrossEntropyLoss
 from torch.nn import ModuleList
-from torch.nn.attention import sdpa_kernel, SDPBackend
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 from transformers.models.t5.modeling_t5 import T5Block, T5LayerNorm
 
@@ -354,6 +354,7 @@ class LLAMA2TopMocker(TopMocker):
         )
 
         position_ids = cache_position.unsqueeze(0)
+        from torch.nn.attention import sdpa_kernel
         with sdpa_kernel(SDPBackend.MATH):
             for block in self.layers:
                 x = block(x, position_ids=position_ids)[0]
@@ -398,6 +399,7 @@ class ChatGLMTopMocker(TopMocker):
         if rotary_pos_emb is not None:
             rotary_pos_emb = rotary_pos_emb.to(x.device)
         x = x.permute(1, 0, 2)
+        from torch.nn.attention import sdpa_kernel
         with sdpa_kernel(SDPBackend.MATH):
             for block in self.blocks:
                 x = block(x, attention_mask=attention_mask,

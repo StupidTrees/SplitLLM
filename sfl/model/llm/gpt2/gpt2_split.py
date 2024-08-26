@@ -2,8 +2,11 @@ import logging
 from typing import Optional, Union, Tuple
 
 import torch
-from transformers import GPT2Model
+from torch import nn
+from transformers import GPT2Model, Conv1D
+from transformers.activations import ACT2FN
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
+from transformers.models.gpt2.modeling_gpt2 import GPT2Block, GPT2Attention, GPT2MLP
 
 from sfl.model.llm.split_model import SplitModel
 
@@ -14,6 +17,27 @@ class GPT2SplitModel(GPT2Model, SplitModel):
     """
     GPT2 Split Model
     """
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        self.embed_dim = config.hidden_size
+
+        self.wte = nn.Embedding(config.vocab_size, self.embed_dim)
+        self.wpe = nn.Embedding(config.max_position_embeddings, self.embed_dim)
+
+        self.drop = nn.Dropout(config.embd_pdrop)
+        self.h = nn.ModuleList([GPT2SplitBlock(config, layer_idx=i) for i in range(config.num_hidden_layers)])
+        self.ln_f = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_epsilon)
+
+        # Model parallel
+        self.model_parallel = False
+        self.device_map = None
+        self.gradient_checkpointing = False
+        self._attn_implementation = config._attn_implementation
+
+        # Initialize weights and apply final processing
+        self.post_init()
 
     def forward(
             self,
@@ -32,6 +56,8 @@ class GPT2SplitModel(GPT2Model, SplitModel):
             return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        if self.fl_config.split_mode == 'attention':
+            output_attentions = True
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
@@ -158,7 +184,7 @@ class GPT2SplitModel(GPT2Model, SplitModel):
 
                     return custom_forward
 
-                outputs = torch.utils.checkpoint.checkpoint(
+                outputs, other_output = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(block),
                     hidden_states,
                     None,
@@ -168,7 +194,7 @@ class GPT2SplitModel(GPT2Model, SplitModel):
                     encoder_attention_mask,
                 )
             else:
-                outputs = block(
+                outputs, other_output = block(
                     hidden_states,
                     layer_past=layer_past,
                     attention_mask=attention_mask,
@@ -178,7 +204,7 @@ class GPT2SplitModel(GPT2Model, SplitModel):
                     use_cache=use_cache,
                     output_attentions=output_attentions,
                 )
-
+            last_hidden = hidden_states
             hidden_states = outputs[0]
             if use_cache is True:
                 presents = presents + (outputs[1],)
@@ -197,6 +223,11 @@ class GPT2SplitModel(GPT2Model, SplitModel):
             """
             SFL: 打断前传
             """
+            if self.fl_config and self.fl_config.attack_mode and self.fl_config.split_mode == 'attention':
+                if i == self.fl_config.split_point_1 - 1 and self.fl_config.attack_mode == 'b2tr':
+                    return (last_hidden, other_output)
+                elif i == self.fl_config.split_point_2 and self.fl_config.attack_mode == 'tr2t':
+                    return (last_hidden, other_output)
             interrupt, hidden_states = self.inject_between_blocks(hidden_states, i)
             if interrupt is not None:
                 return interrupt
@@ -222,3 +253,156 @@ class GPT2SplitModel(GPT2Model, SplitModel):
             attentions=all_self_attentions,
             cross_attentions=all_cross_attentions,
         )
+
+
+class GPT2SplitBlock(GPT2Block):
+    def __init__(self, config, layer_idx=None):
+        super().__init__(config, layer_idx)
+        hidden_size = config.hidden_size
+        inner_dim = config.n_inner if config.n_inner is not None else 4 * hidden_size
+        attention_class = GPT2SplitAttention  # GPT2_ATTENTION_CLASSES[config._attn_implementation]
+
+        self.ln_1 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
+        self.attn = attention_class(config=config, layer_idx=layer_idx)
+        self.ln_2 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
+
+        if config.add_cross_attention:
+            self.crossattention = attention_class(config=config, is_cross_attention=True, layer_idx=layer_idx)
+            self.ln_cross_attn = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
+
+        self.mlp = GPT2MLPSplit(inner_dim, config)
+
+    def forward(
+            self,
+            hidden_states: Optional[Tuple[torch.FloatTensor]],
+            layer_past: Optional[Tuple[torch.Tensor]] = None,
+            attention_mask: Optional[torch.FloatTensor] = None,
+            head_mask: Optional[torch.FloatTensor] = None,
+            encoder_hidden_states: Optional[torch.Tensor] = None,
+            encoder_attention_mask: Optional[torch.FloatTensor] = None,
+            use_cache: Optional[bool] = False,
+            output_attentions: Optional[bool] = False,
+    ) -> Union[Tuple[torch.Tensor], Optional[Tuple[torch.Tensor, Tuple[torch.FloatTensor, ...]]]]:
+        residual = hidden_states
+        hidden_states = self.ln_1(hidden_states)
+        attn_outputs, other_output = self.attn(
+            hidden_states,
+            layer_past=layer_past,
+            attention_mask=attention_mask,
+            head_mask=head_mask,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+        )
+        attn_output = attn_outputs[0]  # output_attn: a, present, (attentions)
+        outputs = attn_outputs[1:]
+        # residual connection
+        hidden_states = attn_output + residual
+
+        if encoder_hidden_states is not None:
+            # add one self-attention block for cross-attention
+            if not hasattr(self, "crossattention"):
+                raise ValueError(
+                    f"If `encoder_hidden_states` are passed, {self} has to be instantiated with "
+                    "cross-attention layers by setting `config.add_cross_attention=True`"
+                )
+            residual = hidden_states
+            hidden_states = self.ln_cross_attn(hidden_states)
+            cross_attn_outputs = self.crossattention(
+                hidden_states,
+                attention_mask=attention_mask,
+                head_mask=head_mask,
+                encoder_hidden_states=encoder_hidden_states,
+                encoder_attention_mask=encoder_attention_mask,
+                output_attentions=output_attentions,
+            )
+            attn_output = cross_attn_outputs[0]
+            # residual connection
+            hidden_states = residual + attn_output
+            outputs = outputs + cross_attn_outputs[2:]  # add cross attentions if we output attention weights
+
+        residual = hidden_states
+        hidden_states = self.ln_2(hidden_states)
+        feed_forward_hidden_states, o5, o6 = self.mlp(hidden_states)
+        other_output.update({'o5': o5, 'o6': o6})
+        # residual connection
+        hidden_states = residual + feed_forward_hidden_states
+
+        if use_cache:
+            outputs = (hidden_states,) + outputs
+        else:
+            outputs = (hidden_states,) + outputs[1:]
+
+        return outputs, other_output  # hidden_states, present, (attentions, cross_attentions)
+
+
+class GPT2MLPSplit(nn.Module):
+    def __init__(self, intermediate_size, config):
+        super().__init__()
+        embed_dim = config.hidden_size
+        self.c_fc = Conv1D(intermediate_size, embed_dim)
+        self.c_proj = Conv1D(embed_dim, intermediate_size)
+        self.act = ACT2FN[config.activation_function]
+        self.dropout = nn.Dropout(config.resid_pdrop)
+
+    def forward(self, hidden_states: Optional[Tuple[torch.FloatTensor]]) -> torch.FloatTensor:
+        o5 = self.c_fc(hidden_states)
+        hidden_states = self.act(o5)
+        o6 = self.c_proj(hidden_states)
+        hidden_states = self.dropout(o6)
+        return hidden_states, o5, o6
+
+
+class GPT2SplitAttention(GPT2Attention):
+    def forward(
+            self,
+            hidden_states: Optional[Tuple[torch.FloatTensor]],
+            layer_past: Optional[Tuple[torch.Tensor]] = None,
+            attention_mask: Optional[torch.FloatTensor] = None,
+            head_mask: Optional[torch.FloatTensor] = None,
+            encoder_hidden_states: Optional[torch.Tensor] = None,
+            encoder_attention_mask: Optional[torch.FloatTensor] = None,
+            use_cache: Optional[bool] = False,
+            output_attentions: Optional[bool] = False,
+    ) -> Tuple[Union[torch.Tensor, Tuple[torch.Tensor]], ...]:
+        if encoder_hidden_states is not None:
+            if not hasattr(self, "q_attn"):
+                raise ValueError(
+                    "If class is used as cross attention, the weights `q_attn` have to be defined. "
+                    "Please make sure to instantiate class with `GPT2Attention(..., is_cross_attention=True)`."
+                )
+
+            query = self.q_attn(hidden_states)
+            key, value = self.c_attn(encoder_hidden_states).split(self.split_size, dim=2)
+            attention_mask = encoder_attention_mask
+        else:
+            query, key, value = self.c_attn(hidden_states).split(self.split_size, dim=2)
+
+        query = self._split_heads(query, self.num_heads, self.head_dim)
+        key = self._split_heads(key, self.num_heads, self.head_dim)
+        value = self._split_heads(value, self.num_heads, self.head_dim)
+
+        if layer_past is not None:
+            past_key, past_value = layer_past
+            key = torch.cat((past_key, key), dim=-2)
+            value = torch.cat((past_value, value), dim=-2)
+
+        if use_cache is True:
+            present = (key, value)
+        else:
+            present = None
+
+        if self.reorder_and_upcast_attn:
+            attn_output, attn_weights = self._upcast_and_reordered_attn(query, key, value, attention_mask, head_mask)
+        else:
+            attn_output, attn_weights = self._attn(query, key, value, attention_mask, head_mask)
+        qk = torch.matmul(query, key.transpose(-1, -2))
+        attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
+        attn_output = self.c_proj(attn_output)
+        o4 = attn_output
+        attn_output = self.resid_dropout(attn_output)
+
+        outputs = (attn_output, present)
+        if output_attentions:
+            outputs += (attn_weights,)
+        return outputs, {'qk': qk, 'o4': o4, 'q': query, 'k': key}
+        # return outputs  # a, present, (attentions)

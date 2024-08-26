@@ -50,7 +50,7 @@ class BaseSFLStrategy(FLStrategy):
                     input_ids = batch['input_ids'].to(llm.device)
                     attention_mask = batch['attention_mask'].to(llm.device)
                     labels = input_ids
-                    if 'labels' in batch and self.llm.task_type != 'lm':
+                    if 'labels' in batch and (self.llm.task_type != 'lm' or self.args.completion_only):
                         labels = batch['labels'].to(llm.device)
                     outputs = llm(input_ids=input_ids, labels=labels, attention_mask=attention_mask)
 
@@ -62,7 +62,7 @@ class BaseSFLStrategy(FLStrategy):
                     b2tr, tr2t, all_inter = llm.get_all_inter(detach=False)
                     embed = all_inter['embedding']
                     dcor = dist_corr(embed.fx, b2tr.fx)
-                    loss += config.noise_beta_dc * dcor
+                    loss += config.noise_scale_dc * dcor
                 if config.noise_mode in ['grad', 'both']:
                     loss.backward(retain_graph=True)
                     b2tr, tr2t, all_inter = llm.get_all_inter(detach=False)

@@ -1,8 +1,10 @@
 import ast
+from copy import deepcopy
 
 import pandas as pd
 import torch
 from datasets import load_dataset, Dataset
+from trl import DataCollatorForCompletionOnlyLM
 
 from sfl import config
 from sfl.data.base import FedDataset
@@ -13,16 +15,22 @@ class PIQAFedDataset(FedDataset):
     PIQA Dataset
     """
 
-    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
         super().__init__(tokenizer, client_ids, dataset=load_dataset(config.dataset_cache_dir + 'piqa'),
                          types=['train', 'test', 'validation'],
-                         shrink_frac=shrink_frac)
+                         shrink_frac=shrink_frac, **kwargs)
+        self.q_temp = "### Question:\n"
+        self.a_temp = "### Solution:\n"
+        if self.completion_only:
+            response_template_ids = tokenizer.encode('\n' + self.a_temp, add_special_tokens=False)[2:]
+            self.co_collator = DataCollatorForCompletionOnlyLM(response_template=response_template_ids,
+                                                               tokenizer=tokenizer)
 
     def _format(self, example):
-        q = "### Question: " + example["goal"]
-        a = "\n### Solution: " + example["sol1"]
+        q = self.q_temp + example["goal"]
+        a = self.a_temp + example["sol1"]
         return {'q': q, 'a': a,
-                'input': q + a}
+                'input': q + '\n' + a}
 
     def _col_fun(self, batch, max_seq_len=-1, extra_info=True):
         texts = [b['input'] for b in batch]
@@ -34,19 +42,31 @@ class PIQAFedDataset(FedDataset):
         labels = [b['label'] for b in batch]
         labels = torch.tensor(labels)
         if not extra_info:
-            return {'input_ids': input['input_ids'], 'attention_mask': input['attention_mask']
+            res_dict = {'input_ids': input['input_ids'], 'attention_mask': input['attention_mask']
                 , 'labels': input['input_ids']}
         else:
-            return {'input_ids': input['input_ids'],
-                    'attention_mask': input['attention_mask'],
-                    'input_text': texts,
-                    'q_ids': input_q['input_ids'],
-                    'q_att_mask': input_q['attention_mask'],
-                    'a_ids': input_a['input_ids'],
-                    'a_att_mask': input_a['attention_mask'],
-                    'q_text': qs,
-                    'a_text': as_,
-                    'labels': labels}
+            res_dict = {'input_ids': input['input_ids'],
+                        'attention_mask': input['attention_mask'],
+                        'input_text': texts,
+                        'q_ids': input_q['input_ids'],
+                        'q_att_mask': input_q['attention_mask'],
+                        'a_ids': input_a['input_ids'],
+                        'a_att_mask': input_a['attention_mask'],
+                        'q_text': qs,
+                        'a_text': as_,
+                        'labels': labels}
+        if self.completion_only:
+            res_list_tmp = []
+            for i in range(len(batch)):
+                res_list_tmp.append({'input_ids': res_dict['input_ids'][i],
+                                     'attention_mask': res_dict['attention_mask'][i],
+                                     'labels': deepcopy(res_dict['input_ids'][i])})
+            res_list = self.co_collator(res_list_tmp)
+            res_dict_tmp = res_list
+            res_dict['input_ids'] = res_dict_tmp['input_ids']
+            res_dict['attention_mask'] = res_dict_tmp['attention_mask']
+            res_dict['labels'] = res_dict_tmp['labels']
+        return res_dict
 
 
 class PIQAMiniFedDataset(PIQAFedDataset):
@@ -76,12 +96,208 @@ class PIQAMiniFedDataset(PIQAFedDataset):
                 'a_text': as_, 'labels': labels}
 
 
+class STSBFedDataset(FedDataset):
+
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
+        super().__init__(tokenizer, client_ids, dataset=load_dataset(config.dataset_cache_dir + 'stsb'),
+                         types=['train', 'test', 'validation'],
+                         shrink_frac=shrink_frac, **kwargs)
+        self.q_temp = "### Sentence1:\n"
+        self.a_temp = "### Sentence2:\n"
+
+    def _format(self, example):
+        q = self.q_temp + example["sentence1"]
+        a = self.a_temp + example["sentence2"]
+        return {'input': q + '\n' + a}
+
+    def _col_fun(self, batch, max_seq_len=-1, extra_info=True):
+        texts = [b['input'] for b in batch]
+        kwargs = {'padding': True, 'truncation': True, 'return_tensors': 'pt'}
+        if self.uni_length > 0:
+            kwargs['max_length'] = self.uni_length
+            kwargs['padding'] = 'max_length'
+        input = self.tokenizer(texts, **kwargs)  # for batch_size testing
+        labels = [b['score'] for b in batch]
+        labels = torch.tensor(labels)
+        if not extra_info:
+            res_dict = {'input_ids': input['input_ids'], 'attention_mask': input['attention_mask']
+                , 'labels': input['input_ids']}
+        else:
+            res_dict = {'input_ids': input['input_ids'],
+                        'attention_mask': input['attention_mask'],
+                        'input_text': texts,
+                        'labels': labels}
+        return res_dict
+
+
+class QNLIFedDataset(FedDataset):
+
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
+        super().__init__(tokenizer, client_ids, dataset=load_dataset(config.dataset_cache_dir + 'qnli'),
+                         types=['train', 'test', 'validation'],
+                         shrink_frac=shrink_frac, **kwargs)
+        self.q_temp = "### Question:\n"
+        self.a_temp = "### Solution:\n"
+
+    def _format(self, example):
+        q = self.q_temp + example["text1"]
+        a = self.a_temp + example["text2"]
+        return {'q': q, 'a': a,
+                'input': q + '\n' + a}
+
+    def _col_fun(self, batch, max_seq_len=-1, extra_info=True):
+        texts = [b['input'] for b in batch]
+        qs = [b['q'] for b in batch]
+        as_ = [b['a'] for b in batch]
+        # pad&truncate all sentence to the same length (self.uni_length)
+        kwargs = {'padding': True, 'truncation': True, 'return_tensors': 'pt'}
+        if self.uni_length > 0:
+            kwargs['max_length'] = self.uni_length
+            kwargs['padding'] = 'max_length'
+        input = self.tokenizer(texts, **kwargs)  # for batch_size testing
+        input_q = self.tokenizer(qs, **kwargs)
+        input_a = self.tokenizer(as_, **kwargs)
+        labels = [b['label'] for b in batch]
+        labels = torch.tensor(labels)
+        if not extra_info:
+            res_dict = {'input_ids': input['input_ids'], 'attention_mask': input['attention_mask']
+                , 'labels': input['input_ids']}
+        else:
+            res_dict = {'input_ids': input['input_ids'],
+                        'attention_mask': input['attention_mask'],
+                        'input_text': texts,
+                        'q_ids': input_q['input_ids'],
+                        'q_att_mask': input_q['attention_mask'],
+                        'a_ids': input_a['input_ids'],
+                        'a_att_mask': input_a['attention_mask'],
+                        'q_text': qs,
+                        'a_text': as_,
+                        'labels': labels}
+        return res_dict
+
+
+class MRPCFedDataset(FedDataset):
+
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
+        super().__init__(tokenizer, client_ids, dataset=load_dataset(config.dataset_cache_dir + 'mrpc'),
+                         types=['train', 'test', 'validation'],
+                         shrink_frac=shrink_frac, **kwargs)
+        self.q_temp = "### Question:\n"
+        self.a_temp = "### Solution:\n"
+
+    def _format(self, example):
+        q = self.q_temp + example["text1"]
+        a = self.a_temp + example["text2"]
+        return {'q': q, 'a': a,
+                'input': q + '\n' + a}
+
+    def _col_fun(self, batch, max_seq_len=-1, extra_info=True):
+        texts = [b['input'] for b in batch]
+        qs = [b['q'] for b in batch]
+        as_ = [b['a'] for b in batch]
+        kwargs = {'padding': True, 'truncation': True, 'return_tensors': 'pt'}
+        if self.uni_length > 0:
+            kwargs['max_length'] = self.uni_length
+            kwargs['padding'] = 'max_length'
+        input = self.tokenizer(texts, **kwargs)  # for batch_size testing
+        input_q = self.tokenizer(qs, **kwargs)
+        input_a = self.tokenizer(as_, **kwargs)
+        labels = [b['label'] for b in batch]
+        labels = torch.tensor(labels)
+        if not extra_info:
+            res_dict = {'input_ids': input['input_ids'], 'attention_mask': input['attention_mask']
+                , 'labels': input['input_ids']}
+        else:
+            res_dict = {'input_ids': input['input_ids'],
+                        'attention_mask': input['attention_mask'],
+                        'input_text': texts,
+                        'q_ids': input_q['input_ids'],
+                        'q_att_mask': input_q['attention_mask'],
+                        'a_ids': input_a['input_ids'],
+                        'a_att_mask': input_a['attention_mask'],
+                        'q_text': qs,
+                        'a_text': as_,
+                        'labels': labels}
+        return res_dict
+
+
+class CoLAFedDataset(FedDataset):
+
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
+        super().__init__(tokenizer, client_ids, dataset=load_dataset(config.dataset_cache_dir + 'cola'),
+                         types=['train', 'test'],
+                         shrink_frac=shrink_frac, **kwargs)
+
+    def _format(self, example):
+        return {'input': example['text']}
+
+    def _col_fun(self, batch, max_seq_len=-1, extra_info=True):
+        texts = [b['input'] for b in batch]
+        kwargs = {'padding': True, 'truncation': True, 'return_tensors': 'pt'}
+        if self.uni_length > 0:
+            kwargs['max_length'] = self.uni_length
+            kwargs['padding'] = 'max_length'
+        input = self.tokenizer(texts, **kwargs)  # for batch_size testing
+        labels = [b['label'] for b in batch]
+        labels = torch.tensor(labels)
+        res_dict = {'input_ids': input['input_ids'],
+                    'attention_mask': input['attention_mask'],
+                    'input_text': texts,
+                    'labels': labels}
+        return res_dict
+
+
+class RTEFedDataset(FedDataset):
+
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
+        super().__init__(tokenizer, client_ids, dataset=load_dataset(config.dataset_cache_dir + 'rte'),
+                         types=['train', 'test', 'validation'],
+                         shrink_frac=shrink_frac, **kwargs)
+        self.q_temp = "### Question:\n"
+        self.a_temp = "### Solution:\n"
+
+    def _format(self, example):
+        q = self.q_temp + example["text1"]
+        a = self.a_temp + example["text2"]
+        return {'q': q, 'a': a,
+                'input': q + '\n' + a}
+
+    def _col_fun(self, batch, max_seq_len=-1, extra_info=True):
+        texts = [b['input'] for b in batch]
+        qs = [b['q'] for b in batch]
+        as_ = [b['a'] for b in batch]
+        kwargs = {'padding': True, 'truncation': True, 'return_tensors': 'pt'}
+        if self.uni_length > 0:
+            kwargs['max_length'] = self.uni_length
+            kwargs['padding'] = 'max_length'
+        input = self.tokenizer(texts, **kwargs)  # for batch_size testing
+        input_q = self.tokenizer(qs, **kwargs)
+        input_a = self.tokenizer(as_, **kwargs)
+        labels = [b['label'] for b in batch]
+        labels = torch.tensor(labels)
+        if not extra_info:
+            res_dict = {'input_ids': input['input_ids'], 'attention_mask': input['attention_mask']
+                , 'labels': input['input_ids']}
+        else:
+            res_dict = {'input_ids': input['input_ids'],
+                        'attention_mask': input['attention_mask'],
+                        'input_text': texts,
+                        'q_ids': input_q['input_ids'],
+                        'q_att_mask': input_q['attention_mask'],
+                        'a_ids': input_a['input_ids'],
+                        'a_att_mask': input_a['attention_mask'],
+                        'q_text': qs,
+                        'a_text': as_,
+                        'labels': labels}
+        return res_dict
+
+
 class GSM8KFedDataset(FedDataset):
 
-    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
         super().__init__(tokenizer, client_ids,
                          load_dataset(config.dataset_cache_dir + 'gsm8k', 'main'),
-                         types=['train', 'test'], shrink_frac=shrink_frac)
+                         types=['train', 'test'], shrink_frac=shrink_frac, **kwargs)
 
     def _format(self, example):
         q = "### Question: " + example['question']
@@ -111,11 +327,11 @@ class GSM8KFedDataset(FedDataset):
 
 class DialogSumFedDataset(FedDataset):
 
-    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
         super().__init__(tokenizer, client_ids,
                          load_dataset(config.dataset_cache_dir + 'dialogsum'),
                          ['train', 'test', 'validation'],
-                         shrink_frac)
+                         shrink_frac, **kwargs)
 
     def _format(self, example):
         q = "### Dialogue: " + example["dialogue"]
@@ -145,10 +361,10 @@ class DialogSumFedDataset(FedDataset):
 
 class CodeAlpacaFedDataset(FedDataset):
 
-    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
         super().__init__(tokenizer, client_ids, load_dataset(config.dataset_cache_dir + 'CodeAlpaca_20K'),
                          ['train', 'test'],
-                         shrink_frac)
+                         shrink_frac, **kwargs)
 
     def _format(self, example):
         q = "### Question: " + example['prompt']
@@ -178,11 +394,11 @@ class CodeAlpacaFedDataset(FedDataset):
 
 class IMDBFedDataset(FedDataset):
 
-    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
         super().__init__(tokenizer, client_ids,
                          load_dataset(config.dataset_cache_dir + 'imdb'),
                          ['train', 'test', 'unsupervised'],
-                         shrink_frac, num_labels=2)
+                         shrink_frac, num_labels=2, **kwargs)
 
     def _format(self, example):
         return {'input': example['text']}
@@ -204,10 +420,10 @@ class WikiTextFedDataset(FedDataset):
     def _format(self, example):
         pass
 
-    def __init__(self, tokenizer, client_ids: list[str], shrink_frac=0.3):
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac=0.3, **kwargs):
         dataset = load_dataset(config.dataset_cache_dir + 'wikitext', 'wikitext-2-v1')
         types = ['train', 'test', 'validation']
-        super().__init__(tokenizer, client_ids, dataset, types, shrink_frac)
+        super().__init__(tokenizer, client_ids, dataset, types, shrink_frac, **kwargs)
 
     def _pre_process(self, ds, batch_size):
         def tokenize_function(examples):
@@ -219,13 +435,9 @@ class WikiTextFedDataset(FedDataset):
         block_size = 128
 
         def group_texts(examples):
-            # 连接所有文本。
             concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
             total_length = len(concatenated_examples[list(examples.keys())[0]])
-            # 我们丢弃小的余数，但如果模型支持的话，您可以添加填充
-            # 在这一点上，就像在所有事情上一样，我们建议您跟随自己的内心
             total_length = (total_length // block_size) * block_size
-            # 按 max_len 分割。
             result = {
                 k: [t[i: i + block_size] for i in range(0, total_length, block_size)]
                 for k, t in concatenated_examples.items()
@@ -255,6 +467,13 @@ class WikiTextFedDataset(FedDataset):
         return res
 
 
+class WikiText103FedDataset(WikiTextFedDataset):
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac=0.3, **kwargs):
+        dataset = load_dataset(config.dataset_cache_dir + 'wikitext', 'wikitext-103-v1')
+        types = ['train', 'test', 'validation']
+        FedDataset.__init__(self, tokenizer, client_ids, dataset, types, shrink_frac, **kwargs)
+
+
 class SensiMarkedFedDataset(FedDataset):
 
     def _format(self, example):
@@ -282,14 +501,14 @@ class SensiMarkedFedDataset(FedDataset):
                 'input_text': texts, 'entities': [b['entity'] for b in batch],
                 'input_santi_mask': mask}
 
-    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
         self.df = pd.read_csv(config.dataset_cache_dir + 'sensi/sensi.csv')
         dataset = {
             'train': Dataset.from_pandas(self.df[self.df['type'] == 'train']),
             'validation': Dataset.from_pandas(self.df[self.df['type'] == 'validation']),
             'test': Dataset.from_pandas(self.df[self.df['type'] == 'test'])
         }
-        super().__init__(tokenizer, client_ids, dataset, ['train', 'validation', 'test'], shrink_frac)
+        super().__init__(tokenizer, client_ids, dataset, ['train', 'validation', 'test'], shrink_frac, **kwargs)
 
 
 class SensiReplacedFedDataset(FedDataset):
@@ -300,7 +519,11 @@ class SensiReplacedFedDataset(FedDataset):
     def _col_fun(self, batch, max_seq_len=-1, **kwargs):
         texts = [b['input'] for b in batch]
         max_len = 300 if max_seq_len < 0 else max_seq_len
-        input = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt', max_length=max_len)
+        kwargs = dict(padding=True, truncation=True, return_tensors='pt', max_length=max_len)
+        if self.uni_length > 0:
+            kwargs['max_length'] = self.uni_length
+            kwargs['padding'] = 'max_length'
+        input = self.tokenizer(texts, **kwargs)  # for batch_size testing
         return {'input_ids': input['input_ids'],
                 'q_ids': input['input_ids'],
                 'a_ids': input['input_ids'],
@@ -308,14 +531,14 @@ class SensiReplacedFedDataset(FedDataset):
                 'attention_mask': input['attention_mask'],
                 'input_text': texts}
 
-    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3):
+    def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
         self.df = pd.read_csv(config.dataset_cache_dir + 'sensi/sensi.csv')
         dataset = {
             'train': Dataset.from_pandas(self.df[self.df['type'] == 'train']),
             'validation': Dataset.from_pandas(self.df[self.df['type'] == 'validation']),
             'test': Dataset.from_pandas(self.df[self.df['type'] == 'test'])
         }
-        super().__init__(tokenizer, client_ids, dataset, ['train', 'validation', 'test'], shrink_frac)
+        super().__init__(tokenizer, client_ids, dataset, ['train', 'validation', 'test'], shrink_frac, **kwargs)
 
 
 class SensiMaskedFedDataset(SensiReplacedFedDataset):

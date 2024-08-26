@@ -34,8 +34,8 @@ def sfl_with_attacker(args, unkown_args):
 
     # Load dataset
     fed_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=client_ids,
-                              shrink_frac=args.data_shrink_frac)
-    test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[])
+                              shrink_frac=args.data_shrink_frac, completion_only=args.completion_only)
+    test_dataset = get_dataset(args.dataset, tokenizer=tokenizer, client_ids=[], completion_only=args.completion_only)
     test_loader = test_dataset.get_dataloader_unsliced(args.batch_size, args.test_data_label,
                                                        shrink_frac=args.test_data_shrink_frac,
                                                        max_seq_len=args.dataset_max_seq_len)

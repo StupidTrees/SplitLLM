@@ -8,15 +8,22 @@ model_cache_dir = f'{data_root}/sfl/cache/'
 attacker_path = f'{data_root}/sfl/models/attacker/'
 mapper_path = f'{data_root}/sfl/models/mapper/'
 reducer_path = f'{data_root}/sfl/models/reducer/'
+lora_path = f'{data_root}/sfl/models/lora/'
 fsha_path = f'{data_root}/sfl/models/attacker-fsha/'
 
 DRA_train_label = {
     'codealpaca': 'test',
     'dialogsum': 'validation',
     'piqa': 'validation',
+    'qnli': 'validation',
+    'mrpc': 'validation',
+    'rte': 'validation',
+    'stsb': 'validation',
+    'cola': 'test',
     'piqa-mini': 'validation',
     'gsm8k': 'test',
     'wikitext': 'validation',
+    'wikitext103': 'validation',
     'sensireplaced': 'validation',
     'sensimarked': 'validation',
     'sensimasked': 'validation',
@@ -31,8 +38,8 @@ DRA_test_label['imagewoof'] = 'validation'
 
 dxp_moe_range = {0.08, 0.21, 0.38}
 gaussian_moe_range = {3.0, 5.0, 8.0}
-dc_moe_range = {12.0, 24.0, 48.0}
-
+# dc_moe_range = {6.0, 8.0, 10.0}
+dc_moe_range = {8.0, 32.0, 64.0}
 
 @dataclass
 class FLConfig:
@@ -44,6 +51,7 @@ class FLConfig:
     client_per_round: float = 1.0
     split_point_1: int = 2
     split_point_2: int = 10
+    split_mode: str = 'hidden'  # 'hidden' or 'qk'
     use_lora_at_trunk: bool = True
     use_lora_at_bottom: bool = False
     use_lora_at_top: bool = False
@@ -57,7 +65,8 @@ class FLConfig:
     noise_scale_dxp: float = 0.0
     noise_scale_grad: float = 0.0
     noise_scale_gaussian: float = 0.0
-    noise_beta_dc: float = 0.1
+    noise_scale_dc: float = 0.1
+    noise_scale_dc_sim: int = 10
     dataset_type: str = 'train'
     batch_size: int = 2
     reducer_enable: bool = False

@@ -8,6 +8,7 @@ import time
 
 import requests
 from huggingface_hub import snapshot_download
+from transformers import TrainingArguments
 
 sys.path.append(os.path.abspath('../..'))
 
