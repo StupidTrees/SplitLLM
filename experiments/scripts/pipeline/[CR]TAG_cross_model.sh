@@ -1,7 +1,7 @@
 # 实验：对Embedding Inversion Attack进行超参搜索
 
 dataset_label='train'
-exp_name='[EXP]TAG_diff_sp'
+exp_name='[EXP]TAG_cross_model'
 global_round=1
 client_steps=500
 noise_scale=0.0
@@ -15,7 +15,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name="llama2"
+sfl_model_name="vicuna"
 
 sps="6-27"
 batch_size=2
@@ -25,18 +25,17 @@ attacker_samples=1
 max_global_step=605
 
 sfl_datasets=("piqa")
-seed=42
+seeds=(7 56)
 load_bits=8
 tag_lr=0.09
 tag_beta=0.85
 tag_epc=600
-sp2s=(18 20 22 24 26 28 30)
+tag_cross_model='llama2'
 
-for sp2 in "${sp2s[@]}"; do
-  sps="6-${sp2}"
+for seed in "${seeds[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
 
-    case_name="TAG@${model_name}@${sfl_dataset}-sp${sps}"
+    case_name="TAG@${sfl_model_name}@${sfl_dataset}-seed${seed}"
 
     # 将其用于攻击
     echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -44,7 +43,7 @@ for sp2 in "${sp2s[@]}"; do
       --noise_mode "$noise_mode" \
       --case_name "$case_name" \
       --seed "$seed" \
-      --model_name "$model_name" \
+      --model_name "$sfl_model_name" \
       --split_points "$sps" \
       --global_round "$global_round" \
       --seed "$seed" \
@@ -74,7 +73,8 @@ for sp2 in "${sp2s[@]}"; do
       --max_global_step "$max_global_step" \
       --tag_beta "$tag_beta" \
       --tag_lr "$tag_lr" \
-      --tag_epochs "$tag_epc" \
+      --tag_epochs "$tag_epc"\
+      --tag_cross_model "$tag_cross_model"\
       --load_bits "$load_bits"
   done
 done

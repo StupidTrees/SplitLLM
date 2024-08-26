@@ -1,53 +1,47 @@
 # 实验：对Embedding Inversion Attack进行超参搜索
-seed=42
-
 dataset_label='train'
-exp_name='[HPT]BiSR(b)'
+exp_name='[CR]AE_gaussian'
 global_round=1
 client_steps=500
-noise_scale=0.0
-noise_mode="none"
 data_shrink_frac=0.08
 test_data_shrink_frac=0.3
-evaluate_freq=800
+evaluate_freq=300
 self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='llama2'
-
 sps="6-27"
 batch_size=2
 
 attacker_freq=200
-attacker_samples=1
-max_global_step=405
+attacker_samples=5
+max_global_step=605
 
-sfl_datasets=("piqa")
 sip_inverter_dataset='sensireplaced'
 
-gma_lrs=(0.09) # 0.06 0.04 0.03)
-gma_betas=(0.85) # 0.9)
-gma_epochs=(512 1024)
-gma_init_temp=(1.2) #(1.0 1.2 0.8)
+model_names=('llama2')
+sfl_datasets=("piqa") #"piqa" "codealpaca" "dialogsum" "sensimarked"
+noise_mode='gaussian'
+noise_scale_gaussians=(6.5 7.0 7.5 8.0)
+sip_models=('gru')
 
-# 0.05 0.001 0.1)
+seeds=(42 7 56)
 
-for sfl_dataset in "${sfl_datasets[@]}"; do
-  for gma_lr in "${gma_lrs[@]}"; do
-    for gma_epc in "${gma_epochs[@]}"; do
-      for gma_beta in "${gma_betas[@]}"; do
-        for gma_init_temp in "${gma_init_temp[@]}"; do
-
-          case_name="BiSR(b)@${model_name}@${sfl_dataset},lr=${gma_lr},beta=${gma_beta},epc=${gma_epc},temp=${gma_init_temp}"
+for seed in "${seeds[@]}"; do
+  for sip_model in "${sip_models[@]}"; do
+    for noise_scale_gaussian in "${noise_scale_gaussians[@]}"; do
+      for model_name in "${model_names[@]}"; do
+        for sfl_dataset in "${sfl_datasets[@]}"; do
+          case_name="[${seed}]==BiSR(b+f)@${model_name}@${sfl_dataset}-${noise_scale_gaussian}-${sip_model}"
 
           # 先训练攻击模型
-          echo "Running train_inverter.py"
-          python ../py/train_inverter.py \
+          echo "Running train_inverter_no_pretrained.py"
+          python ../py/train_inverter_no_pretrained.py \
             --model_name "$model_name" \
             --seed "$seed" \
+            --load_bits 8 \
             --attack_model "gru" \
             --dataset "$sip_inverter_dataset" \
             --attack_mode 'b2tr' \
@@ -66,7 +60,8 @@ for sfl_dataset in "${sfl_datasets[@]}"; do
             --global_round "$global_round" \
             --seed "$seed" \
             --dataset "$sfl_dataset" \
-            --noise_scale_dxp "$noise_scale" \
+            --noise_mode "gaussian" \
+            --noise_scale_gaussian "$noise_scale_gaussian" \
             --exp_name "$exp_name" \
             --self_pt_enable "$self_pt_enable" \
             --client_num 1 \
@@ -81,21 +76,18 @@ for sfl_dataset in "${sfl_datasets[@]}"; do
             --dataset_label "$dataset_label" \
             --batch_size "$batch_size" \
             --tag_enable False \
-            --gma_enable True \
+            --gma_enable False \
             --gsma_enable False \
             --sma_enable False \
-            --eia_enable False --attacker_freq "$attacker_freq" \
+            --eia_enable False \
+            --attacker_freq "$attacker_freq" \
             --attacker_samples "$attacker_samples" \
             --max_global_step "$max_global_step" \
             --sip_dataset "$sip_inverter_dataset" \
-            --sip_prefix "normal" \
+            --sip_prefix "nop" \
             --sip_b2tr_enable True \
             --sip_b2tr_layer -1 \
-            --sip_tr2t_enable False \
-            --gma_lr "$gma_lr" \
-            --gma_beta "$gma_beta" \
-            --gma_epochs "$gma_epc" \
-            --gma_init_temp "$gma_init_temp"
+            --sip_tr2t_enable False
         done
       done
     done

@@ -9,34 +9,34 @@ noise_scale=0.0
 noise_mode="none"
 data_shrink_frac=0.08
 test_data_shrink_frac=0.3
-evaluate_freq=300
+evaluate_freq=800
 self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='gpt2-large'
+model_name='llama2'
 
 sps="6-27"
 batch_size=2
 
-attacker_freq=200
+attacker_freq=300
 attacker_samples=1
-max_global_step=405
+max_global_step=605
 
 sfl_datasets=("piqa")
 sip_inverter_dataset='sensireplaced'
 
 
 # gpt2-large
-gma_lrs=(0.09 0.03 0.04)
-gma_betas=(0.85 0.9)
-gma_epochs=(32 64)
-gma_init_temp=(1.2)
-gsma_lrs=(0.01 0.005)
-gsma_epochs=(600 200 800)
-gsma_wds=(0.001 0.01)
+#gma_lrs=(0.09 0.03 0.04)
+#gma_betas=(0.85 0.9)
+#gma_epochs=(512)
+#gma_init_temp=(1.2)
+#gsma_lrs=(0.01 0.005)
+#gsma_epochs=(600 200 800)
+#gsma_wds=(0.001 0.01)
 
 # chatglm
 #gma_lrs=(0.09 0.03 0.06)
@@ -49,13 +49,13 @@ gsma_wds=(0.001 0.01)
 
 
 # llama2
-#gma_lrs=(0.09 0.03)
-#gma_betas=(0.85 0.9)
-#gma_epochs=(18)
-#gma_init_temp=(1.2 0.8)
-#gsma_lrs=(0.005)
-#gsma_epochs=(600 800)
-#gsma_wds=(0.01 0.02)
+gma_lrs=(0.09)
+gma_betas=(0.85)
+gma_epochs=(256 512)
+gma_init_temp=(1.2)
+gsma_lrs=(0.005)
+gsma_epochs=(6 18)
+gsma_wds=(0.01 0.02)
 
 
 # 0.05 0.001 0.1)

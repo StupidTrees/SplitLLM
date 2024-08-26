@@ -2,14 +2,14 @@
 seed=42
 
 dataset_label='train'
-exp_name='[CR]BiSR(b+f)'
+exp_name='[CR]BiSR_example'
 global_round=1
 client_steps=500
 noise_scale=0.0
 noise_mode="none"
 data_shrink_frac=0.08
-test_data_shrink_frac=0.3
-evaluate_freq=300
+test_data_shrink_frac=0.01
+evaluate_freq=10
 self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
@@ -19,15 +19,15 @@ collect_all_layers=True
 sps="6-27"
 batch_size=2
 
-attacker_freq=200
+attacker_freq=900
 attacker_samples=5
-max_global_step=605
+max_global_step=11
 
-sip_inverter_dataset='sensireplaced'
+sip_inverter_dataset='sensimasked'
 
 model_names=('llama2')
-sfl_datasets=("gsm8k" "wikitext" "piqa" "codealpaca" "sensimarked")
-seeds=(42 7 56)
+sfl_datasets=("sensimarked")
+seeds=(7 56 47)
 for seed in "${seeds[@]}"; do
   for model_name in "${model_names[@]}"; do
     for sfl_dataset in "${sfl_datasets[@]}"; do
@@ -40,6 +40,7 @@ for seed in "${seeds[@]}"; do
         gma_init_temp=1.2
         gsma_lr=0.005
         gsma_epc=800
+        sma_epc=64
         gsma_wd=0.02
       fi
 
@@ -50,6 +51,7 @@ for seed in "${seeds[@]}"; do
         gma_init_temp=1.2
         gsma_lr=0.01
         gsma_epc=800
+        sma_epc=800
         gsma_wd=0.01
       fi
 
@@ -60,6 +62,7 @@ for seed in "${seeds[@]}"; do
         gma_init_temp=1.2
         gsma_lr=0.005
         gsma_epc=800
+        sma_epc=800
         gsma_wd=0.01
       fi
 
@@ -121,7 +124,7 @@ for seed in "${seeds[@]}"; do
         --gsma_epochs "$gsma_epc" \
         --gsma_wd "$gsma_wd" \
         --sma_lr "$gsma_lr" \
-        --sma_epochs "$gsma_epc" \
+        --sma_epochs "$sma_epc" \
         --sma_wd "$gsma_wd"
     done
   done

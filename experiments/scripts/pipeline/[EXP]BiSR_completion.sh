@@ -2,7 +2,7 @@
 seed=42
 
 dataset_label='train'
-exp_name='[CR]BiSR(b+f)'
+exp_name='[EXP]BiSR(b+f)_completion'
 global_round=1
 client_steps=500
 noise_scale=0.0
@@ -25,13 +25,14 @@ max_global_step=605
 
 sip_inverter_dataset='sensireplaced'
 
-model_names=('llama2')
-sfl_datasets=("gsm8k" "wikitext" "piqa" "codealpaca" "sensimarked")
-seeds=(42 7 56)
-for seed in "${seeds[@]}"; do
+model_names=('gpt2-large')
+sfl_datasets=("piqa") #"piqa" "codealpaca" "dialogsum" "sensimarked"
+completions=(True False)
+
+for completion_only in "${completions[@]}"; do
   for model_name in "${model_names[@]}"; do
     for sfl_dataset in "${sfl_datasets[@]}"; do
-      case_name="SD${seed}-BiSR(b+f)@${model_name}@${sfl_dataset}"
+      case_name="BiSR(b+f)@${model_name}@${sfl_dataset}-comp${completion_only}"
 
       if [ "$model_name" == "llama2" ]; then
         gma_lr=0.09
@@ -103,7 +104,7 @@ for seed in "${seeds[@]}"; do
         --tag_enable False \
         --gma_enable True \
         --gsma_enable True \
-        --sma_enable True \
+        --sma_enable False \
         --eia_enable False \
         --attacker_freq "$attacker_freq" \
         --attacker_samples "$attacker_samples" \
@@ -120,9 +121,7 @@ for seed in "${seeds[@]}"; do
         --gsma_lr "$gsma_lr" \
         --gsma_epochs "$gsma_epc" \
         --gsma_wd "$gsma_wd" \
-        --sma_lr "$gsma_lr" \
-        --sma_epochs "$gsma_epc" \
-        --sma_wd "$gsma_wd"
+        --completion_only "$completion_only"
     done
   done
 done

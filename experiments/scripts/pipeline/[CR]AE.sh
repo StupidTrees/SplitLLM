@@ -2,14 +2,14 @@
 seed=42
 
 dataset_label='train'
-exp_name='[EXP]BiSR(b+f)_load_bits'
+exp_name='[CR]AE'
 global_round=1
 client_steps=500
 noise_scale=0.0
 noise_mode="none"
 data_shrink_frac=0.08
 test_data_shrink_frac=0.3
-evaluate_freq=300
+evaluate_freq=900
 self_pt_enable=False
 lora_at_trunk=True
 lora_at_bottom=True
@@ -22,51 +22,20 @@ batch_size=2
 attacker_freq=200
 attacker_samples=5
 max_global_step=605
-load_bitss=(4 8)
 
 sip_inverter_dataset='sensireplaced'
 
-model_names=('llama2')
-sfl_datasets=("piqa") #"piqa" "codealpaca" "dialogsum" "sensimarked"
-
-for load_bits in "${load_bitss[@]}"; do
+model_names=('chatglm')
+sfl_datasets=("gsm8k" "wikitext" "piqa" "codealpaca" "sensimarked")
+seeds=(42)
+for seed in "${seeds[@]}"; do
   for model_name in "${model_names[@]}"; do
     for sfl_dataset in "${sfl_datasets[@]}"; do
-      case_name="BiSR(b+f)@${model_name}@${sfl_dataset}-${load_bits}"
-
-      if [ "$model_name" == "llama2" ]; then
-        gma_lr=0.09
-        gma_beta=0.85
-        gma_epc=18
-        gma_init_temp=1.2
-        gsma_lr=0.005
-        gsma_epc=800
-        gsma_wd=0.02
-      fi
-
-      if [ "$model_name" == "gpt2-large" ]; then
-        gma_lr=0.09
-        gma_beta=0.85
-        gma_epc=32
-        gma_init_temp=1.2
-        gsma_lr=0.01
-        gsma_epc=800
-        gsma_wd=0.01
-      fi
-
-      if [ "$model_name" == "chatglm" ]; then
-        gma_lr=0.09
-        gma_beta=0.85
-        gma_epc=18
-        gma_init_temp=1.2
-        gsma_lr=0.005
-        gsma_epc=800
-        gsma_wd=0.01
-      fi
+      case_name="SD${seed}-BiSR(b+f)@${model_name}@${sfl_dataset}"
 
       # 先训练攻击模型
-      echo "Running train_inverter.py"
-      python ../py/train_inverter.py \
+      echo "Running train_inverter_no_pretrained.py"
+      python ../py/train_inverter_no_pretrained.py \
         --model_name "$model_name" \
         --seed "$seed" \
         --attack_model "gru" \
@@ -75,7 +44,7 @@ for load_bits in "${load_bitss[@]}"; do
         --sps "$sps" \
         --dataset_test_frac 0.1 \
         --save_checkpoint True \
-        --log_to_wandb False --load_bits "$load_bits"
+        --log_to_wandb False
 
       # 将其用于攻击
       echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -102,26 +71,18 @@ for load_bits in "${load_bitss[@]}"; do
         --dataset_label "$dataset_label" \
         --batch_size "$batch_size" \
         --tag_enable False \
-        --gma_enable True \
-        --gsma_enable True \
+        --gma_enable False \
+        --gsma_enable False \
         --sma_enable False \
         --eia_enable False \
         --attacker_freq "$attacker_freq" \
         --attacker_samples "$attacker_samples" \
         --max_global_step "$max_global_step" \
         --sip_dataset "$sip_inverter_dataset" \
-        --sip_prefix "normal" \
+        --sip_prefix "nop" \
         --sip_b2tr_enable True \
         --sip_b2tr_layer -1 \
-        --sip_tr2t_enable False \
-        --gma_lr "$gma_lr" \
-        --gma_beta "$gma_beta" \
-        --gma_epochs "$gma_epc" \
-        --gma_init_temp "$gma_init_temp" \
-        --gsma_lr "$gsma_lr" \
-        --gsma_epochs "$gsma_epc" \
-        --gsma_wd "$gsma_wd" \
-        --load_bits "$load_bits"
+        --sip_tr2t_enable False
     done
   done
 done
