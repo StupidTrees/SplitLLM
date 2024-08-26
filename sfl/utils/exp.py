@@ -4,7 +4,7 @@ import os
 from copy import deepcopy
 
 import torch
-from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor
+from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor, BloomForCausalLM
 
 from sfl import config
 from sfl.config import FLConfig, model_download_dir, reducer_path
@@ -251,6 +251,8 @@ def get_model_path(model_name):
         path = os.path.join(model_download_dir, f"tiiuae/falcon-7b-instruct")
     elif model_name.startswith('codegen'):
         path = os.path.join(model_download_dir, f"Salesforce/codegen25-7b-instruct_P")
+    elif model_name.startswith('bloomz'):
+        path = os.path.join(model_download_dir, f"bigscience/bloomz-560m")
     return path
 
 
@@ -362,6 +364,8 @@ def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_b
         clz = GPTJForCausalLMSplit
     elif 'falcon' in model_name:
         clz = FalconForCausalLMSplit
+    elif 'bloomz' in model_name:
+        clz = BloomForCausalLM
 
     if required_quantization(model_name):
         if load_bits <= 8:

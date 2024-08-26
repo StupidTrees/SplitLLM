@@ -41,6 +41,7 @@ python model_download.py --repo_id THUDM/chatglm3-6b
 #python model_download.py --repo_id EleutherAI/gpt-j-6b
 #python model_download.py --repo_id google/flan-ul2
 #python model_download.py --repo_id google/vit-large-patch16-224
+#python model_download.py --repo_id bigscience/bloomz-560m
 ```
 
 ### Download Datasets
