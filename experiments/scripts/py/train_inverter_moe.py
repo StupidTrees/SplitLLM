@@ -65,22 +65,12 @@ def experts_no_peek_pre(args, expert_scales, llm, dataloader, random_num=20):
                                             [p.detach().cpu() for nm, p in llm.get_top_params()])
         parameter_keeper.store_other_params(key, 'bottom',
                                             [p.detach().cpu() for nm, p in llm.get_bottom_params()])
-    # print('PK_NORM_INIT:', calc_pk_norm(parameter_keeper, 'pretrained'))
-    # print('MODEL_NORM_INIT:', calc_model_norm(llm))
-
     # read all files under save_dir
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     for fn in os.listdir(save_dir):
         scale = round(float('.'.join(fn.split('_')[-1].split('.')[:-1])), 2)
         pk = pickle.load(open(os.path.join(save_dir, fn), 'rb'))
-        # pk = copy.deepcopy(parameter_keeper)
-        # with ParamRestored(llm=llm, param_keeper=pk, parts=['bottom', 'trunk', 'top'], write_back=True,
-        #                    disable_inter_collection=True):
-        #     llm.load_adapter(os.path.join(save_dir, fn), 'lora', True)
-        #     llm.set_adapter('lora')
-        #     print(f'MODEL_NORM_{scale}:', calc_model_norm(llm))
-        print(f'PK_NORM_{scale}:', calc_pk_norm(pk))
         result[scale] = pk
     required_positive = [x for x in expert_scales if x >= 0]
     required_left = set(required_positive) - set(result.keys())
@@ -145,12 +135,6 @@ def train_attacker(args):
         dataloader, dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size,
                                                                       type=None,
                                                                       shrink_frac=args.dataset_train_frac)
-
-    # if args.attack_model == 'moe2':
-    #     dataloader_test = get_dataset('piqa', tokenizer=tokenizer).get_dataloader_unsliced(batch_size=args.batch_size,
-    #                                                                                        type='test',
-    #
-    #                                                                                        shrink_frac=0.01)
     config = FLConfig(collect_intermediates=False,
                       split_point_1=int(args.sps.split('-')[0]),
                       split_point_2=int(args.sps.split('-')[1]),
@@ -189,8 +173,6 @@ def train_attacker(args):
 
         extra_noise_scales = random_scales
 
-    # 开始训练Attack Model
-
     attack_model = MOEDRInverter(MOEDRAttackerConfig(expert_scales=expert_scales, hidden_size=256), model.config)
 
     if 'llama' not in args.model_name:
@@ -203,7 +185,7 @@ def train_attacker(args):
                    config=vars(args)
                    )
 
-    # 阶段1， 不同专家独立训练解码能力
+    # Phase 1: Expert Training
     attack_model.freeze_parts(experts=False, freeze=True)  # freeze gating
     attack_model.freeze_parts(experts=True, freeze=False)  # freeze gating
     optimizer = Adam([p for p in attack_model.parameters() if p.requires_grad], lr=args.lr)
@@ -279,7 +261,7 @@ def train_attacker(args):
                     log_dict.update({f"Expert{i}_RgL": rgl / item_count})
                 wandb.log(log_dict)
 
-    # 阶段2，训练Gating
+    # Phase 2: Gating Training
     attack_model.freeze_parts(experts=True, freeze=False)  # activate experts
     attack_model.freeze_parts(experts=False, freeze=False)  # activate gating
     optimizer2 = Adam([p for p in attack_model.parameters() if p.requires_grad], lr=args.lr)
@@ -319,8 +301,6 @@ def train_attacker(args):
                 rougeL_total += res['rouge-l']['f']
                 loss.backward()
                 optimizer2.step()
-
-                # 计算训练的ROGUE
                 pbar.set_description(
                     f'GATING Epoch {epc} Loss {loss.item():.5f}, RougeL {rougeL_total / (step + 1):.4f}')
                 if step % 300 == 0 and model.type != 'encoder-decoder':
@@ -328,14 +308,12 @@ def train_attacker(args):
                     print(q, "==>", get_output(q, model, attack_model))
                 pbar.update(1)
                 item_count += 1
-            # 计算测试集上的ROGUE
             if (epc + 1) % 2 == 0:
                 evaluate(epc, model, attack_model, tokenizer, dataloader_test, args)
             if args.log_to_wandb:
                 log_dict = {'epoch': epc, 'Total_RgL': rougeL_total / item_count}
                 wandb.log(log_dict)
 
-    # 阶段3，训练整体模型
     attack_model.freeze_parts(experts=True, freeze=False)  # freeze experts
     attack_model.freeze_parts(experts=False, freeze=False)  # freeze gating
     optimizer3 = Adam([p for p in attack_model.parameters() if p.requires_grad], lr=args.lr)
@@ -348,7 +326,6 @@ def train_attacker(args):
             for step, batch in enumerate(dataloader):
                 optimizer2.zero_grad()
                 if args.attack_model == 'moe':
-                    # 随机噪声规模
                     random_noise = random_choose_noise(attack_model.config.expert_scales, mode=args.noise_mode,
                                                        extra_choices=extra_noise_scales)
                     if args.noise_mode != 'dc':
@@ -376,7 +353,6 @@ def train_attacker(args):
                 loss.backward()
                 optimizer3.step()
 
-                # 计算训练的ROGUE
                 pbar.set_description(
                     f'FINAL Epoch {epc} Loss {loss.item():.5f}, RougeL {rougeL_total / (step + 1):.4f}')
                 if step % 300 == 0 and model.type != 'encoder-decoder':
@@ -384,7 +360,6 @@ def train_attacker(args):
                     print(q, "==>", get_output(q, model, attack_model))
                 pbar.update(1)
                 item_count += 1
-            # 计算测试集上的ROGUE
             if (epc + 1) % 1 == 0:
                 evaluate(epc * 100, model, attack_model, tokenizer, dataloader_test, args)
             if args.log_to_wandb:

@@ -2,7 +2,6 @@ import argparse
 import os
 import random
 import sys
-from unicodedata import bidirectional
 
 import torch
 import wandb
@@ -19,7 +18,7 @@ from sfl.model.attacker.sip_attacker import LSTMDRInverter, GRUDRInverter, Linea
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, get_dim_reducer, \
     get_reducer_args, required_quantization
 from sfl.utils.model import get_t5_input, get_best_gpu, calc_unshift_loss, set_random_seed, \
-    evaluate_attacker_rouge, random_choose_noise, FLConfigHolder, calc_shifted_loss, dist_corr
+    evaluate_attacker_rouge, random_choose_noise, FLConfigHolder, dist_corr
 
 from sfl.config import DRA_train_label, DRA_test_label
 
@@ -64,17 +63,13 @@ def get_save_path(fl_config, save_dir, args):
 
 
 def evaluate(epc, md, attacker, tok, test_data_loader, args):
-    """
-    恢复的评价指标选用ROUGE
-    :return: ROUGE-1, ROUGE-2, ROUGE-L, ROUGE-L-P, ROUGE-L-R
-    """
     md.eval()
     if args.noise_mode == 'mix' or args.noise_scale_dxp < 0 or args.noise_scale_gaussian < 0:
         md.change_noise(0)
     attacker.eval()
     dl_len = len(test_data_loader)
     with torch.no_grad():
-        rouge_1, rouge_2, rouge_l_f1, rouge_l_p, rouge_l_r = 0, 0, 0, 0, 0
+        rouge_l_f = 0
         for step, batch in tqdm(enumerate(test_data_loader), total=dl_len):
             if md.type == 'encoder-decoder':
                 enc_hidden, dec_hidden = md(**get_t5_input(batch, tok, md.device))
@@ -85,67 +80,19 @@ def evaluate(epc, md, attacker, tok, test_data_loader, args):
                 inter = md(input_ids=input_ids, attention_mask=attention_mask)
             logits = attacker(inter)
             result, _, _ = evaluate_attacker_rouge(tok, logits, batch)
-            rouge_1 += result['rouge-1']['f']
-            rouge_2 += result['rouge-2']['f']
-            rouge_l_f1 += result['rouge-l']['f']
-            rouge_l_p += result['rouge-l']['p']
-            rouge_l_r += result['rouge-l']['r']
+            rouge_l_f += result['rouge-l']['f']
 
     print(
-        f'Epoch {epc} Test Rouge_l_f1: {rouge_l_f1 / dl_len}')  # , Test2 Rouge_l_f1: {rouge_l_f1_x / dl_len if attacker2 else 0}')
+        f'Epoch {epc} Test Rouge_l_f1: {rouge_l_f / dl_len}')  # , Test2 Rouge_l_f1: {rouge_l_f1_x / dl_len if attacker2 else 0}')
     p = get_save_path(md.fl_config, args.save_dir, args)
-    if rouge_l_f1 / dl_len > args.save_threshold and args.save_checkpoint:
-        attacker.save_pretrained(p + f'epoch_{epc}_rouge_{rouge_l_f1 / dl_len:.4f}')
+    if rouge_l_f / dl_len > args.save_threshold and args.save_checkpoint:
+        attacker.save_pretrained(p + f'epoch_{epc}_rouge_{rouge_l_f / dl_len:.4f}')
     if args.log_to_wandb:
-        log_dict = {'epoch': epc, 'test_rouge_1': rouge_1 / dl_len, 'test_rouge_2': rouge_2 / dl_len,
-                    'test_rouge_l_f1': rouge_l_f1 / dl_len, 'test_rouge_l_p': rouge_l_p / dl_len,
-                    'test_rouge_l_r': rouge_l_r / dl_len}
+        log_dict = {'epoch': epc,  'test_rouge_l_f1': rouge_l_f / dl_len}
         wandb.log(log_dict)
     md.train(True)
     attacker.train(True)
-    return rouge_1 / dl_len, rouge_2 / dl_len, rouge_l_f1 / dl_len, rouge_l_p / dl_len, rouge_l_r / dl_len
-
-
-# def evaluate(epc, md, attacker, tok, test_data_loader, save_dir):
-#     """
-#     恢复的评价指标选用ROUGE
-#     :return: ROUGE-1, ROUGE-2, ROUGE-L, ROUGE-L-P, ROUGE-L-R
-#     """
-#     md.eval()
-#     md.change_noise_scale(0)
-#     attacker.eval()
-#     dl_len = len(test_data_loader)
-#     with torch.no_grad():
-#         rouge_1, rouge_2, rouge_l_f1, rouge_l_p, rouge_l_r = 0, 0, 0, 0, 0
-#         for step, batch in tqdm(enumerate(test_data_loader), total=dl_len):
-#             if md.type == 'encoder-decoder':
-#                 enc_hidden, dec_hidden = md(**get_t5_input(batch, tok, md.device))
-#                 inter = torch.concat([enc_hidden, dec_hidden], dim=1)
-#             else:
-#                 input_ids = batch['input_ids'].to(md.device)
-#                 attention_mask = batch['attention_mask'].to(md.device)
-#                 inter = md(input_ids=input_ids, attention_mask=attention_mask)
-#             logits = attacker(inter)
-#             result = evaluate_attacker_rouge(tok, logits, batch)
-#             rouge_1 += result['rouge-1']['f']
-#             rouge_2 += result['rouge-2']['f']
-#             rouge_l_f1 += result['rouge-l']['f']
-#             rouge_l_p += result['rouge-l']['p']
-#             rouge_l_r += result['rouge-l']['r']
-#
-#     print(
-#         f'Epoch {epc} Test Rouge_l_f1: {rouge_l_f1 / dl_len}')
-#     p = get_save_path(md, save_dir, args)
-#     if rouge_l_f1 / dl_len > 0.1 and (epc + 1) % 1 == 0 and args.save_checkpoint:
-#         attacker.save_pretrained(p + f'epoch_{epc}_rouge_{rouge_l_f1 / dl_len:.4f}')
-#     if args.log_to_wandb:
-#         log_dict = {'epoch': epc, 'test_rouge_1': rouge_1 / dl_len, 'test_rouge_2': rouge_2 / dl_len,
-#                     'test_rouge_l_f1': rouge_l_f1 / dl_len, 'test_rouge_l_p': rouge_l_p / dl_len,
-#                     'test_rouge_l_r': rouge_l_r / dl_len}
-#         wandb.log(log_dict)
-#     md.train(True)
-#     attacker.train(True)
-#     return rouge_1 / dl_len, rouge_2 / dl_len, rouge_l_f1 / dl_len, rouge_l_p / dl_len, rouge_l_r / dl_len
+    return rouge_l_f / dl_len
 
 
 def pre_no_peek(noise_scale, llm, data_loader, max_steps=560):
@@ -181,10 +128,6 @@ def pre_no_peek(noise_scale, llm, data_loader, max_steps=560):
 
 
 def train_attacker(args):
-    """
-    训练攻击模型
-    :param args:
-    """
     config = FLConfig(collect_intermediates=False,
                       split_point_1=int(args.sps.split('-')[0]),
                       split_point_2=int(args.sps.split('-')[1]),
@@ -249,7 +192,6 @@ def train_attacker(args):
 
     if args.noise_mode == 'dc':
         pre_no_peek(args.noise_scale_dc, model, dataloader, max_steps=605)
-    # 开始训练Attack Model
     inverter_clz = LSTMDRInverter
     cfg = LSTMDRAttackerConfig()
     if args.attack_model == 'lstm':
@@ -296,7 +238,7 @@ def train_attacker(args):
     with tqdm(total=epoch * len(dataloader)) as pbar:
         for epc in range(epoch):
             model.train(True)
-            rouge_1, rouge_2, rouge_l_f1, rouge_l_p, rouge_l_r = 0, 0, 0, 0, 0
+            rouge_l_f = 0
             item_count = 0
             for step, batch in enumerate(dataloader):
                 optimizer.zero_grad()
@@ -330,35 +272,21 @@ def train_attacker(args):
                 loss = calc_unshift_loss(logits, input_ids)
                 loss.backward()
                 optimizer.step()
-                # 计算训练的ROGUE
                 res, _, _ = evaluate_attacker_rouge(tokenizer, logits, batch)
-                rouge_1 += res['rouge-1']['f']
-                rouge_2 += res['rouge-2']['f']
-                rouge_l_f1 += res['rouge-l']['f']
-                rouge_l_p += res['rouge-l']['p']
-                rouge_l_r += res['rouge-l']['r']
-
-                # print(logits.argmax(dim=-1))
-                # print(tokenizer.decode(logits.argmax(dim=-1)[0], skip_special_tokens=False))
+                rouge_l_f += res['rouge-l']['f']
 
                 pbar.set_description(
-                    f'Epoch {epc} Loss {loss.item():.5f}, Rouge_Lf1 {rouge_l_f1 / (step + 1):.4f}')
+                    f'Epoch {epc} Loss {loss.item():.5f}, Rouge_Lf1 {rouge_l_f / (step + 1):.4f}')
                 if step % 300 == 0 and model.type != 'encoder-decoder':
                     q = "To mix food coloring with sugar, you can"
                     print(q, "==>", get_output(q, model, attack_model))
                 pbar.update(1)
                 item_count += 1
 
-            # 计算测试集上的ROGUE
             if (epc + 1) % args.checkpoint_freq == 0:
                 evaluate(epc, model, attack_model, tokenizer, dataloader_test, args)
             if args.log_to_wandb:
-                log_dict = {'epoch': epc,
-                            'train_rouge_1': rouge_1 / item_count,
-                            'train_rouge_2': rouge_2 / item_count,
-                            'train_rouge_l_f1': rouge_l_f1 / item_count,
-                            'train_rouge_l_p': rouge_l_p / item_count,
-                            'train_rouge_l_r': rouge_l_r / item_count}
+                log_dict = {'epoch': epc, 'train_rouge_l_f1': rouge_l_f / item_count}
                 wandb.log(log_dict)
 
 

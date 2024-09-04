@@ -1,7 +1,7 @@
 
 <p align="left"><img src="./doc/img/logo.png" width=400></p>
 
-# SplitLLM: Split Learning Framework for Privacy Attacks
+# SplitLLM: Split Learning Simulation Framework for LLMs
 SplitLLM is a Split Learning simulation framework designed for Large Language Models (LLMs).
 It enables flexible and scalable model fine-tuning under a split learning architecture. 
 The framework is compatible with Hugging Face models.

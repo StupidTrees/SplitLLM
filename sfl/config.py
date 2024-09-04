@@ -38,7 +38,7 @@ DRA_test_label['imagewoof'] = 'validation'
 
 dxp_moe_range = {0.08, 0.21, 0.38}
 gaussian_moe_range = {3.0, 5.0, 8.0}
-# dc_moe_range = {6.0, 8.0, 10.0}
+gaussian_clipping_threshold = 2000
 dc_moe_range = {8.0, 32.0, 64.0}
 
 @dataclass

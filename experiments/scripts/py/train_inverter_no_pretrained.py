@@ -39,23 +39,11 @@ def get_save_path(fl_config, save_dir, args):
                          f'{model_name}/{args.dataset}/{DRA_train_label[args.dataset]}*{args.dataset_train_frac:.3f}-{DRA_test_label[args.dataset]}*{args.dataset_test_frac:.3f}'
                          f'/{args.attack_model}/layer{cut_layer}/')
     attacker_prefix = 'nop/'
-    # if fl_config.noise_mode == 'dxp':
-    #     attacker_prefix = f'{fl_config.noise_mode}:{fl_config.noise_scale_dxp}/'
-    # elif fl_config.noise_mode == 'gaussian':
-    #     attacker_prefix = f'{fl_config.noise_mode}:{fl_config.noise_scale_gaussian}/'
-    # elif fl_config.noise_mode == 'mix':
-    #     attacker_prefix = 'mix/'
-    # if 'moe' in args.attack_model:
-    #     attacker_prefix = f'{fl_config.noise_mode}/'
     p += attacker_prefix
     return p
 
 
 def evaluate(epc, md, attacker, tok, test_data_loader, args):
-    """
-    恢复的评价指标选用ROUGE
-    :return: ROUGE-1, ROUGE-2, ROUGE-L, ROUGE-L-P, ROUGE-L-R
-    """
     md.eval()
     if args.noise_mode == 'mix' or args.noise_scale_dxp < 0 or args.noise_scale_gaussian < 0:
         md.change_noise(0)
@@ -95,10 +83,6 @@ def evaluate(epc, md, attacker, tok, test_data_loader, args):
 
 
 def train_attacker(args):
-    """
-    训练攻击模型
-    :param args:
-    """
     config = FLConfig(collect_intermediates=False,
                       split_point_1=int(args.sps.split('-')[0]),
                       split_point_2=int(args.sps.split('-')[1]),
@@ -182,7 +166,7 @@ def train_attacker(args):
     with tqdm(total=epoch * len(dataloader)) as pbar:
         for epc in range(epoch):
             model.train(True)
-            rouge_1, rouge_2, rouge_l_f1, rouge_l_p, rouge_l_r = 0, 0, 0, 0, 0
+            rouge_l_f = 0
             item_count = 0
             for step, batch in enumerate(dataloader):
                 optimizer.zero_grad()
@@ -214,37 +198,23 @@ def train_attacker(args):
                 loss = calc_unshift_loss(logits, input_ids)
                 loss.backward()
                 optimizer.step()
-                # 计算训练的ROGUE
                 res, _, _ = evaluate_attacker_rouge(tokenizer, logits, batch)
-                rouge_1 += res['rouge-1']['f']
-                rouge_2 += res['rouge-2']['f']
-                rouge_l_f1 += res['rouge-l']['f']
-                rouge_l_p += res['rouge-l']['p']
-                rouge_l_r += res['rouge-l']['r']
-
-                # print(logits.argmax(dim=-1))
-                # print(tokenizer.decode(logits.argmax(dim=-1)[0], skip_special_tokens=False))
+                rouge_l_f += res['rouge-l']['f']
 
                 pbar.set_description(
-                    f'Epoch {epc} Loss {loss.item():.5f}, Rouge_Lf1 {rouge_l_f1 / (step + 1):.4f}')
+                    f'Epoch {epc} Loss {loss.item():.5f}, Rouge_Lf1 {rouge_l_f / (step + 1):.4f}')
                 if step % 300 == 0 and model.type != 'encoder-decoder':
                     q = "To mix food coloring with sugar, you can"
                     print(q, "==>", get_output(q, model, attack_model))
                 pbar.update(1)
                 item_count += 1
 
-            # 计算测试集上的ROGUE
             if (epc + 1) % args.checkpoint_freq == 0:
                 func = partial(evaluate, epc, model, attack_model, tokenizer, dataloader_test, args)
                 simulator.restored_run(func, parts=['bottom'], key='pretrained', write_back=False,
                                        disable_inter_collection=True)
             if args.log_to_wandb:
-                log_dict = {'epoch': epc,
-                            'train_rouge_1': rouge_1 / item_count,
-                            'train_rouge_2': rouge_2 / item_count,
-                            'train_rouge_l_f1': rouge_l_f1 / item_count,
-                            'train_rouge_l_p': rouge_l_p / item_count,
-                            'train_rouge_l_r': rouge_l_r / item_count}
+                log_dict = {'epoch': epc,'train_rouge_l_f': rouge_l_f / item_count}
                 wandb.log(log_dict)
 
 

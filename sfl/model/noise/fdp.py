@@ -1,6 +1,7 @@
 import torch
 from torch import float16
 
+from sfl.config import gaussian_clipping_threshold
 from sfl.model.noise.base import Perturber
 
 
@@ -10,9 +11,7 @@ class GaussianPerturber(Perturber):
         if self.scale == 0:
             return hidden_states
         batch_size, seq_len, hidden_size = hidden_states.size()
-        # clip the hidden_states by x=x/scale, scale=max(1, x.inf_norm/G), scale:(batch_size, 1, 1)
-        G = 2000
-        scale = torch.max(torch.norm(hidden_states.view(batch_size, -1), p=float('inf'), dim=1, keepdim=True) / G,
+        scale = torch.max(torch.norm(hidden_states.view(batch_size, -1), p=float('inf'), dim=1, keepdim=True) / gaussian_clipping_threshold,
                           torch.ones(batch_size, 1).to(hidden_states.device))
         if hidden_states.dtype == float16:
             scale = scale.half()

@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath('../../..'))
 from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, get_reducer_args, get_dim_reducer, get_dataset, \
     add_sfl_params, args_to_dict
 from sfl.model.attacker.sma_attacker import SmashedDataMatchingAttacker
-from sfl.model.attacker.alt_attacker import ALTAttacker
+from sfl.model.attacker.ltn_attacker import ALTAttacker
 from sfl.strategies.sl_strategy_with_attacker import SLStrategyWithAttacker
 from sfl.utils.model import set_random_seed
 from sfl.simulator.simulator import SFLSimulator

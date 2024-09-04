@@ -143,10 +143,6 @@ def train_mapper(args):
                 item_count += 1
             if (epc + 1) % args.checkpoint_freq == 0:
                 evaluate(epc, model, mapper, dataloader_test, args)
-            # if args.log_to_wandb:
-            #     log_dict = {'epoch': epc
-            #                 }
-            #     wandb.log(log_dict
 
 
 if __name__ == '__main__':

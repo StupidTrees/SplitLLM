@@ -65,7 +65,7 @@ def evaluate(epc, md: SplitWrapperModel, reducer: DimReduction | None, test_data
 
 def train_mapper(args):
     """
-    训练层间映射
+    Train the dimensionality reducer
     :param args:
     """
     config = FLConfig(collect_intermediates=True,
@@ -108,7 +108,6 @@ def train_mapper(args):
     # for name, param in model.named_parameters():
     #     param.requires_grad = False
 
-    # 开始训练Reducer
     reducer = DimReduction(DRConfig(layer=args.layer, alpha=args.alpha), target_config=model.config)
     model.config_sfl(config, param_keeper=None, dim_reducer=reducer)
     if 'llama' not in args.model_name and 'chatglm' not in args.model_name and 'vicuna' not in args.model_name:
@@ -149,14 +148,8 @@ def train_mapper(args):
                     f'Epoch {epc} Loss {loss.item():.5f}')
                 pbar.update(1)
                 item_count += 1
-
-            # 计算测试集上的ppl
             if (epc + 1) % args.checkpoint_freq == 0:
                 evaluate(epc, model, reducer, dataloader_test, args)
-            # if args.log_to_wandb:
-            #     log_dict = {'epoch': epc
-            #                 }
-            #     wandb.log(log_dict)
 
 
 if __name__ == '__main__':

@@ -70,10 +70,6 @@ class PIQAFedDataset(FedDataset):
 
 
 class PIQAMiniFedDataset(PIQAFedDataset):
-    """
-    PIQA数据集
-    """
-
     def _col_fun(self, batch, max_seq_len=-1, **kwargs):
         texts = [b['input'] for b in batch]
         qs = [b['q'] for b in batch]

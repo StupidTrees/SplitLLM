@@ -38,10 +38,6 @@ def get_save_path(fl_config, save_dir, args):
 
 
 def evaluate(epc, md, attacker, test_data_loader, args):
-    """
-    恢复的评价指标选用MSE
-    :return: MSE
-    """
     md.eval()
     attacker.eval()
     dl_len = len(test_data_loader)
@@ -66,10 +62,7 @@ def evaluate(epc, md, attacker, test_data_loader, args):
 
 
 def train_attacker(args):
-    """
-    训练攻击模型
-    :param args:
-    """
+
     config = FLConfig(collect_intermediates=False,
                       split_point_1=int(args.sps.split('-')[0]),
                       split_point_2=int(args.sps.split('-')[1]),
@@ -113,7 +106,6 @@ def train_attacker(args):
     for name, param in model.named_parameters():
         param.requires_grad = False
 
-    # 开始训练Attack Model
     attack_model = ViTDRAttacker(ViTDRAttackerConfig(), model.config)
     device = get_best_gpu()
     model.to(device)
@@ -146,7 +138,6 @@ def train_attacker(args):
                 loss = torch.nn.functional.mse_loss(recovered, input_tensor)
                 loss.backward()
                 optimizer.step()
-                # 计算训练的MSE
                 mse_avg += loss.item()
 
                 pbar.set_description(
@@ -154,7 +145,6 @@ def train_attacker(args):
                 pbar.update(1)
                 item_count += 1
 
-            # 计算测试集上的ROGUE
             if (epc + 1) % args.checkpoint_freq == 0:
                 evaluate(epc, model, attack_model, dataloader_test, args)
             if args.log_to_wandb:
