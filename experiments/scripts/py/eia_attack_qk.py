@@ -74,6 +74,64 @@ def get_pi_size(args, model):
     return n_embed
 
 
+def eia(args, model, tokenizer, pi, batch):
+    with torch.no_grad():
+        input_ids = batch['input_ids'].to(model.device)
+        attention_mask = batch['attention_mask'].to(model.device)
+        model_outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+    attn = merge_attention(args, model_outputs, pi=pi).detach().clone()
+    # bs, n_head, seq_len, seq_len = intermediate[0].shape
+    # attn = intermediate[-1].contiguous().view(bs, seq_len, -1).detach().clone()
+    pbar = tqdm(total=args.epochs)
+    avg_rglf = 0
+    # dummy = torch.randn_like(hidden_state)
+    embedding_layer = get_embedding_layer(model)
+    embedding_matrix = get_embedding_matrix(model)
+    if args.method == 'eia':
+        bs, sl = model_outputs[0].shape[:-1]
+        dummy = torch.rand((bs, sl, model.config.vocab_size)).to(model.device)
+    else:
+        dummy = torch.randint(0, model.config.vocab_size, model_outputs[0].shape[:-1]).to(model.device)
+        dummy = dummy.long()
+        dummy = embedding_layer(dummy)
+        # dummy = torch.rand_like(dummy).to(model.device)
+    dummy.requires_grad = True
+    opt = torch.optim.AdamW([dummy], lr=args.lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=args.wd)
+    for e in range(args.epochs):
+        opt.zero_grad()
+        dmy = dummy
+        if args.method == 'eia':
+            dmy = gumbel_softmax_sample(dummy.float(), args.temp) @ embedding_matrix
+        outputs = model(inputs_embeds=dmy)
+        it = merge_attention(args, outputs)
+        # bs, n_head, seq_len, seq_len = it[0].shape
+        # it = it[-1].contiguous().view(bs, seq_len, -1)
+        target = attn.to(model.device)
+        loss = 0
+        for x, y in zip(it, target):
+            if args.target == 'o6':
+                loss += 1 - torch.cosine_similarity(x, y, dim=-1).sum()
+            else:
+                loss += ((x - y) ** 2).sum()
+        loss.backward()
+        opt.step()
+        if e % 200 == 0 and e != 0:
+            if args.method == 'eia':
+                texts = dummy
+            else:
+                texts = rec_text(model, dummy)
+            rg, _, _ = evaluate_attacker_rouge(tokenizer, texts, batch)
+            avg_rglf = rg["rouge-l"]["f"]
+        pbar.set_description(
+            f'Epoch {e}/{args.epochs} Loss: {loss.item()} ROUGE: {avg_rglf}')
+        pbar.update(1)
+    if args.method == 'eia':
+        texts = dummy
+    else:
+        texts = rec_text(model, dummy)
+    return texts
+
+
 def train_attacker(args):
     """
     训练攻击模型
@@ -123,6 +181,13 @@ def train_attacker(args):
     p = np.random.permutation(n_dim)
     pi = torch.eye(n_dim, n_dim)[:, p].cuda()
     # evaluate(0, model, attack_model, tokenizer, dataloader_test, args.save_dir)
+    sample_batch = next(iter(dataset.get_dataloader_unsliced(6, 'train',shuffle=False)))
+    sample_texts = eia(args,model,tokenizer,pi,sample_batch)
+    texts = [tokenizer.decode(t.argmax(-1), skip_special_tokens=True) for t in sample_texts]
+    table = wandb.Table(
+        columns=["attacked_text", "true_text"],
+        data=[[txt, gt] for txt, gt in zip(texts, sample_batch['input_text'])])
+    wandb.log({'sample_text': table})
     with tqdm(total=args.sample_num):
         model.train(False)
         item_count = 0
@@ -130,72 +195,12 @@ def train_attacker(args):
         avg_met = 0
         avg_tok = 0
         for step, batch in enumerate(dataloader_test):
-            with torch.no_grad():
-                input_ids = batch['input_ids'].to(model.device)
-                attention_mask = batch['attention_mask'].to(model.device)
-                model_outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            attn = merge_attention(args, model_outputs, pi=pi).detach().clone()
-            # bs, n_head, seq_len, seq_len = intermediate[0].shape
-            # attn = intermediate[-1].contiguous().view(bs, seq_len, -1).detach().clone()
-            pbar = tqdm(total=args.epochs)
-            avg_rglf = 0
-            # dummy = torch.randn_like(hidden_state)
-            embedding_layer = get_embedding_layer(model)
-            embedding_matrix = get_embedding_matrix(model)
-            if args.method == 'eia':
-                bs, sl = model_outputs[0].shape[:-1]
-                dummy = torch.rand((bs, sl, model.config.vocab_size)).to(model.device)
-            else:
-                dummy = torch.randint(0, model.config.vocab_size, model_outputs[0].shape[:-1]).to(model.device)
-                dummy = dummy.long()
-                dummy = embedding_layer(dummy)
-                # dummy = torch.rand_like(dummy).to(model.device)
-            dummy.requires_grad = True
-            opt = torch.optim.AdamW([dummy], lr=args.lr, betas=(0.9, 0.999), eps=1e-6, weight_decay=args.wd)
-            for e in range(args.epochs):
-                opt.zero_grad()
-                dmy = dummy
-                if args.method == 'eia':
-                    dmy = gumbel_softmax_sample(dummy.float(), args.temp) @ embedding_matrix
-                outputs = model(inputs_embeds=dmy)
-                it = merge_attention(args, outputs)
-                # bs, n_head, seq_len, seq_len = it[0].shape
-                # it = it[-1].contiguous().view(bs, seq_len, -1)
-                target = attn.to(model.device)
-                loss = 0
-                for x, y in zip(it, target):
-                    if args.target == 'o6':
-                        loss += 1- torch.cosine_similarity(x, y, dim=-1).sum()
-                    else:
-                        loss += ((x - y) ** 2).sum()
-                loss.backward()
-                opt.step()
-                if e % 200 == 0 and e != 0:
-                    if args.method == 'eia':
-                        texts = dummy
-                    else:
-                        texts = rec_text(model, dummy)
-                    rg, _, _ = evaluate_attacker_rouge(tokenizer, texts, batch)
-                    avg_rglf = rg["rouge-l"]["f"]
-                pbar.set_description(
-                    f'Epoch {e}/{args.epochs} Loss: {loss.item()} ROUGE: {avg_rglf}')
-                pbar.update(1)
-            if args.method == 'eia':
-                texts = dummy
-            else:
-                texts = rec_text(model, dummy)
+            texts = eia(args,model,tokenizer,pi,batch)
             rg, meteor, tok_acc = evaluate_attacker_rouge(tokenizer, texts, batch)
             avg_rgL += rg["rouge-l"]["f"]
             avg_met += meteor
             avg_tok += tok_acc
             item_count += 1
-            pbar.update()
-            if step == 0:
-                texts = [tokenizer.decode(t.argmax(-1), skip_special_tokens=True) for t in texts]
-                table = wandb.Table(
-                    columns=["attacked_text", "true_text"],
-                    data=[[txt, gt] for txt, gt in zip(texts, batch['input_text'])])
-                wandb.log({'sample_text': table})
             if args.log_to_wandb:
                 log_dict = {
                     'avg_rgLf': avg_rgL / item_count,

@@ -25,7 +25,7 @@ seeds=(7 56)
 model_name='llama2'
 load_bits=8
 sfl_dataset='piqa'
-eia_depths=(11 10 9) # 1 2 3 4 5 6 7 8 9 10 11 12
+eia_depths=(9 10 11 12) # 1 2 3 4 5 6 7 8 9 10 11 12
 
 for seed in "${seeds[@]}"; do
   for eia_depth in "${eia_depths[@]}"; do

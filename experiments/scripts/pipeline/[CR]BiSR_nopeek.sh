@@ -25,7 +25,7 @@ max_global_step=2405
 
 noise_mode='dc'
 noise_scale_dcs=(10.0 30.0 50.0 70.0 90.0 110.0 130.0) #12.0 6.0 5.0 4.0
-attack_models=('moe' 'gru')
+attack_models=('moe')
 
 attacker_datasets=("sensireplaced")
 sfl_datasets=("piqa")

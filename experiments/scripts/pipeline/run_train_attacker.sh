@@ -1,46 +1,22 @@
-seeds=(42)
-
-datasets=('wikitext')
-models=('gru')
-attack_mode=('b2tr')
-sp1s=(6)
-sp2=999
+dataset='wikitext'
 model_name="gpt2-large"
-save_checkpoint=True
-log_to_wandb=False
-dataset_train_frac=1.0
-dataset_test_frac=1.0
+model='gru'
+sip_inverter_dataset='wikitext'
 load_bits=8
 noise_mode='dxp'
-noise_scale_gaussian=0.2
 noise_scale_dxp=0.2
 
-for seed in "${seeds[@]}"; do
-  for data in "${datasets[@]}"; do
-    for model in "${models[@]}"; do
-      for mode in "${attack_mode[@]}"; do
-        for sp1 in "${sp1s[@]}"; do
-
-          echo "Running train_attacker.py with seed=$seed, dataset=$dataset, model=$model, mode=$mode"
-          python ../py/train_inverter.py \
-            --model_name "$model_name" \
-            --seed "$seed" \
-            --dataset "$dataset" \
-            --attack_model "$model" \
-            --attack_mode "$mode" \
-            --split_point_1 "$sp1" \
-            --split_point_2 "$sp2" \
-            --save_checkpoint "$save_checkpoint" \
-            --log_to_wandb "$log_to_wandb" \
-            --dataset_train_frac "$dataset_train_frac" \
-            --dataset_test_frac "$dataset_test_frac" \
-            --noise_mode "$noise_mode"\
-            --noise_scale_gaussian "$noise_scale_gaussian"\
-            --noise_scale_dxp "$noise_scale_dxp"\
-            --load_bits "$load_bits"\
-            --epochs 20
-        done
-      done
-    done
-  done
-done
+echo "Running train_attacker.py with dataset=$dataset, model=$model"
+echo "Running train_inverter.py"
+python ../py/train_inverter.py \
+  --model_name "$model_name" \
+  --attack_model "gru" \
+  --dataset "$sip_inverter_dataset" \
+  --attack_mode 'b2tr' \
+  --sps "6-22" \
+  --noise_mode "$noise_mode" \
+  --noise_scale_dxp "$noise_scale_dxp" \
+  --dataset_test_frac 0.1 \
+  --save_checkpoint True \
+  --log_to_wandb False \
+  --load_bits "$load_bits"

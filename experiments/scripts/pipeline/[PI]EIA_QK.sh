@@ -1,10 +1,10 @@
-model_names=('bert-large' 'gpt2-large') #('bert-base' 'bert-large') #('gpt2' 'gpt2-large') #'bert-base' 'bert-large'
+model_names=('bert-large') #('bert-base' 'bert-large') #('gpt2' 'gpt2-large') #'bert-base' 'bert-large'
 
 sample_num=20
 seeds=(42 7 56)
 batch_size=4
-targets=('qk' 'o4' 'o5' 'o6') #'hidden_pi' 'random')
-methods=('eia')               # 'bre'
+targets=('qk') #'hidden_pi' 'random')
+methods=('bre')               # 'bre'
 modes=('none' 'perm' 'random')
 wd=0.01
 
@@ -15,10 +15,15 @@ for seed in "${seeds[@]}"; do
         for target in "${targets[@]}"; do
           if [ "$model_name" == "bert-base" ] || [ "$model_name" == "bert-large" ]; then
 
-            datasets=("qnli" "cola" "mrpc" "rte")
+            datasets=("mrpc") # qnli" "cola" "mrpc" "rte
             if [ "$method" == "eia" ]; then
               lr=0.1
               epochs=2400
+              if [ "$target" == "o6" ]; then
+                lr=0.15
+                wd=0.18
+                epochs=6000
+              fi
             fi
             if [ "$method" == "bre" ]; then
               lr=0.1
@@ -27,7 +32,6 @@ for seed in "${seeds[@]}"; do
                 lr=0.15
                 wd=0.18
                 epochs=6000
-                #                batch_size=2
               fi
             fi
 
@@ -36,8 +40,13 @@ for seed in "${seeds[@]}"; do
           if [ "$model_name" == "gpt2" ] || [ "$model_name" == "gpt2-large" ]; then
             datasets=("wikitext103" "wikitext")
             lr=0.1
+            wd=0.01
             if [ "$method" == "eia" ]; then
               epochs=2800
+              if [ "$target" == "qk" ]; then
+                lr=0.2
+                wd=0.1
+              fi
             fi
             if [ "$method" == "bre" ]; then
               lr=0.1
@@ -51,7 +60,7 @@ for seed in "${seeds[@]}"; do
           fi
 
           if [ "$mode" == "random" ] || [ "$mode" == "perm" ]; then
-            epochs=200
+            epochs=600
           fi
 
           for dataset in "${datasets[@]}"; do

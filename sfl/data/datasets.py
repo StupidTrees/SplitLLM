@@ -433,6 +433,8 @@ class WikiTextFedDataset(FedDataset):
             tokenize_function, batched=True, num_proc=4, remove_columns=["text"]
         )
         block_size = 128
+        if self.uni_length > 0:
+            block_size = self.uni_length
 
         def group_texts(examples):
             concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}

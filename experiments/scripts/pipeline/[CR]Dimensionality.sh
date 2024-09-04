@@ -26,7 +26,7 @@ reducer_train_frac=1.0
 inverter_dataset="piqa"
 sfl_dataset="piqa"
 
-reducer_alphas=(3072)
+reducer_alphas=(16 32 64 128 256 512 1024 2048 4096)
 split_point=6
 sps="$split_point-27"
 seeds=(7 56)

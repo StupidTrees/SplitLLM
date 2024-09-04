@@ -52,7 +52,7 @@ def llm_forward(args, model, batch, tokenizer):
     return input_ids, intermediate
 
 
-def experts_no_peek_pre(args, expert_scales, llm, dataloader, random_num=18):
+def experts_no_peek_pre(args, expert_scales, llm, dataloader, random_num=20):
     save_dir = get_lora_path(args, 'dc')
     result = {}
     parameter_keeper = InMemoryParameterKeeper([])
@@ -82,11 +82,13 @@ def experts_no_peek_pre(args, expert_scales, llm, dataloader, random_num=18):
         #     print(f'MODEL_NORM_{scale}:', calc_model_norm(llm))
         print(f'PK_NORM_{scale}:', calc_pk_norm(pk))
         result[scale] = pk
-    if len(result) >= len([x for x in expert_scales if x >= 0]) + random_num:
+    required_positive = [x for x in expert_scales if x >= 0]
+    required_left = set(required_positive) - set(result.keys())
+    if len(result) >= len(required_positive) + random_num and len(required_left) == 0:
         left_scales = set(result.keys()) - set(expert_scales)
         return result, list(left_scales)
     random_scales = []
-    left_random_num = set(result.keys()) - set([x for x in expert_scales if x >= 0])
+    left_random_num = len(set(result.keys()) - set(required_positive))
     random_num -= left_random_num
     for i in range(random_num):
         random_scales.append(round(random.uniform(min(dc_moe_range) / 2, max(dc_moe_range) * 1.5), 2))

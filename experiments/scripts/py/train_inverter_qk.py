@@ -219,7 +219,7 @@ def evaluate(md, attacker, tok, test_data_loader, sample_batch, args, pi=None, m
                 attacked = atk_outputs[1]
             else:
                 attacked = atk_outputs
-            texts = [tok.decode(t.argmax(-1), skip_special_tokens=True) for t in attacked]
+            texts = [tok.decode(t.argmax(-1), skip_special_tokens=False) for t in attacked]
             if args.debug:
                 print('REC:', texts[0])
                 print('GT :', sample_batch['input_text'][0])
@@ -297,7 +297,7 @@ def main(args):
                    )
 
     dataset = get_dataset_class(args.dataset)(tokenizer, [], uni_length=args.uni_length)
-    sample_batch = next(iter(dataset.get_dataloader_unsliced(3, 'train')))
+    sample_batch = next(iter(dataset.get_dataloader_unsliced(6, 'train',shuffle=False)))
     attacker = get_attacker(args, config, args.save_dir)
     if attacker is None:
         train_attacker(model, tokenizer, args)
