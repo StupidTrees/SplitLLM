@@ -1,6 +1,6 @@
 seeds=(42)
 
-datasets=('wikitext')
+datasets=('piqa')
 models=('gru')
 attack_mode=('b2tr')
 sp1s=(6)
@@ -16,7 +16,7 @@ noise_scale_gaussian=0.2
 noise_scale_dxp=0.2
 
 for seed in "${seeds[@]}"; do
-  for data in "${datasets[@]}"; do
+  for dataset in "${datasets[@]}"; do
     for model in "${models[@]}"; do
       for mode in "${attack_mode[@]}"; do
         for sp1 in "${sp1s[@]}"; do
@@ -38,7 +38,7 @@ for seed in "${seeds[@]}"; do
             --noise_scale_gaussian "$noise_scale_gaussian"\
             --noise_scale_dxp "$noise_scale_dxp"\
             --load_bits "$load_bits"\
-            --epochs 20
+            --epochs 1
         done
       done
     done
