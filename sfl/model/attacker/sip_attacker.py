@@ -702,16 +702,13 @@ class ViTDRAttacker(PreTrainedModel):
     def forward(self, x):
         # x: (batch_size, patch_num, hidden_size)
         batch_size, patch_num, n_embed = x.shape
-        x = x[:, :-1, :]  # 去除最后一个填充token，该维度可被开方
-        # 使用GRU处理输入
+        x = x[:, :-1, :]
         x, _ = self.gru(x)  # (batch_size, patch_num-1, hidden_size)
         hidden_size = x.shape[-1]
         x = torch.dropout(x, self.config.dropout, self.training)
         x = x.permute(0, 2, 1)  # 转换为 (batch_size, hidden_size, patch_num)
-        # 重塑特征图以适应反卷积层
         feature_map_size = int(math.sqrt(patch_num))
         x = x.view(batch_size, hidden_size, feature_map_size, feature_map_size)
-        # 通过反卷积层生成图片
         # print(x.shape)
         x = self.conv_transpose(x)  # (batch_size, 3, 224, 224)
         # x = self.conv(x)

@@ -71,7 +71,7 @@ class DLGAttacker(Attacker, ABC):
         grad = torch.autograd.grad(loss, inter, create_graph=True)
         grad_diff = 0
         # TAG gradient-matching loss
-        for gx, gy in zip(grad, gradient.to(loss.device)):
+        for gx, gy in zip(grad[0], gradient.to(loss.device)):
             grad_diff += beta * ((gx - gy) ** 2).sum() + (1 - beta) * (torch.abs(gx - gy)).sum()
         if ppl:
             with torch.no_grad():

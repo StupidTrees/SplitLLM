@@ -8,8 +8,6 @@ from torch import nn, float16
 from sfl.config import FLConfig
 from sfl.model.llm.dim_reduction import DimReduction
 from sfl.model.noise.dxp import DxPrivacy
-from sfl.model.noise.fdp import GaussianPerturber
-from sfl.model.noise.nopeek import NoPeekSimulatedPerturber
 from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.utils.model import Intermediate, get_embedding_layer
 
@@ -28,7 +26,7 @@ class SplitModel(nn.Module, ABC):
         self.intermediate_fx = {}
         self.noise_mode = None
         self.dim_reducer = None
-        self.perturbers = {'gaussian': GaussianPerturber()}
+        self.perturbers = {}
         self.inner_loop = False # set true when calling forward during a forward
 
     def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks: list = None,
@@ -42,13 +40,10 @@ class SplitModel(nn.Module, ABC):
         if b2tr_hooks is not None:
             for hk in b2tr_hooks:
                 self.b2tr_hooks.append(hk)
-        if config.noise_mode == 'gaussian':
-            self.perturbers['gaussian'].change_noise_scale(config.noise_scale_gaussian)
         if config.noise_mode == 'dxp':
             self.perturbers['dxp'] = DxPrivacy(get_embedding_layer(self), self.config.vocab_size,
                                                config.noise_scale_dxp)
-        if config.noise_mode == 'dc-sim':
-            self.perturbers['dc-sim'] = NoPeekSimulatedPerturber(config.noise_scale_dc_sim)
+        # More perturbation to be added here...
 
     def change_noise(self, noise_scale, noise_mode=None):
         if noise_mode is not None:
