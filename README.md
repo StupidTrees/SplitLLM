@@ -1,7 +1,18 @@
 
-<p align="left"><img src="./doc/img/logo.png" width=400></p>
+<div align="center">
 
-# SplitLLM: Split Learning Simulation Framework for LLMs
+<img src="./doc/img/logo-git.png" width=120>
+
+<h1 style="margin-top: 0px;">SplitLLM: </h1>
+<h2 style="margin-top: -20px;">Split Learning Simulation Framework for LLMs</h2>
+
+[![License](https://img.shields.io/github/license/StupidTrees/SplitLLM)](https://opensource.org/licenses/Apache-2.0)
+[![arXiv](https://img.shields.io/badge/arXiv-2409.00960-red.svg)](https://arxiv.org/abs/2409.00960)
+
+
+</div>
+
+
 SplitLLM is a Split Learning simulation framework designed for Large Language Models (LLMs).
 It enables flexible and scalable model fine-tuning under a split learning architecture. 
 The framework is compatible with Hugging Face models.
@@ -9,7 +20,7 @@ The framework is compatible with Hugging Face models.
 SplitLLM supports extensible integration of privacy attack experiments, including mainstream DRAs like DLG, TAG, LAMP. 
 The proposed Bidirectional Semi-white-box Reconstruction (BiSR) attack is also demonstrated in the example.
 
-### Quick Start
+## Quick Start
 
 ### Environment Setup
 
