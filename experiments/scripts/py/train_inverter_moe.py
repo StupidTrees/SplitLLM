@@ -52,7 +52,7 @@ def llm_forward(args, model, batch, tokenizer):
     return input_ids, intermediate
 
 
-def experts_no_peek_pre(args, expert_scales, llm, dataloader, random_num=18):
+def experts_no_peek_pre(args, expert_scales, llm, dataloader, random_num=15):
     save_dir = get_lora_path(args, 'dc')
     result = {}
     parameter_keeper = InMemoryParameterKeeper([])
@@ -86,11 +86,8 @@ def experts_no_peek_pre(args, expert_scales, llm, dataloader, random_num=18):
         left_scales = set(result.keys()) - set(expert_scales)
         return result, list(left_scales)
     random_scales = []
-    left_random_num = set(result.keys()) - set([x for x in expert_scales if x >= 0])
-    random_num -= left_random_num
     for i in range(random_num):
         random_scales.append(round(random.uniform(min(dc_moe_range) / 2, max(dc_moe_range) * 1.5), 2))
-
     for scale in expert_scales + random_scales:
         if scale < 0 or scale in result:
             print(f'Skipping {scale}')

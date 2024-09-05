@@ -8,7 +8,6 @@ sys.path.append(os.path.abspath('../../..'))
 from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, get_reducer_args, get_dim_reducer, get_dataset, \
     add_sfl_params, args_to_dict
 from sfl.model.attacker.sma_attacker import SmashedDataMatchingAttacker
-from sfl.model.attacker.alt_attacker import ALTAttacker
 from sfl.strategies.sl_strategy_with_attacker import SLStrategyWithAttacker
 from sfl.utils.model import set_random_seed
 from sfl.simulator.simulator import SFLSimulator
@@ -43,12 +42,10 @@ def sfl_with_attacker(args, unkown_args):
     # Set up attackers
     # Name | AttackerObj | ConfigPrefix | Initialized From
     attackers_conf = [('SIP', SIPAttacker(), 'sip', None),
-                      ('ALT', ALTAttacker(config, model), 'alt', 'SIP_b2tr'),
                       ('BiSR(b)', TAGAttacker(config, model), 'gma', f'SIP_b2tr'),
                       ('BiSR(f)', SmashedDataMatchingAttacker(), 'sma', f'SIP_b2tr'),
                       ('BiSR(b+f)', SmashedDataMatchingAttacker(), 'gsma', 'BiSR(b)'),
                       ('EIA', EmbeddingInversionAttacker(), 'eia', None),
-                      ('BiSR(f2)', EmbeddingInversionAttacker(), 'xma', f'SIP_b2tr'),
                       ('TAG', TAGAttacker(config, model), 'tag', None),
                       ('LAMP', LAMPAttacker(config, model), 'lamp', None),
                       ]

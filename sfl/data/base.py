@@ -43,18 +43,18 @@ class FedDataset(ABC):
         return ds, partial(self._col_fun, extra_info=False)
 
     def get_dataloader_unsliced(self, batch_size=2, type='train', shrink_frac=1.0, further_test_split=None,
-                                max_seq_len=-1):
+                                max_seq_len=-1, shuffle=True):
         ds = self.all_dataset[type].select(range(int(len(self.all_dataset[type]) * shrink_frac)))
         if further_test_split is not None:
-            ds_split = ds.train_test_split(shuffle=True, test_size=further_test_split)
+            ds_split = ds.train_test_split(shuffle=shuffle, test_size=further_test_split)
             return DataLoader(self._pre_process(ds_split['train'], batch_size),
                               collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len),
                               batch_size=batch_size,
-                              shuffle=True), \
+                              shuffle=shuffle), \
                 DataLoader(self._pre_process(ds_split['test'], batch_size),
                            collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len),
-                           batch_size=batch_size, shuffle=True)
-        return DataLoader(self._pre_process(ds, batch_size), batch_size=batch_size, shuffle=True,
+                           batch_size=batch_size, shuffle=shuffle)
+        return DataLoader(self._pre_process(ds, batch_size), batch_size=batch_size, shuffle=shuffle,
                           collate_fn=lambda x: self._col_fun(x, max_seq_len=max_seq_len))
 
     def _pre_process(self, ds, batch_size):

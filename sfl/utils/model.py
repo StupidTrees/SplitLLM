@@ -138,7 +138,6 @@ def calculate_rouge_text(texts, labels, print_comparison=False):
     return result
 
 
-# 测试模型的生成文本
 def generate(text, tokenizer, md, **kwargs):
     md.train(False)
     t = tokenizer(text, return_tensors="pt", add_special_tokens=False)
@@ -148,7 +147,6 @@ def generate(text, tokenizer, md, **kwargs):
     return tokenizer.decode(res[0], skip_special_tokens=True)
 
 
-# 测试模型输出
 def get_output(text, tokenizer, md):
     t = tokenizer(text, return_tensors="pt", add_special_tokens=False)
     if md.type == 'encoder-decoder':

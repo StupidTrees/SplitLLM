@@ -124,7 +124,6 @@ def train_mapper(args):
                 inter_b2tr, inter_tr2t, _ = model.get_all_inter(detach=True)
                 if 'chatglm' in args.model_name:
                     mapped = mapper(inter_tr2t.fx.to(mapper.device).float().permute(1, 0, 2))
-                    # loss = torch.nn.MSELoss(reduction='sum')(mapped, inter_b2tr.fx.to(mapper.device).float().permute(1, 0, 2))
                     loss = 0
                     for x, y in zip(mapped, inter_b2tr.fx.to(mapper.device).float().permute(1, 0, 2)):
                         loss += (x - y).pow(2).sum()
@@ -143,10 +142,6 @@ def train_mapper(args):
                 item_count += 1
             if (epc + 1) % args.checkpoint_freq == 0:
                 evaluate(epc, model, mapper, dataloader_test, args)
-            # if args.log_to_wandb:
-            #     log_dict = {'epoch': epc
-            #                 }
-            #     wandb.log(log_dict
 
 
 if __name__ == '__main__':

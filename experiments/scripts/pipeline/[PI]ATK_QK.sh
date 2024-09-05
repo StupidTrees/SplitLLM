@@ -1,16 +1,16 @@
-model_names=('bert-large' 'gpt2-large') #'bert-base' 'bert-large' 'gpt2' 'gpt2-large') #
+model_names=('gpt2-large') #'bert-base' 'bert-large' 'gpt2' 'gpt2-large') #
 seeds=(42 7 56)                         #  7 56)
-targets=('o5')
+targets=('qk')
 modes=('none' 'perm' 'random')
 
 for seed in "${seeds[@]}"; do
   for model_name in "${model_names[@]}"; do
 
     if [ "$model_name" == "bert-base" ] || [ "$model_name" == "bert-large" ]; then
-      datasets=("qnli" "cola" "mrpc" 'stsb')
+      datasets=("qnli") #  "cola" "mrpc" 'stsb')
     fi
     if [ "$model_name" == "gpt2" ] || [ "$model_name" == "gpt2-large" ]; then
-      datasets=("wikitext103" "wikitext")
+      datasets=("wikitext") # "wikitext103"
     fi
 
     for dataset in "${datasets[@]}"; do
@@ -30,7 +30,7 @@ for seed in "${seeds[@]}"; do
             --batch_size 6 \
             --sps "1-12" \
             --checkpoint_freq 1 \
-            --train_dataset "sensireplaced" \
+            --train_dataset "wikitext" \
             --save_checkpoint True \
             --uni_length 512 \
             --mode "$mode" \
