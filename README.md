@@ -11,14 +11,14 @@
 
 </div>
 
-
 SplitLLM is a Split Learning simulation framework designed for Large Language Models (LLMs).
-It enables flexible and scalable model fine-tuning under a split learning architecture. 
-The framework is compatible with Hugging Face models.
+- 😊 The framework is compatible with Hugging Face Apis. It enables flexible and scalable model fine-tuning under a split learning architecture. 
 
-SplitLLM supports extensible integration of privacy attack experiments, including mainstream DRAs like DLG, TAG, LAMP. 
-The proposed Bidirectional Semi-white-box Reconstruction (BiSR) attack is also demonstrated in the example.
+- 😈 SplitLLM supports extensible integration of **privacy attack experiments**, including mainstream Data Rreconstruction Attacks (DRAs) like DLG, TAG, LAMP.
 
+- 📑 This repository is associated with the paper "**Unveiling the Vulnerability of Private Fine-Tuning in Split-Based Frameworks for Large Language Models: A Bidirectionally Enhanced Attack**" [<a href="https://arxiv.org/pdf/2409.00960">PDF</a>] accepted at the 
+<a href="https://www.sigsac.org/ccs/CCS2024/home.html">2024 ACM SIGSAC Conference on Computer and Communications Security (CCS'24)</a>
+. The proposed Bidirectional Semi-white-box Reconstruction (BiSR) attack is also demonstrated in the example.
 ## Quick Start
 
 ### Environment Setup
