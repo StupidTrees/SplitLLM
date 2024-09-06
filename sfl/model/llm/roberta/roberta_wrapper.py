@@ -10,6 +10,7 @@ from sfl.config import FLConfig
 from sfl.model.llm.roberta.roberta_split import RobertaSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.param_keeper import ParameterKeeper
+from sfl.utils.exp import register_model
 
 
 class RobertaSplitWrapper(SplitWrapperModel):
@@ -44,7 +45,7 @@ class RobertaSplitWrapper(SplitWrapperModel):
         super(RobertaSplitWrapper, self).config_sfl(config, *args, **kwargs)
         self.roberta.config_sfl(config, *args, **kwargs)
 
-
+@register_model('roberta',register_for_prefix=True)
 class RobertaForSequenceClassificationSplitModel(RobertaForSequenceClassification, RobertaSplitWrapper):
     def __init__(self, config):
         super().__init__(config)

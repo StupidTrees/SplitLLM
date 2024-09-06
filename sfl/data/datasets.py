@@ -8,8 +8,10 @@ from trl import DataCollatorForCompletionOnlyLM
 
 from sfl import config
 from sfl.data.base import FedDataset
+from sfl.utils.exp import register_dataset
 
 
+@register_dataset('piqa')
 class PIQAFedDataset(FedDataset):
     """
     PIQA Dataset
@@ -69,11 +71,8 @@ class PIQAFedDataset(FedDataset):
         return res_dict
 
 
+@register_dataset('piqa-mini')
 class PIQAMiniFedDataset(PIQAFedDataset):
-    """
-    PIQA数据集
-    """
-
     def _col_fun(self, batch, max_seq_len=-1, **kwargs):
         texts = [b['input'] for b in batch]
         qs = [b['q'] for b in batch]
@@ -96,6 +95,7 @@ class PIQAMiniFedDataset(PIQAFedDataset):
                 'a_text': as_, 'labels': labels}
 
 
+@register_dataset('stsb')
 class STSBFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -130,6 +130,7 @@ class STSBFedDataset(FedDataset):
         return res_dict
 
 
+@register_dataset('qnli')
 class QNLIFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -176,6 +177,7 @@ class QNLIFedDataset(FedDataset):
         return res_dict
 
 
+@register_dataset('mrpc')
 class MRPCFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -220,7 +222,7 @@ class MRPCFedDataset(FedDataset):
                         'labels': labels}
         return res_dict
 
-
+@register_dataset('cola')
 class CoLAFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -247,6 +249,7 @@ class CoLAFedDataset(FedDataset):
         return res_dict
 
 
+@register_dataset('rte')
 class RTEFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -292,6 +295,7 @@ class RTEFedDataset(FedDataset):
         return res_dict
 
 
+@register_dataset('gsm8k')
 class GSM8KFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -324,7 +328,7 @@ class GSM8KFedDataset(FedDataset):
                 'q_text': qs_,
                 'a_text': as_}
 
-
+@register_dataset('dialogsum')
 class DialogSumFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -358,7 +362,7 @@ class DialogSumFedDataset(FedDataset):
                 'q_text': qs_,
                 'a_text': as_}
 
-
+@register_dataset('codealpaca')
 class CodeAlpacaFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -391,7 +395,7 @@ class CodeAlpacaFedDataset(FedDataset):
                 'q_text': qs_,
                 'a_text': as_}
 
-
+@register_dataset('imdb')
 class IMDBFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -415,6 +419,7 @@ class IMDBFedDataset(FedDataset):
                 'input_text': texts, 'labels': labels}
 
 
+@register_dataset('wikitext')
 class WikiTextFedDataset(FedDataset):
 
     def _format(self, example):
@@ -466,7 +471,7 @@ class WikiTextFedDataset(FedDataset):
                 res[k] = ls
         return res
 
-
+@register_dataset('wikitext-103')
 class WikiText103FedDataset(WikiTextFedDataset):
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac=0.3, **kwargs):
         dataset = load_dataset(config.dataset_cache_dir + 'wikitext', 'wikitext-103-v1')
@@ -474,6 +479,7 @@ class WikiText103FedDataset(WikiTextFedDataset):
         FedDataset.__init__(self, tokenizer, client_ids, dataset, types, shrink_frac, **kwargs)
 
 
+@register_dataset('sensimarked')
 class SensiMarkedFedDataset(FedDataset):
 
     def _format(self, example):
@@ -511,6 +517,7 @@ class SensiMarkedFedDataset(FedDataset):
         super().__init__(tokenizer, client_ids, dataset, ['train', 'validation', 'test'], shrink_frac, **kwargs)
 
 
+@register_dataset('sensireplaced')
 class SensiReplacedFedDataset(FedDataset):
 
     def _format(self, example):
@@ -541,12 +548,14 @@ class SensiReplacedFedDataset(FedDataset):
         super().__init__(tokenizer, client_ids, dataset, ['train', 'validation', 'test'], shrink_frac, **kwargs)
 
 
+@register_dataset('sensimasked')
 class SensiMaskedFedDataset(SensiReplacedFedDataset):
 
     def _format(self, example):
         return {'input': example['sani_label']}
 
 
+@register_dataset('hc3cn')
 class HC3CNFedDataset(FedDataset):
     def __init__(self, tokenizer, client_ids: list[str]):
         dataset = load_dataset('HC3-Chinese')
@@ -556,6 +565,7 @@ class HC3CNFedDataset(FedDataset):
         return {'input': example['question']}
 
 
+@register_dataset('imagewoof')
 class ImageWoofFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 1.0):

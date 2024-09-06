@@ -243,7 +243,6 @@ def train_attacker(args):
             for step, batch in enumerate(dataloader):
                 optimizer.zero_grad()
                 if args.noise_mode == 'dxp' and args.noise_scale_dxp < 0:
-                    # 随机生成噪声
                     model.change_noise(random_choose_noise(sfl.config.dxp_moe_range))
                 elif args.noise_mode == 'gaussian' and args.noise_scale_gaussian < 0:
                     model.change_noise(random_choose_noise(sfl.config.gaussian_moe_range, mode='gaussian'))

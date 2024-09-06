@@ -9,8 +9,10 @@ from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 from sfl.config import FLConfig
 from sfl.model.llm.falcon.falcon_split import FalconSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
+from sfl.utils.exp import register_model
 
 
+@register_model('falcon',requiring_quantization=True)
 class FalconForCausalLMSplit(FalconForCausalLM, SplitWrapperModel):
 
     def config_sfl(self, config: FLConfig, *args, **kwargs):

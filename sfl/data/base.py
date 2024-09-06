@@ -94,18 +94,18 @@ class MixtureFedDataset(FedDataset):
             *[ds.get_dataloader(client_id, batch_size, type, max_seq_len=max_seq_len) for ds in self.fed_datasets])
 
     def get_dataloader_unsliced(self, batch_size=2, type=None, shrink_frac=1.0, further_test_split=None,
-                                max_seq_len=-1):
+                                max_seq_len=-1,shuffle=True):
         train_loaders = []
         test_loaders = []
         for nm, ds in zip(self.dataset_names, self.fed_datasets):
             if DRA_train_label[nm] == DRA_test_label[nm]:
                 d1, d2 = ds.get_dataloader_unsliced(batch_size, DRA_train_label[nm], shrink_frac,
-                                                    further_test_split=0.3, max_seq_len=max_seq_len)
+                                                    further_test_split=0.3, max_seq_len=max_seq_len,shuffle=shuffle)
             else:
                 d1 = ds.get_dataloader_unsliced(batch_size, DRA_train_label[nm], shrink_frac=shrink_frac,
-                                                max_seq_len=max_seq_len)
+                                                max_seq_len=max_seq_len,shuffle=shuffle)
                 d2 = ds.get_dataloader_unsliced(batch_size, DRA_test_label[nm], shrink_frac=shrink_frac,
-                                                max_seq_len=max_seq_len)
+                                                max_seq_len=max_seq_len,shuffle=shuffle)
             train_loaders.append(d1)
             test_loaders.append(d2)
         return CombinedDataLoader(*train_loaders), CombinedDataLoader(*test_loaders)

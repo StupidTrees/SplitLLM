@@ -4,25 +4,58 @@ import os
 from copy import deepcopy
 
 import torch
-from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor, BloomForCausalLM
+from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor
 
 from sfl import config
 from sfl.config import FLConfig, model_download_dir, reducer_path
 from sfl.data.base import MixtureFedDataset, FedDataset
-from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.dim_reduction import DimReduction
-from sfl.model.llm.falcon.falcon_wrapper import FalconForCausalLMSplit
-from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
-from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel, GPT2SplitClassificationModel
-from sfl.model.llm.gptj.gptj_wrapper import GPTJForCausalLMSplit
-from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
-from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificationSplitModel
-from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
+from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
-from sfl.model.llm.wizard.wiard_wrapper import WizardForCausalLMSplit
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.utils.argparser import PrefixArgumentParser
 from sfl.utils.model import get_best_gpu
+
+_dataset_name_map = {}
+_model_name_map = {}
+_model_name_prefix_map = {}
+_model_requiring_quantization = set()
+
+
+def register_dataset(name):
+    def wrapper(cls):
+        assert issubclass(
+            cls, FedDataset
+        ), "All dataset must inherit FedDataset"
+        _dataset_name_map[name] = cls
+        return cls
+
+    return wrapper
+
+
+def register_model(names, register_for_prefix=True, requiring_quantization=False):
+    dct = _model_name_map
+    if register_for_prefix:
+        dct = _model_name_prefix_map
+
+    def wrapper(cls):
+        assert issubclass(
+            cls, SplitWrapperModel
+        ), "All outer model must inherit SplitWrapperModel"
+        if isinstance(names, str):
+            dct[names] = cls
+        elif isinstance(names, (list, tuple, set)):
+            for n in names:
+                dct[n] = cls
+        else:
+            raise ValueError("names must be str or list|tuple|set")
+
+        if requiring_quantization:
+            _model_requiring_quantization.add(cls)
+
+        return cls
+
+    return wrapper
 
 
 def str2bool(v):
@@ -307,12 +340,9 @@ def get_dim_reducer(args, aargs: ReducerArgument):
     return None
 
 
-models_requiring_quantization = ['llama', 'vicuna', 'chatglm', 'wizard', 'gptj', 'falcon', 'codegen']
-
-
 def required_quantization(model_name):
-    return any([rq in model_name for rq in models_requiring_quantization])
-
+    model_cls = get_model_class(model_name)
+    return model_cls in _model_requiring_quantization
 
 def load_model_in_param_keepers(model_name, fl_config, parts=None):
     """
@@ -339,34 +369,24 @@ def load_model_in_param_keepers(model_name, fl_config, parts=None):
     return pk
 
 
+def get_model_class(model_name):
+    if model_name in _model_name_map:
+        clz = _model_name_map[model_name]
+    else:
+        clz = None
+        for prefix in _model_name_prefix_map:
+            if model_name.startswith(prefix):
+                clz = _model_name_prefix_map[prefix]
+                break
+        if clz is None:
+            raise AttributeError(f"Model {model_name} not found")
+    return clz
+
+
 def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_bits=8, force_on_best_gpu=True,
               do_not_specify_device_map=False,
               **kwargs):
-    clz = GPT2SplitLMHeadModel
-    if model_name.startswith('gpt2'):
-        if task == 'lm':
-            clz = GPT2SplitLMHeadModel
-        elif task == 'clsf':
-            clz = GPT2SplitClassificationModel
-    elif model_name.startswith('bert'):
-        clz = BertForSequenceClassificationSplitModel
-    elif model_name.startswith('roberta'):
-        clz = RobertaForSequenceClassificationSplitModel
-    elif 't5' in model_name or 'ul2' in model_name:
-        clz = T5ForConditionalGenerationSplitModel
-    elif 'chatglm' in model_name:
-        clz = ChatGLMForConditionalGenerationSplit
-    elif 'llama' in model_name or 'vicuna' in model_name or 'codegen' in model_name:
-        clz = LLAMA2SplitLMHeadModel
-    elif 'wizard' in model_name:
-        clz = WizardForCausalLMSplit
-    elif 'gptj' in model_name:
-        clz = GPTJForCausalLMSplit
-    elif 'falcon' in model_name:
-        clz = FalconForCausalLMSplit
-    elif 'bloomz' in model_name:
-        clz = BloomForCausalLM
-
+    clz = get_model_class(model_name)
     if required_quantization(model_name):
         if load_bits <= 8:
             bnb_config = BitsAndBytesConfig(
@@ -428,50 +448,6 @@ def get_dataset(dataset_name, tokenizer, client_ids=None, shrink_frac=1.0, compl
 
 
 def get_dataset_class(dataset_name):
-    from sfl.data.datasets import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
-        GSM8KFedDataset, WikiTextFedDataset, SensiMarkedFedDataset, \
-        SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset, PIQAMiniFedDataset, \
-        QNLIFedDataset, MRPCFedDataset
-    if dataset_name == 'piqa':
-        dataset_cls = PIQAFedDataset
-    elif dataset_name == 'qnli':
-        dataset_cls = QNLIFedDataset
-    elif dataset_name == 'mrpc':
-        dataset_cls = MRPCFedDataset
-    elif dataset_name == 'stsb':
-        from sfl.data.datasets import STSBFedDataset
-        dataset_cls = STSBFedDataset
-    elif dataset_name == 'rte':
-        from sfl.data.datasets import RTEFedDataset
-        dataset_cls = RTEFedDataset
-    elif dataset_name == 'cola':
-        from sfl.data.datasets import CoLAFedDataset
-        dataset_cls = CoLAFedDataset
-    elif dataset_name == 'wikitext103':
-        from sfl.data.datasets import WikiText103FedDataset
-        dataset_cls = WikiText103FedDataset
-    elif dataset_name == 'piqa-mini':
-        dataset_cls = PIQAMiniFedDataset
-    elif dataset_name == 'gsm8k':
-        dataset_cls = GSM8KFedDataset
-    elif dataset_name == 'wikitext':
-        dataset_cls = WikiTextFedDataset
-    elif dataset_name == 'codealpaca':
-        dataset_cls = CodeAlpacaFedDataset
-    elif dataset_name == 'dialogsum':
-        dataset_cls = DialogSumFedDataset
-    elif dataset_name == 'imdb':
-        dataset_cls = IMDBFedDataset
-    elif dataset_name == 'sensimarked':
-        dataset_cls = SensiMarkedFedDataset
-    elif dataset_name == 'sensireplaced':
-        dataset_cls = SensiReplacedFedDataset
-    elif dataset_name == 'sensimasked':
-        dataset_cls = SensiMaskedFedDataset
-    elif dataset_name == 'hc3cn':
-        dataset_cls = HC3CNFedDataset
-    elif dataset_name == 'imagewoof':
-        dataset_cls = ImageWoofFedDataset
-    else:
+    if dataset_name not in _dataset_name_map:
         raise AttributeError
-    return dataset_cls
+    return _dataset_name_map[dataset_name]

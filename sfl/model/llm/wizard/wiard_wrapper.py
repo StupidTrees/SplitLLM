@@ -12,8 +12,10 @@ from sfl.model.llm.dim_reduction import DimReduction
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.wizard.wizard_split import WizardSplitModel
 from sfl.simulator.param_keeper import ParameterKeeper
+from sfl.utils.exp import register_model
 
 
+@register_model('wizard',requiring_quantization=True)
 class WizardForCausalLMSplit(MistralForCausalLM, SplitWrapperModel):
 
     def __init__(self, config):
