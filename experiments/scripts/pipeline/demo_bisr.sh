@@ -40,20 +40,7 @@ for seed in "${seeds[@]}"; do
     for sfl_dataset in "${sfl_datasets[@]}"; do
       case_name="SD${seed}-BiSR(b+f)@${model_name}@${sfl_dataset}"
 
-      # First, train the SIP inversion model
-      echo "Running train_inverter.py"
-      python ../py/train_inverter.py \
-        --model_name "$model_name" \
-        --seed "$seed" \
-        --attack_model "gru" \
-        --dataset "$sip_inverter_dataset" \
-        --attack_mode 'b2tr' \
-        --sps "$sps" \
-        --dataset_test_frac 0.1 \
-        --save_checkpoint True \
-        --log_to_wandb False
-
-      # Then, launch Split Learning Simulation, while attacking the SL system
+      launch Split Learning Simulation, while attacking the SL system
       echo "Running sim_with_attacker.py ..."
       python ../py/sim_with_attacker.py \
         --noise_mode "$noise_mode" \

@@ -43,9 +43,6 @@ class SplitModel(nn.Module, ABC):
         if config.noise_mode == 'dxp':
             self.perturbers['dxp'] = DxPrivacy(get_embedding_layer(self), self.config.vocab_size,
                                                config.noise_scale)
-        elif config.noise_mode == 'gaussian':
-            self.perturbers['gaussian'] = GaussianPerturber(config.noise_scale)
-
         self.change_noise(config.noise_scale, config.noise_mode)
         # More perturbation to be added here...
 
