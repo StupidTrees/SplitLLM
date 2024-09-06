@@ -10,6 +10,7 @@ from sfl.config import FLConfig
 from sfl.model.llm.bert.bert_split import BertSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.param_keeper import ParameterKeeper
+from sfl.utils.exp import register_model
 
 
 class BertSplitWrapper(SplitWrapperModel):
@@ -19,12 +20,10 @@ class BertSplitWrapper(SplitWrapperModel):
 
     @staticmethod
     def _get_block_num(param_name: str):
-        # 获得该参数所属的block的块号，不属于block则返回-1
         r = regex.findall('\.layer\.[0-9]+', param_name)
         return int(r[0].split('.')[-1]) if len(r) > 0 else -1
 
     def get_adapter_module_regex(self):
-        # Trunk部分(h.start~h.end)的proj/fc/_attn模块
         if self.fl_config is not None:
             blocks = []
             if self.fl_config.use_lora_at_bottom:
@@ -47,7 +46,7 @@ class BertSplitWrapper(SplitWrapperModel):
     def change_noise(self, noise_scale, noise_mode=None):
         self.bert.change_noise(noise_scale, noise_mode)
 
-
+@register_model('bert',register_for_prefix=True)
 class BertForSequenceClassificationSplitModel(BertForSequenceClassification, BertSplitWrapper):
 
     def __init__(self, config):
@@ -83,7 +82,7 @@ class BertForSequenceClassificationSplitModel(BertForSequenceClassification, Ber
         )
 
         """
-        SL: 打断前传
+        SL: Interrupt the forward process
         """
         if self.fl_config and self.fl_config.attack_mode:
             return outputs

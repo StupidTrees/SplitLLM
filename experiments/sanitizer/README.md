@@ -56,6 +56,3 @@ pip install spacy
 python -m spacy download en_core_web_trf
 python -m spacy download zh_core_web_trf
 ```
-
-### Dataset Demo
-<p><img src="../../../doc/img/SensiData.png"></p>

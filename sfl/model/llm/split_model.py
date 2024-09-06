@@ -42,7 +42,11 @@ class SplitModel(nn.Module, ABC):
                 self.b2tr_hooks.append(hk)
         if config.noise_mode == 'dxp':
             self.perturbers['dxp'] = DxPrivacy(get_embedding_layer(self), self.config.vocab_size,
-                                               config.noise_scale_dxp)
+                                               config.noise_scale)
+        elif config.noise_mode == 'gaussian':
+            self.perturbers['gaussian'] = GaussianPerturber(config.noise_scale)
+
+        self.change_noise(config.noise_scale, config.noise_mode)
         # More perturbation to be added here...
 
     def change_noise(self, noise_scale, noise_mode=None):
@@ -76,10 +80,8 @@ class SplitModel(nn.Module, ABC):
             return inputs_embeds
         if self.noise_mode in ['dxp', 'both']:
             return self.perturbers['dxp'](inputs_embeds)
-        if self.noise_mode in ['dc','dc-sim']:
+        if self.noise_mode in ['dc']:
             self._store_fx('embedding', inputs_embeds)
-        if self.noise_mode == 'dc-sim':
-            self.perturbers[self.noise_mode].store_embedding(inputs_embeds)
         return inputs_embeds
 
     def inject_between_blocks(self, hidden_states, i):

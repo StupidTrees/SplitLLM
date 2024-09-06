@@ -9,8 +9,10 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from sfl.config import FLConfig
 from sfl.model.llm.gptj.gptj_split import GPTJSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
+from sfl.utils.exp import register_model
 
 
+@register_model('gptj',requiring_quantization=True)
 class GPTJForCausalLMSplit(GPTJForCausalLM, SplitWrapperModel):
 
     def config_sfl(self, config: FLConfig, *args, **kwargs):

@@ -4,25 +4,58 @@ import os
 from copy import deepcopy
 
 import torch
-from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor, BloomForCausalLM
+from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor
 
 from sfl import config
 from sfl.config import FLConfig, model_download_dir, reducer_path
 from sfl.data.base import MixtureFedDataset, FedDataset
-from sfl.model.llm.bert.bert_wrapper import BertForSequenceClassificationSplitModel
 from sfl.model.llm.dim_reduction import DimReduction
-from sfl.model.llm.falcon.falcon_wrapper import FalconForCausalLMSplit
-from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
-from sfl.model.llm.gpt2.gpt2_wrapper import GPT2SplitLMHeadModel, GPT2SplitClassificationModel
-from sfl.model.llm.gptj.gptj_wrapper import GPTJForCausalLMSplit
-from sfl.model.llm.llama2.llama2_wrapper import LLAMA2SplitLMHeadModel
-from sfl.model.llm.roberta.roberta_wrapper import RobertaForSequenceClassificationSplitModel
-from sfl.model.llm.t5.t5wrapper import T5ForConditionalGenerationSplitModel
+from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
-from sfl.model.llm.wizard.wiard_wrapper import WizardForCausalLMSplit
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.utils.argparser import PrefixArgumentParser
 from sfl.utils.model import get_best_gpu
+
+_dataset_name_map = {}
+_model_name_map = {}
+_model_name_prefix_map = {}
+_model_requiring_quantization = set()
+
+
+def register_dataset(name):
+    def wrapper(cls):
+        assert issubclass(
+            cls, FedDataset
+        ), "All dataset must inherit FedDataset"
+        _dataset_name_map[name] = cls
+        return cls
+
+    return wrapper
+
+
+def register_model(names, register_for_prefix=True, requiring_quantization=False):
+    dct = _model_name_map
+    if register_for_prefix:
+        dct = _model_name_prefix_map
+
+    def wrapper(cls):
+        assert issubclass(
+            cls, SplitWrapperModel
+        ), "All outer model must inherit SplitWrapperModel"
+        if isinstance(names, str):
+            dct[names] = cls
+        elif isinstance(names, (list, tuple, set)):
+            for n in names:
+                dct[n] = cls
+        else:
+            raise ValueError("names must be str or list|tuple|set")
+
+        if requiring_quantization:
+            _model_requiring_quantization.add(cls)
+
+        return cls
+
+    return wrapper
 
 
 def str2bool(v):
@@ -53,61 +86,6 @@ def merge_args(args1, args2):
         if not hasattr(args1, k):
             setattr(args1, k, v)
     return args1
-
-
-def add_train_dra_params(parser):
-    parser.add_argument('--exp_name', type=str, default='attacker')
-    parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
-    parser.add_argument('--model_name', type=str, default='gpt2')
-    parser.add_argument('--save_dir', type=str, default=config.attacker_path)
-    parser.add_argument('--dataset', type=str, default='piqa')
-    parser.add_argument('--dataset_train_frac', type=float, default=1.0)
-    parser.add_argument('--dataset_test_frac', type=float, default=1.0)
-    parser.add_argument('--attack_model', type=str, default='moe', help='lstm or ...')
-    parser.add_argument('--sps', type=str, default='6-26', help='split points')
-    parser.add_argument('--attack_mode', type=str, default='tr2t', help='b2tr or t2tr')
-    parser.add_argument('--load_bits', type=int, default=8, help='load bits for large models')
-    parser.add_argument('--epochs', type=int, default=15)
-    parser.add_argument('--epochs_gating', type=int, default=15)
-    parser.add_argument('--batch_size', type=int, default=6)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--opt', type=str, default='adam')
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--md_n_layers', type=int, default=2)
-    parser.add_argument('--require_prefix', type=str, default=None, help='default is None, specify for existence check')
-    parser.add_argument('--noise_mode', type=str, default='none')
-    parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
-    parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
-    parser.add_argument('--noise_scale_dc', type=float, default=0.0)
-    parser.add_argument('--save_checkpoint', type=str2bool, default=False)
-    parser.add_argument('--checkpoint_freq', type=int, default=5)
-    parser.add_argument('--save_threshold', type=float, default=0.1)
-    parser.add_argument('--log_to_wandb', type=str2bool, default=False)
-    parser.add_argument('--skip_exists', type=str2bool, default=True)
-
-
-def add_train_mapper_params(parser):
-    parser.add_argument('--exp_name', type=str, default='attacker')
-    parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
-    parser.add_argument('--model_name', type=str, default='gpt2')
-    parser.add_argument('--save_dir', type=str, default=config.mapper_path)
-    parser.add_argument('--dataset', type=str, default='piqa')
-    parser.add_argument('--dataset_train_frac', type=float, default=1.0)
-    parser.add_argument('--dataset_test_frac', type=float, default=1.0)
-    parser.add_argument('--attack_model', type=str, default='moe', help='lstm or ...')
-    parser.add_argument('--load_bits', type=int, default=8, help='load bits for large models')
-    parser.add_argument('--target', type=str, default='6-1', help='mapping target layers')
-    parser.add_argument('--epochs', type=int, default=15)
-    parser.add_argument('--batch_size', type=int, default=6)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--wd', type=float, default=0.01)
-    parser.add_argument('--opt', type=str, default='adam')
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--save_checkpoint', type=str2bool, default=False)
-    parser.add_argument('--checkpoint_freq', type=int, default=2)
-    parser.add_argument('--save_threshold', type=float, default=0.1)
-    parser.add_argument('--log_to_wandb', type=str2bool, default=False)
-    parser.add_argument('--skip_exists', type=str2bool, default=True)
 
 
 def add_train_reducer_params(parser):
@@ -160,11 +138,7 @@ def add_sfl_params(parser):
     parser.add_argument('--lora_at_embed', type=str2bool, default=False, help='use LoRA at embedding layer')
     parser.add_argument('--noise_mode', type=str, default='none')
     parser.add_argument('--task_type', type=str, default=None)
-    parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
-    parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
-    parser.add_argument('--noise_scale_grad', type=float, default=0.0)
-    parser.add_argument('--noise_scale_dc', type=float, default=0.1)
-    parser.add_argument('--noise_scale_dc_sim', type=int, default=10)
+    parser.add_argument('--noise_scale', type=float, default=0.0)
     parser.add_argument('--client_num', type=int, default=1)
     parser.add_argument('--global_round', type=int, default=4)
     parser.add_argument('--client_from_scratch', type=str2bool, default=False)
@@ -204,11 +178,7 @@ def get_fl_config(args) -> FLConfig:
                       use_lora_at_embed=args.lora_at_embed,
                       top_and_bottom_from_scratch=args.client_from_scratch,  # top和bottom都不采用预训练参数.
                       noise_mode=args.noise_mode,
-                      noise_scale_dxp=args.noise_scale_dxp,  # 噪声大小
-                      noise_scale_gaussian=args.noise_scale_gaussian,  # 噪声大小
-                      noise_scale_grad=args.noise_scale_grad,
-                      noise_scale_dc=args.noise_scale_dc,
-                      noise_scale_dc_sim=args.noise_scale_dc_sim,
+                      noise_scale=args.noise_scale,
                       collect_intermediates=True,
                       collect_all_layers=args.collect_all_layers,
                       dataset_type=args.dataset_label,
@@ -307,11 +277,9 @@ def get_dim_reducer(args, aargs: ReducerArgument):
     return None
 
 
-models_requiring_quantization = ['llama', 'vicuna', 'chatglm', 'wizard', 'gptj', 'falcon', 'codegen']
-
-
 def required_quantization(model_name):
-    return any([rq in model_name for rq in models_requiring_quantization])
+    model_cls = get_model_class(model_name)
+    return model_cls in _model_requiring_quantization
 
 
 def load_model_in_param_keepers(model_name, fl_config, parts=None):
@@ -339,34 +307,24 @@ def load_model_in_param_keepers(model_name, fl_config, parts=None):
     return pk
 
 
+def get_model_class(model_name):
+    if model_name in _model_name_map:
+        clz = _model_name_map[model_name]
+    else:
+        clz = None
+        for prefix in _model_name_prefix_map:
+            if model_name.startswith(prefix):
+                clz = _model_name_prefix_map[prefix]
+                break
+        if clz is None:
+            raise AttributeError(f"Model {model_name} not found")
+    return clz
+
+
 def get_model(model_name='gpt2', task='lm', num_labels=2, tokenizer=None, load_bits=8, force_on_best_gpu=True,
               do_not_specify_device_map=False,
               **kwargs):
-    clz = GPT2SplitLMHeadModel
-    if model_name.startswith('gpt2'):
-        if task == 'lm':
-            clz = GPT2SplitLMHeadModel
-        elif task == 'clsf':
-            clz = GPT2SplitClassificationModel
-    elif model_name.startswith('bert'):
-        clz = BertForSequenceClassificationSplitModel
-    elif model_name.startswith('roberta'):
-        clz = RobertaForSequenceClassificationSplitModel
-    elif 't5' in model_name or 'ul2' in model_name:
-        clz = T5ForConditionalGenerationSplitModel
-    elif 'chatglm' in model_name:
-        clz = ChatGLMForConditionalGenerationSplit
-    elif 'llama' in model_name or 'vicuna' in model_name or 'codegen' in model_name:
-        clz = LLAMA2SplitLMHeadModel
-    elif 'wizard' in model_name:
-        clz = WizardForCausalLMSplit
-    elif 'gptj' in model_name:
-        clz = GPTJForCausalLMSplit
-    elif 'falcon' in model_name:
-        clz = FalconForCausalLMSplit
-    elif 'bloomz' in model_name:
-        clz = BloomForCausalLM
-
+    clz = get_model_class(model_name)
     if required_quantization(model_name):
         if load_bits <= 8:
             bnb_config = BitsAndBytesConfig(
@@ -428,50 +386,9 @@ def get_dataset(dataset_name, tokenizer, client_ids=None, shrink_frac=1.0, compl
 
 
 def get_dataset_class(dataset_name):
-    from sfl.data.datasets import CodeAlpacaFedDataset, DialogSumFedDataset, IMDBFedDataset, PIQAFedDataset, \
-        GSM8KFedDataset, WikiTextFedDataset, SensiMarkedFedDataset, \
-        SensiReplacedFedDataset, SensiMaskedFedDataset, HC3CNFedDataset, ImageWoofFedDataset, PIQAMiniFedDataset, \
-        QNLIFedDataset, MRPCFedDataset
-    if dataset_name == 'piqa':
-        dataset_cls = PIQAFedDataset
-    elif dataset_name == 'qnli':
-        dataset_cls = QNLIFedDataset
-    elif dataset_name == 'mrpc':
-        dataset_cls = MRPCFedDataset
-    elif dataset_name == 'stsb':
-        from sfl.data.datasets import STSBFedDataset
-        dataset_cls = STSBFedDataset
-    elif dataset_name == 'rte':
-        from sfl.data.datasets import RTEFedDataset
-        dataset_cls = RTEFedDataset
-    elif dataset_name == 'cola':
-        from sfl.data.datasets import CoLAFedDataset
-        dataset_cls = CoLAFedDataset
-    elif dataset_name == 'wikitext103':
-        from sfl.data.datasets import WikiText103FedDataset
-        dataset_cls = WikiText103FedDataset
-    elif dataset_name == 'piqa-mini':
-        dataset_cls = PIQAMiniFedDataset
-    elif dataset_name == 'gsm8k':
-        dataset_cls = GSM8KFedDataset
-    elif dataset_name == 'wikitext':
-        dataset_cls = WikiTextFedDataset
-    elif dataset_name == 'codealpaca':
-        dataset_cls = CodeAlpacaFedDataset
-    elif dataset_name == 'dialogsum':
-        dataset_cls = DialogSumFedDataset
-    elif dataset_name == 'imdb':
-        dataset_cls = IMDBFedDataset
-    elif dataset_name == 'sensimarked':
-        dataset_cls = SensiMarkedFedDataset
-    elif dataset_name == 'sensireplaced':
-        dataset_cls = SensiReplacedFedDataset
-    elif dataset_name == 'sensimasked':
-        dataset_cls = SensiMaskedFedDataset
-    elif dataset_name == 'hc3cn':
-        dataset_cls = HC3CNFedDataset
-    elif dataset_name == 'imagewoof':
-        dataset_cls = ImageWoofFedDataset
-    else:
+    import sfl.data.datasets as datasets
+    clz = datasets.FedDataset
+    if dataset_name not in _dataset_name_map:
         raise AttributeError
-    return dataset_cls
+    clz = _dataset_name_map[dataset_name]
+    return clz

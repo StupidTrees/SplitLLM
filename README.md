@@ -52,7 +52,15 @@ python model_download.py --repo_id THUDM/chatglm3-6b
 #python model_download.py --repo_id google/flan-ul2
 #python model_download.py --repo_id google/vit-large-patch16-224
 #python model_download.py --repo_id bigscience/bloomz-560m
+#python model_download.py --repo_id state-spaces/mamba-1.4b-hf
 ```
+- (Optional) Use parallelized implementation of Mamba `causal-conv1d` & `mamba-ssm` using:
+```shell
+pip install causal-conv1d>=1.2.0
+pip install mamba-ssm
+```
+Note that the default implementation of Mamba is sequential.
+
 
 ### Download Datasets
 ```shell
@@ -67,7 +75,6 @@ git clone https://huggingface.co/datasets/Hello-SimpleAI/HC3-Chinese.git
 git clone https://huggingface.co/datasets/frgfm/imagewoof.git
 git clone https://huggingface.co/datasets/SetFit/qnli.git
 git clone https://huggingface.co/datasets/linxinyuan/cola.git
-
 ```
 
 

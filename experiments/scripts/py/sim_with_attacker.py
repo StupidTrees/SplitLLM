@@ -4,17 +4,17 @@ import sys
 
 import wandb
 
+
 sys.path.append(os.path.abspath('../../..'))
 from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, get_reducer_args, get_dim_reducer, get_dataset, \
     add_sfl_params, args_to_dict
+from sfl.model.attacker.eia.eia_attacker import EmbeddingInversionAttacker
 from sfl.model.attacker.sma_attacker import SmashedDataMatchingAttacker
 from sfl.strategies.sl_strategy_with_attacker import SLStrategyWithAttacker
 from sfl.utils.model import set_random_seed
 from sfl.simulator.simulator import SFLSimulator
+from sfl.model.attacker.sip.sip_attacker import SIPAttacker
 from sfl.model.attacker.dlg_attacker import TAGAttacker, LAMPAttacker
-from sfl.model.attacker.eia_attacker import EmbeddingInversionAttacker
-from sfl.model.attacker.sip_attacker import SIPAttacker
-
 
 def sfl_with_attacker(args, unkown_args):
     model, tokenizer = get_model_and_tokenizer(args.model_name, load_bits=args.load_bits)

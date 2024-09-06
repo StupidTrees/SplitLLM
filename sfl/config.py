@@ -62,10 +62,7 @@ class FLConfig:
     top_and_bottom_from_scratch: str = 'False'  # 'True' or 'False', whether to train top and bottom from scratch
     attack_mode: str | None = None  # 'b2tr' or 'tr2b' or 'self' or None
     noise_mode: str = 'none'
-    noise_scale_dxp: float = 0.0
-    noise_scale_grad: float = 0.0
-    noise_scale_gaussian: float = 0.0
-    noise_scale_dc: float = 0.1
+    noise_scale: float = 0.0
     dataset_type: str = 'train'
     batch_size: int = 2
     reducer_enable: bool = False

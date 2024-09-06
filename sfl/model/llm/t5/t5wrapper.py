@@ -13,6 +13,7 @@ from sfl.config import FLConfig
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5split import T5SplitStack
 from sfl.simulator.param_keeper import ParameterKeeper
+from sfl.utils.exp import register_model
 
 
 class T5SplitWrapper(SplitWrapperModel):
@@ -83,7 +84,7 @@ class T5SplitWrapper(SplitWrapperModel):
         self.encoder.change_noise(scale, mode)
         self.decoder.change_noise(scale, mode)
 
-
+@register_model(['t5','ul2'],register_for_prefix=True)
 class T5ForConditionalGenerationSplitModel(T5ForConditionalGeneration, T5SplitWrapper):
 
     def __init__(self, config: T5Config):

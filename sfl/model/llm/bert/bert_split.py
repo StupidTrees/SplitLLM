@@ -26,7 +26,7 @@ class BertSplitModel(BertModel, SplitModel):
     def config_sfl(self, config: FLConfig, *args, **kwargs):
         super(BertSplitModel, self).config_sfl(config, *args, **kwargs)
         self.encoder.config_sfl(config, *args, **kwargs)
-        self.perturbers['dxp'] = DxPrivacy(self.embeddings, self.config.vocab_size, self.fl_config.noise_scale_dxp)
+        self.perturbers['dxp'] = DxPrivacy(self.embeddings, self.config.vocab_size, self.fl_config.noise_scale)
 
     def get_all_inter(self, detach=True):
         return self.encoder.get_all_inter(detach)
