@@ -1,119 +1,70 @@
 import dataclasses
 import math
-import os
 
 import torch
-from tokenizers import Tokenizer
-from torch import nn, Tensor
+from torch import Tensor, nn
 from torch.nn import ModuleList
-from torch.nn.functional import gelu
 from transformers import PretrainedConfig, PreTrainedModel, GPT2Config
 from transformers.activations import ACT2FN
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 
-from sfl.config import DRA_train_label, attacker_path
-from sfl.model.attacker.base import Attacker
-from sfl.model.llm.split_model import SplitWrapperModel
-from sfl.simulator.simulator import SFLSimulator
-from sfl.utils.exp import required_quantization
-from sfl.utils.model import sentence_score_tokens, get_embed_size
+from sfl.utils.model import get_embed_size, sentence_score_tokens
 
 
-@dataclasses.dataclass
-class SIPAttackerArguments:
-    enable: bool = True
-    path: str = attacker_path
-    b2tr_enable: bool = True
-    b2tr_layer: int = -1
-    b2tr_target_layer: int = -1
-    tr2t_enable: bool = True
-    tr2t_layer: int = -1
-    tr2t_target_layer: int = -1
-    model: str = 'gru'  # DRAttacker Model
-    dataset: str = None  # what data the DRAttacker is trained on
-    # train_label: str = 'validation'  # training data of that model
-    train_frac: float = 1.0  # percentage of data used for training
-    prefix: str = 'normal'
-    target_model_name: str = None
-    target_dataset: str = None
-    target_system_sps: str = None
-    target_model_load_bits: int = -1
-    larger_better: bool = True
-    attack_all_layers: bool = False
+def get_inverter_class(attack_model):
+    attacker_cls = LSTMDRInverter
+    if attack_model == 'lstm':
+        attacker_cls = LSTMDRInverter
+    elif attack_model in ['gru', 'gru-bi']:
+        attacker_cls = GRUDRInverter
+    elif attack_model == 'linear':
+        attacker_cls = LinearSIPInverter
+    elif attack_model == 'dec':
+        attacker_cls = DecoderSIPInverter
+    elif attack_model == 'moe' or attack_model == 'moe2':
+        attacker_cls = MOEDRInverter
+    elif attack_model == 'vit':
+        attacker_cls = ViTDRAttacker
+    elif attack_model == 'attngru':
+        attacker_cls = AttnGRUDRInverter
+    elif attack_model == 'gruattn':
+        attacker_cls = GRUAttnSIPInverter
+    elif attack_model == 'attn':
+        attacker_cls = AttnSIPInverter
+    return attacker_cls
 
-
-class SIPAttacker(Attacker):
-    """
-    Learning-based SIP Attacker, used for BiSR and SIP-only
-    """
-    arg_clz = SIPAttackerArguments
-
-    def __init__(self):
-        super().__init__()
-        self.inverter_b2tr = None
-        self.inverter_tr2t = None
-
-    def parse_arguments(self, args, prefix: str):
-        res: SIPAttackerArguments = super().parse_arguments(args, prefix)
-        if res.dataset is None or len(res.dataset) == 0:
-            res.dataset = args.dataset
-        if res.target_model_name is None or len(res.target_model_name) == 0:
-            res.target_model_name = args.model_name
-        if res.target_model_load_bits < 0:
-            res.target_model_load_bits = args.load_bits
-        res.target_dataset = args.dataset
-        res.target_system_sps = args.split_points
-        if res.b2tr_layer < 0:
-            res.b2tr_layer = int(res.target_system_sps.split('-')[0])
-        if res.tr2t_layer < 0:
-            res.tr2t_layer = int(res.target_system_sps.split('-')[1])
-        if res.model == 'vit':
-            res.larger_better = False
-        return res
-
-    def load_attacker(self, args, aargs: arg_clz, llm: SplitWrapperModel = None,
-                      tokenizer: Tokenizer = None):
-        self.inverter_b2tr, self.inverter_tr2t = get_sip_inverter(aargs)
-
-    def attack(self, args, aargs: arg_clz, llm: SplitWrapperModel, tokenizer: Tokenizer,
-               simulator: SFLSimulator, batch, b2tr_inter,
-               tr2t_inter, all_inters, init=None):
-        attacked_result = {}
-        encoder_inter = all_inters.get('encoder', None)
-        encoder_inter = None if encoder_inter is None else encoder_inter.fx.to(llm.device)
-        with torch.no_grad():
-            for type, atk in zip(['tr2t', 'b2tr'], [self.inverter_tr2t, self.inverter_b2tr]):
-                if atk is None:
-                    continue
-                if aargs.attack_all_layers:
-                    for idx, inter in all_inters.items():
-                        if not isinstance(idx, int):
-                            continue
-                        if llm.type == 'encoder-decoder':
-                            attacked = atk(torch.concat([encoder_inter.fx.to(
-                                simulator.device), inter.fx.to(atk.device)], dim=1))
-                        else:
-                            attacked = atk(inter.fx.to(atk.device))
-                        attacked_result[f'{type}_{idx}'] = attacked
-                else:
-                    if type == 'b2tr':
-                        if aargs.b2tr_target_layer >= 0:
-                            inter = all_inters[aargs.b2tr_target_layer]
-                        else:
-                            inter = b2tr_inter
-                    else:
-                        if aargs.tr2t_target_layer >= 0:
-                            inter = all_inters[aargs.tr2t_target_layer]
-                        else:
-                            inter = tr2t_inter
-                    if llm.type == 'encoder-decoder':
-                        attacked = atk(torch.concat([encoder_inter.fx.to(
-                            simulator.device), inter.fx.to(atk.device)], dim=1))
-                    else:
-                        attacked = atk(inter.fx.to(atk.device))
-                    attacked_result[type] = attacked
-
-        return attacked_result
+def get_inverter_with_config(model_name):
+    inverter_clz = get_inverter_class(model_name)
+    kwargs = {}
+    if model_name == 'gru_bi':
+        kwargs['bidirectional'] = True
+    cfg = inverter_clz.config_class(**kwargs)
+    return inverter_clz, cfg
+    # if model_name == 'lstm':
+    #     inverter_clz = LSTMDRInverter
+    #     cfg = LSTMDRAttackerConfig()
+    # elif model_name == 'gru':
+    #     inverter_clz = GRUDRInverter
+    #     cfg = LSTMDRAttackerConfig()
+    # elif model_name == 'gru-bi':
+    #     inverter_clz = GRUDRInverter
+    #     cfg = LSTMDRAttackerConfig(bidirectional=True)
+    # elif model_name == 'linear':
+    #     inverter_clz = LinearSIPInverter
+    #     cfg = SIPInverterConfig()
+    # elif model_name == 'dec':
+    #     inverter_clz = DecoderSIPInverter
+    #     cfg = TransformerSIPInverterConfig(num_layers=2)
+    # elif model_name == 'attngru':
+    #     inverter_clz = AttnGRUDRInverter
+    #     cfg = TransformerGRUDRAttackerConfig()
+    # elif model_name == 'gruattn':
+    #     inverter_clz = GRUAttnSIPInverter
+    #     cfg = TransformerGRUDRAttackerConfig()
+    # elif model_name == 'attn':
+    #     cfg = TransformerSIPInverterConfig()
+    #     inverter_clz = AttnSIPInverter
+    # return inverter_clz, cfg
 
 
 @dataclasses.dataclass
@@ -715,83 +666,3 @@ class ViTDRAttacker(PreTrainedModel):
         # normalize to -1,1
         x = torch.tanh(x)
         return x
-
-
-def get_inverter_class(attack_model):
-    attacker_cls = LSTMDRInverter
-    if attack_model == 'lstm':
-        attacker_cls = LSTMDRInverter
-    elif attack_model in ['gru','gru-bi']:
-        attacker_cls = GRUDRInverter
-    elif attack_model == 'linear':
-        attacker_cls = LinearSIPInverter
-    elif attack_model == 'dec':
-        attacker_cls = DecoderSIPInverter
-    elif attack_model == 'moe' or attack_model == 'moe2':
-        attacker_cls = MOEDRInverter
-    elif attack_model == 'vit':
-        attacker_cls = ViTDRAttacker
-    elif attack_model == 'attngru':
-        attacker_cls = AttnGRUDRInverter
-    elif attack_model == 'gruattn':
-        attacker_cls = GRUAttnSIPInverter
-    elif attack_model == 'attn':
-        attacker_cls = AttnSIPInverter
-    return attacker_cls
-
-
-def get_sip_inverter(dra_config: SIPAttackerArguments):
-    if not dra_config.b2tr_enable and not dra_config.tr2t_enable:
-        return None, None
-    dataset = dra_config.dataset
-    if dataset is None:
-        dataset = dra_config.target_dataset
-
-    prefix = dra_config.prefix
-    model_name = dra_config.target_model_name
-    if required_quantization(model_name):
-        model_name += f"-{dra_config.target_model_load_bits}bits"
-    attacker_path = dra_config.path + f'{model_name}/{dataset}/'
-    print(attacker_path)
-    matches = []
-    for d in os.listdir(attacker_path):
-        pattern = f'{DRA_train_label[dataset]}*{dra_config.train_frac:.3f}'
-        if ',' in dra_config.dataset:
-            pattern = f'Tr{dra_config.train_frac:.3f}'
-        if d.startswith(pattern):
-            attacker_path = os.path.join(attacker_path, d) + '/'
-            matches.append(attacker_path)
-    assert len(matches) > 0
-    attacker_path_1 = None
-    attacker_path_2 = None
-    for attacker_path in matches:
-        attacker_path += f'{dra_config.model}'
-        if dra_config.b2tr_enable and attacker_path_1 is None:
-            sp1 = int(dra_config.target_system_sps.split('-')[0])
-            if dra_config.b2tr_layer >= 0:
-                sp1 = dra_config.b2tr_layer
-            attacker_path_1 = attacker_path + f'/layer{sp1}/' + prefix
-            l = sorted(list(os.listdir(attacker_path_1)), key=lambda x: float(x.split('_')[-1]))[
-                -1 if dra_config.larger_better else 0]
-            attacker_path_1 = os.path.join(attacker_path_1, l)
-            if not os.path.exists(attacker_path_1):
-                attacker_path_1 = None
-
-        if dra_config.tr2t_enable and attacker_path_2 is None:
-            sp2 = int(dra_config.target_system_sps.split('-')[1])
-            if dra_config.tr2t_layer >= 0:
-                sp2 = dra_config.tr2t_layer
-            attacker_path_2 = attacker_path + f'/layer{sp2}/' + prefix
-            if not os.path.exists(attacker_path_2):
-                attacker_path_2 = attacker_path_2.replace('tr2t', 'b2tr')
-            l = sorted(list(os.listdir(attacker_path_2)), key=lambda x: float(x.split('_')[-1]))[-1]
-            attacker_path_2 = os.path.join(attacker_path_2, l)
-            if not os.path.exists(attacker_path_2):
-                attacker_path_2 = None
-
-    attacker, attacker2 = None, None
-    if attacker_path_1:
-        attacker = get_inverter_class(dra_config.model).from_pretrained(attacker_path_1)
-    if attacker_path_2:
-        attacker2 = get_inverter_class(dra_config.model).from_pretrained(attacker_path_2)
-    return attacker, attacker2

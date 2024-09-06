@@ -29,14 +29,14 @@ sma_lr=0.005
 sma_epc=800
 sma_wd=0.02
 noise_mode='dc'
-noise_scale_dcs=(8.0 16.0 32.0 64.0 128.0 256.0)
+noise_scales=(8.0 16.0 32.0 64.0 128.0 256.0)
 sip_models=('gru')
 
 for sip_model in "${sip_models[@]}"; do
-  for noise_scale_dc in "${noise_scale_dcs[@]}"; do
+  for noise_scale in "${noise_scales[@]}"; do
     for model_name in "${model_names[@]}"; do
       for sfl_dataset in "${sfl_datasets[@]}"; do
-        case_name="BiSR(b+f)@${model_name}@${sfl_dataset}-${noise_scale_dc}"
+        case_name="BiSR(b+f)@${model_name}@${sfl_dataset}-${noise_scale}"
 
         if [ "$model_name" == "llama2" ]; then
           gma_lr=0.09
@@ -92,7 +92,7 @@ for sip_model in "${sip_models[@]}"; do
           --seed "$seed" \
           --dataset "$sfl_dataset" \
           --noise_mode "dc" \
-          --noise_scale_dc "$noise_scale_dc" \
+          --noise_scale "$noise_scale" \
           --exp_name "$exp_name" \
           --self_pt_enable "$self_pt_enable" \
           --client_num 1 \

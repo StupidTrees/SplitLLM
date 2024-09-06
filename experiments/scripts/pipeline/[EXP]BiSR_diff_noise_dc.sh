@@ -38,7 +38,7 @@ wba_raw_epochs=1600
 wba_epochs=100
 
 noise_mode='dc'
-noise_scale_dcs=(8.0 16.0 32.0 64.0 128.0 256.0)
+noise_scales=(8.0 16.0 32.0 64.0 128.0 256.0)
 attack_models=('nop')
 
 attacker_datasets=("piqa")
@@ -48,7 +48,7 @@ sfl_datasets=("piqa")
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
 
-    for noise_scale_dc in "${noise_scale_dcs[@]}"; do
+    for noise_scale in "${noise_scales[@]}"; do
       for attack_model in "${attack_models[@]}"; do
         # 先训练攻击模型
 
@@ -76,14 +76,14 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --dataset_train_frac 1.0\
           --dataset_test_frac 0.1
 #          --noise_mode "${attacker_noise_mode}" \
-#          --noise_scale_dc "$noise_scale_dc" \
+#          --noise_scale "$noise_scale" \
 
         attacker_prefix="normal"
         if [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
           attacker_prefix="${attacker_noise_mode}"
         fi
 
-        case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale_dc}<${attack_model}-${attacker_dataset}"
+        case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale}<${attack_model}-${attacker_dataset}"
 
         # 将其用于攻击
         echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -95,7 +95,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --global_round "$global_round" \
           --seed "$seed" \
           --dataset "$sfl_dataset" \
-          --noise_scale_dc "$noise_scale_dc" \
+          --noise_scale "$noise_scale" \
           --exp_name "$exp_name" \
           --attacker_b2tr_sp "$attacker_sp" \
           --attacker_tr2t_sp "$attacker_sp" \

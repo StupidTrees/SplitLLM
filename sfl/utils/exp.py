@@ -88,61 +88,6 @@ def merge_args(args1, args2):
     return args1
 
 
-def add_train_dra_params(parser):
-    parser.add_argument('--exp_name', type=str, default='attacker')
-    parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
-    parser.add_argument('--model_name', type=str, default='gpt2')
-    parser.add_argument('--save_dir', type=str, default=config.attacker_path)
-    parser.add_argument('--dataset', type=str, default='piqa')
-    parser.add_argument('--dataset_train_frac', type=float, default=1.0)
-    parser.add_argument('--dataset_test_frac', type=float, default=1.0)
-    parser.add_argument('--attack_model', type=str, default='moe', help='lstm or ...')
-    parser.add_argument('--sps', type=str, default='6-26', help='split points')
-    parser.add_argument('--attack_mode', type=str, default='tr2t', help='b2tr or t2tr')
-    parser.add_argument('--load_bits', type=int, default=8, help='load bits for large models')
-    parser.add_argument('--epochs', type=int, default=15)
-    parser.add_argument('--epochs_gating', type=int, default=15)
-    parser.add_argument('--batch_size', type=int, default=6)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--opt', type=str, default='adam')
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--md_n_layers', type=int, default=2)
-    parser.add_argument('--require_prefix', type=str, default=None, help='default is None, specify for existence check')
-    parser.add_argument('--noise_mode', type=str, default='none')
-    parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
-    parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
-    parser.add_argument('--noise_scale_dc', type=float, default=0.0)
-    parser.add_argument('--save_checkpoint', type=str2bool, default=False)
-    parser.add_argument('--checkpoint_freq', type=int, default=5)
-    parser.add_argument('--save_threshold', type=float, default=0.1)
-    parser.add_argument('--log_to_wandb', type=str2bool, default=False)
-    parser.add_argument('--skip_exists', type=str2bool, default=True)
-
-
-def add_train_mapper_params(parser):
-    parser.add_argument('--exp_name', type=str, default='attacker')
-    parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
-    parser.add_argument('--model_name', type=str, default='gpt2')
-    parser.add_argument('--save_dir', type=str, default=config.mapper_path)
-    parser.add_argument('--dataset', type=str, default='piqa')
-    parser.add_argument('--dataset_train_frac', type=float, default=1.0)
-    parser.add_argument('--dataset_test_frac', type=float, default=1.0)
-    parser.add_argument('--attack_model', type=str, default='moe', help='lstm or ...')
-    parser.add_argument('--load_bits', type=int, default=8, help='load bits for large models')
-    parser.add_argument('--target', type=str, default='6-1', help='mapping target layers')
-    parser.add_argument('--epochs', type=int, default=15)
-    parser.add_argument('--batch_size', type=int, default=6)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--wd', type=float, default=0.01)
-    parser.add_argument('--opt', type=str, default='adam')
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--save_checkpoint', type=str2bool, default=False)
-    parser.add_argument('--checkpoint_freq', type=int, default=2)
-    parser.add_argument('--save_threshold', type=float, default=0.1)
-    parser.add_argument('--log_to_wandb', type=str2bool, default=False)
-    parser.add_argument('--skip_exists', type=str2bool, default=True)
-
-
 def add_train_reducer_params(parser):
     parser.add_argument('--exp_name', type=str, default='attacker')
     parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
@@ -193,11 +138,7 @@ def add_sfl_params(parser):
     parser.add_argument('--lora_at_embed', type=str2bool, default=False, help='use LoRA at embedding layer')
     parser.add_argument('--noise_mode', type=str, default='none')
     parser.add_argument('--task_type', type=str, default=None)
-    parser.add_argument('--noise_scale_dxp', type=float, default=0.0)
-    parser.add_argument('--noise_scale_gaussian', type=float, default=0.0)
-    parser.add_argument('--noise_scale_grad', type=float, default=0.0)
-    parser.add_argument('--noise_scale_dc', type=float, default=0.1)
-    parser.add_argument('--noise_scale_dc_sim', type=int, default=10)
+    parser.add_argument('--noise_scale', type=float, default=0.0)
     parser.add_argument('--client_num', type=int, default=1)
     parser.add_argument('--global_round', type=int, default=4)
     parser.add_argument('--client_from_scratch', type=str2bool, default=False)
@@ -237,11 +178,7 @@ def get_fl_config(args) -> FLConfig:
                       use_lora_at_embed=args.lora_at_embed,
                       top_and_bottom_from_scratch=args.client_from_scratch,  # top和bottom都不采用预训练参数.
                       noise_mode=args.noise_mode,
-                      noise_scale_dxp=args.noise_scale_dxp,  # 噪声大小
-                      noise_scale_gaussian=args.noise_scale_gaussian,  # 噪声大小
-                      noise_scale_grad=args.noise_scale_grad,
-                      noise_scale_dc=args.noise_scale_dc,
-                      noise_scale_dc_sim=args.noise_scale_dc_sim,
+                      noise_scale=args.noise_scale,
                       collect_intermediates=True,
                       collect_all_layers=args.collect_all_layers,
                       dataset_type=args.dataset_label,
@@ -343,6 +280,7 @@ def get_dim_reducer(args, aargs: ReducerArgument):
 def required_quantization(model_name):
     model_cls = get_model_class(model_name)
     return model_cls in _model_requiring_quantization
+
 
 def load_model_in_param_keepers(model_name, fl_config, parts=None):
     """
@@ -448,6 +386,9 @@ def get_dataset(dataset_name, tokenizer, client_ids=None, shrink_frac=1.0, compl
 
 
 def get_dataset_class(dataset_name):
+    import sfl.data.datasets as datasets
+    clz = datasets.FedDataset
     if dataset_name not in _dataset_name_map:
         raise AttributeError
-    return _dataset_name_map[dataset_name]
+    clz = _dataset_name_map[dataset_name]
+    return clz

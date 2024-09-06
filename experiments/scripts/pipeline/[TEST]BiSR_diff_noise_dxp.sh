@@ -30,7 +30,7 @@ max_global_step=405
 atk_train_frac=1.0
 
 noise_mode='none'
-noise_scale_dxps=(10000.0)
+noise_scales=(10000.0)
 attack_models=('gru')
 
 attacker_datasets=("sensireplaced")
@@ -60,14 +60,14 @@ wba_dir_enable=True
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
-    for noise_scale_dxp in "${noise_scale_dxps[@]}"; do
+    for noise_scale in "${noise_scales[@]}"; do
       raw_tested=False
       for attack_model in "${attack_models[@]}"; do
         for dlg_epochs in "${dlg_epochss[@]}"; do
           for dlg_lr in "${dlg_lrs[@]}"; do
             for dlg_init_temp in "${dlg_init_temps[@]}"; do
 
-              noise_scale="$noise_scale_dxp"
+              noise_scale="$noise_scale"
               # 先训练攻击模型
 
               file='train_inverter.py'
@@ -120,24 +120,24 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
                 --log_to_wandb False \
                 --noise_mode "${attacker_noise_mode}" \
                 --epochs 20 \
-                --noise_scale_dxp "$noise_scale_dxp" \
+                --noise_scale "$noise_scale" \
                 --dataset_train_frac "$atk_train_frac" \
                 --dataset_test_frac 0.1
 
-              # if noise_scale_dxp is 0.1, 0.15, then set lr to 0.08
-              if [ "$noise_scale_dxp" == "0.1" ]; then
+              # if noise_scale is 0.1, 0.15, then set lr to 0.08
+              if [ "$noise_scale" == "0.1" ]; then
                 dlg_epochs=300
                 dlg_lr=0.08
               fi
-              if [ "$noise_scale_dxp" == "0.15" ]; then
+              if [ "$noise_scale" == "0.15" ]; then
                 dlg_epochs=15
                 dlg_lr=0.08
               fi
-              if [ "$noise_scale_dxp" == "0.2" ]; then
+              if [ "$noise_scale" == "0.2" ]; then
                 dlg_epochs=15
                 dlg_lr=0.04
               fi
-              if [ "$noise_scale_dxp" == "0.25" ]; then
+              if [ "$noise_scale" == "0.25" ]; then
                 dlg_epochs=6
                 dlg_lr=0.04
               fi
@@ -166,7 +166,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
                 --global_round "$global_round" \
                 --seed "$seed" \
                 --dataset "$sfl_dataset" \
-                --noise_scale_dxp "$noise_scale" \
+                --noise_scale "$noise_scale" \
                 --exp_name "$exp_name" \
                 --attacker_b2tr_sp "$attacker_sp" \
                 --attacker_tr2t_sp "$attacker_sp" \

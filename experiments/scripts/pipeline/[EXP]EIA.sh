@@ -24,51 +24,19 @@ attacker_samples=1
 max_global_step=605
 mapper_train_frac=1.0
 
-attacker_dataset='sensireplaced'
+attacker_dataset='gsm8k'
 seeds=(42)
-model_names=('chatglm')
+model_names=('llama2')
 load_bits=8
-sfl_datasets=("sensimarked")
+sfl_datasets=("piqa")
+eia_lr=0.11
+eia_epc=72000
+eia_temp=0.2
+eia_wd=0.01
 
 for seed in "${seeds[@]}"; do
   for model_name in "${model_names[@]}"; do
     for sfl_dataset in "${sfl_datasets[@]}"; do
-      # 先训练Mapper
-
-      echo "Running train_mapper.py with seed=$seed, dataset=$attacker_dataset"
-      python ../py/train_mapper.py \
-        --model_name "$model_name" \
-        --seed "$seed" \
-        --dataset "$attacker_dataset" \
-        --attack_mode "b2tr" \
-        --target "${eia_depth}-1" \
-        --save_checkpoint True \
-        --log_to_wandb False \
-        --epochs 10 \
-        --dataset_train_frac "$mapper_train_frac" \
-        --dataset_test_frac 0.1\
-        --load_bits "$load_bits"
-
-      if [ "$model_name" == "llama2" ]; then
-        eia_lr=0.11
-        eia_epc=72000
-        eia_temp=0.2
-        eia_wd=0.01
-      fi
-
-      if [ "$model_name" == "gpt2-large" ]; then
-        eia_lr=0.11
-        eia_epc=24000
-        eia_temp=0.3
-        eia_wd=0.01
-      fi
-
-      if [ "$model_name" == "chatglm" ]; then
-        eia_lr=0.11
-        eia_epc=24000
-        eia_temp=0.3
-        eia_wd=0.01
-      fi
 
       case_name="EIA@${model_name}-${sfl_dataset}"
 
@@ -82,7 +50,7 @@ for seed in "${seeds[@]}"; do
         --global_round "$global_round" \
         --seed "$seed" \
         --dataset "$sfl_dataset" \
-        --noise_scale_dxp "$noise_scale" \
+        --noise_scale "$noise_scale" \
         --exp_name "$exp_name" \
         --sip_b2tr_enable False \
         --sip_tr2t_enable False \
@@ -113,7 +81,8 @@ for seed in "${seeds[@]}"; do
         --eia_mapped_to 1 \
         --eia_mapper_targets "${eia_depth}-1" \
         --eia_mapper_dataset "${attacker_dataset}" \
-        --eia_mapper_train_frac "$mapper_train_frac"\
+        --eia_mapper_training_epochs 5\
+        --eia_mapper_train_frac "$mapper_train_frac" \
         --load_bits "$load_bits"
     done
   done

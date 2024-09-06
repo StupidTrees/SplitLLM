@@ -5,9 +5,10 @@ import wandb
 from tqdm import tqdm
 from transformers import GenerationConfig, AdamW
 
+from sfl.model.attacker.sip.sip_attacker import SIPAttacker
+
 sys.path.append(os.path.abspath('../../..'))
 
-from sfl.model.attacker.sip_attacker import SIPAttacker
 from sfl.utils.model import calculate_rouge_text, set_random_seed
 from sfl.utils.exp import *
 
@@ -69,7 +70,7 @@ def sfl_with_attacker(args):
     model = model.convert_to_lora_model()
     wandb.init(
         project=args.exp_name,
-        name=f"C-Dxp{args.noise_scale_dxp}-{args.dataset}.{args.dataset_label}-Pre{args.pre_ft_dataset}.{args.pre_ft_data_label}.{args.pre_ft_data_shrink_frac:.2f}",
+        name=f"C-Dxp{args.noise_scale}-{args.dataset}.{args.dataset_label}-Pre{args.pre_ft_dataset}.{args.pre_ft_data_label}.{args.pre_ft_data_shrink_frac:.2f}",
         config=args
     )
     sip_attacker.inverter_b2tr.to(device)

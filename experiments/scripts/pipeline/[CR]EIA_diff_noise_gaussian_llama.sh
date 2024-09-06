@@ -23,7 +23,7 @@ attacker_samples=5
 max_global_step=605
 
 noise_mode='gaussian'
-noise_scale_gaussians=(6.5 7.0) # 6.0 5.0 4.0 3.0 2.0
+noise_scales=(6.5 7.0) # 6.0 5.0 4.0 3.0 2.0
 
 attacker_datasets=("sensireplaced")
 sfl_datasets=("piqa")
@@ -39,7 +39,7 @@ seeds=(7 56)
 for seed in "${seeds[@]}"; do
   for attacker_dataset in "${attacker_datasets[@]}"; do
     for sfl_dataset in "${sfl_datasets[@]}"; do
-      for noise_scale_gaussian in "${noise_scale_gaussians[@]}"; do
+      for noise_scale in "${noise_scales[@]}"; do
 
         attacker_prefix="normal"
         if [ "$attack_model" = "moe" ] || [ "$attack_model" = "moe2" ]; then
@@ -49,7 +49,7 @@ for seed in "${seeds[@]}"; do
         # 先训练Mapper
 
         echo "Running train_mapper.py with seed=$seed, dataset=$attacker_dataset"
-        python ../py/train_mapper.py \
+        python ../py/mapper_training.py \
           --model_name "$model_name" \
           --seed "$seed" \
           --dataset "$attacker_dataset" \
@@ -62,7 +62,7 @@ for seed in "${seeds[@]}"; do
           --dataset_test_frac 0.1 \
           --load_bits 8
 
-        case_name="[${seed}]=${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale_gaussian}"
+        case_name="[${seed}]=${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale}"
 
         # 将其用于攻击
         echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -74,7 +74,7 @@ for seed in "${seeds[@]}"; do
           --global_round "$global_round" \
           --seed "$seed" \
           --dataset "$sfl_dataset" \
-          --noise_scale_gaussian "$noise_scale_gaussian" \
+          --noise_scale "$noise_scale" \
           --exp_name "$exp_name" \
           --self_pt_enable "$self_pt_enable" \
           --client_num 1 \

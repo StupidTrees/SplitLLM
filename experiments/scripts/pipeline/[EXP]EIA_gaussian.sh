@@ -29,13 +29,13 @@ model_name='llama2'
 sfl_dataset="piqa"
 
 noise_mode='gaussian'
-noise_scale_gaussians=(6.0 5.0 4.0 3.0 2.0)
+noise_scales=(6.0 5.0 4.0 3.0 2.0)
 
-for noise_scale_gaussian in "${noise_scale_gaussians[@]}"; do
+for noise_scale in "${noise_scales[@]}"; do
   # 先训练Mapper
 
   echo "Running train_mapper.py with seed=$seed, dataset=$attacker_dataset"
-  python ../py/train_mapper.py \
+  python ../py/mapper_training.py \
     --model_name "$model_name" \
     --seed "$seed" \
     --dataset "$attacker_dataset" \
@@ -61,7 +61,7 @@ for noise_scale_gaussian in "${noise_scale_gaussians[@]}"; do
     eia_wd=0.01
   fi
 
-  case_name="EIA-pre@${model_name}-${sfl_dataset}-${noise_scale_gaussian}"
+  case_name="EIA-pre@${model_name}-${sfl_dataset}-${noise_scale}"
 
   # 将其用于攻击
   echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -70,7 +70,7 @@ for noise_scale_gaussian in "${noise_scale_gaussians[@]}"; do
     --model_name "$model_name" \
     --split_points "$sps" \
     --noise_mode "$noise_mode" \
-    --noise_scale_gaussian "$noise_scale_gaussian" \
+    --noise_scale "$noise_scale" \
     --global_round "$global_round" \
     --seed "$seed" \
     --dataset "$sfl_dataset" \

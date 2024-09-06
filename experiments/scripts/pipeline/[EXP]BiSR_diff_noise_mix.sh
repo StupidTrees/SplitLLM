@@ -34,7 +34,7 @@ attacker_samples=10
 max_global_step=610
 
 noise_mode='dxp'
-noise_scale_dxps=(0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45)
+noise_scales=(0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45)
 attack_models=('moe2' 'moe' 'gru')
 
 attacker_datasets=("piqa")
@@ -44,9 +44,9 @@ sfl_datasets=("piqa")
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
 
-    for noise_scale_dxp in "${noise_scale_dxps[@]}"; do
+    for noise_scale in "${noise_scales[@]}"; do
       for attack_model in "${attack_models[@]}"; do
-        noise_scale="$noise_scale_dxp"
+        noise_scale="$noise_scale"
         # 先训练攻击模型
 
         file='train_inverter.py'
@@ -71,7 +71,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --log_to_wandb False \
           --noise_mode "${attacker_noise_mode}" \
           --epochs 20 \
-          --noise_scale_dxp "$noise_scale_dxp" \
+          --noise_scale "$noise_scale" \
           --dataset_train_frac 1.0\
           --dataset_test_frac 0.1
 
@@ -80,7 +80,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           attacker_prefix="${attacker_noise_mode}"
         fi
 
-        case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale_dxp}<${attack_model}-${attacker_dataset}"
+        case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale}<${attack_model}-${attacker_dataset}"
 
         # 将其用于攻击
         echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -92,7 +92,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --global_round "$global_round" \
           --seed "$seed" \
           --dataset "$sfl_dataset" \
-          --noise_scale_dxp "$noise_scale" \
+          --noise_scale "$noise_scale" \
           --exp_name "$exp_name" \
           --attacker_b2tr_sp "$attacker_sp" \
           --attacker_tr2t_sp "$attacker_sp" \

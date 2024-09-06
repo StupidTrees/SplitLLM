@@ -29,14 +29,14 @@ noise_mode='dxp'
 sma_lr=0.005
 sma_epc=800
 sma_wd=0.02
-noise_scale_gaussians=(6.0 5.0 4.0 3.0 2.0)
+noise_scales=(6.0 5.0 4.0 3.0 2.0)
 sip_models=('gru')
 
 for sip_model in "${sip_models[@]}"; do
-  for noise_scale_gaussian in "${noise_scale_gaussians[@]}"; do
+  for noise_scale in "${noise_scales[@]}"; do
     for model_name in "${model_names[@]}"; do
       for sfl_dataset in "${sfl_datasets[@]}"; do
-        case_name="BiSR(b+f)@${model_name}@${sfl_dataset}-${noise_scale_dxp}-${sip_model}"
+        case_name="BiSR(b+f)@${model_name}@${sfl_dataset}-${noise_scale}-${sip_model}"
 
         if [ "$model_name" == "llama2" ]; then
           gma_lr=0.09
@@ -92,7 +92,7 @@ for sip_model in "${sip_models[@]}"; do
           --seed "$seed" \
           --dataset "$sfl_dataset" \
           --noise_mode "gaussian" \
-          --noise_scale_gaussian "$noise_scale_gaussian" \
+          --noise_scale "$noise_scale" \
           --exp_name "$exp_name" \
           --self_pt_enable "$self_pt_enable" \
           --client_num 1 \

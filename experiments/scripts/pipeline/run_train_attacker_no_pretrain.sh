@@ -12,8 +12,8 @@ dataset_train_frac=1.0
 dataset_test_frac=1.0
 load_bits=8
 noise_mode='dxp'
-noise_scale_gaussian=0.2
-noise_scale_dxp=0.2
+noise_scale=0.2
+noise_scale=0.2
 
 for seed in "${seeds[@]}"; do
   for data in "${datasets[@]}"; do
@@ -34,8 +34,8 @@ for seed in "${seeds[@]}"; do
             --dataset_train_frac "$dataset_train_frac" \
             --dataset_test_frac "$dataset_test_frac" \
             --noise_mode "$noise_mode"\
-            --noise_scale_gaussian "$noise_scale_gaussian"\
-            --noise_scale_dxp "$noise_scale_dxp"\
+            --noise_scale "$noise_scale"\
+            --noise_scale "$noise_scale"\
             --load_bits "$load_bits"\
             --epochs 20\
             --checkpoint_freq 5

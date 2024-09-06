@@ -66,7 +66,7 @@ for sfl_dataset in "${sfl_datasets[@]}"; do
                       --log_to_wandb False
 
                     echo "Running train_mapper.py with seed=$seed"
-                    python ../py/train_mapper.py \
+                    python ../py/mapper_training.py \
                       --model_name "$model_name" \
                       --seed "$seed" \
                       --dataset "$sip_inverter_dataset" \
@@ -89,7 +89,7 @@ for sfl_dataset in "${sfl_datasets[@]}"; do
                       --global_round "$global_round" \
                       --seed "$seed" \
                       --dataset "$sfl_dataset" \
-                      --noise_scale_dxp "$noise_scale" \
+                      --noise_scale "$noise_scale" \
                       --exp_name "$exp_name" \
                       --sip_b2tr_enable False \
                       --sip_tr2t_enable False \

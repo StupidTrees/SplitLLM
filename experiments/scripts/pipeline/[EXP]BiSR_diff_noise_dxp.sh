@@ -35,7 +35,7 @@ max_global_step=610
 atk_train_frac=1.0
 
 noise_mode='dxp'
-noise_scale_dxps=(0.1 0.15 0.2 0.25 0.3 0.35 0.4)
+noise_scales=(0.1 0.15 0.2 0.25 0.3 0.35 0.4)
 attack_models=('moe')
 
 attacker_datasets=("sensireplaced")
@@ -49,9 +49,9 @@ fi
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
-    for noise_scale_dxp in "${noise_scale_dxps[@]}"; do
+    for noise_scale in "${noise_scales[@]}"; do
       for attack_model in "${attack_models[@]}"; do
-        noise_scale="$noise_scale_dxp"
+        noise_scale="$noise_scale"
         # 先训练攻击模型
 
         file='train_inverter.py'
@@ -95,11 +95,11 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --log_to_wandb False \
           --noise_mode "${attacker_noise_mode}" \
           --epochs 20 \
-          --noise_scale_dxp "$noise_scale_dxp" \
+          --noise_scale "$noise_scale" \
           --dataset_train_frac "$atk_train_frac" \
           --dataset_test_frac 0.1
 
-        case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale_dxp}<${attack_model}-${attacker_dataset}[${attacker_prefix}]"
+        case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale}<${attack_model}-${attacker_dataset}[${attacker_prefix}]"
 
         # 将其用于攻击
         echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -111,7 +111,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --global_round "$global_round" \
           --seed "$seed" \
           --dataset "$sfl_dataset" \
-          --noise_scale_dxp "$noise_scale" \
+          --noise_scale "$noise_scale" \
           --exp_name "$exp_name" \
           --attacker_b2tr_sp "$attacker_sp" \
           --attacker_tr2t_sp "$attacker_sp" \

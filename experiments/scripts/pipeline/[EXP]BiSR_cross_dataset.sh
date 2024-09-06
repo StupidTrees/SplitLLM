@@ -156,7 +156,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         --global_round "$global_round" \
         --seed "$seed" \
         --dataset "$sfl_dataset" \
-        --noise_scale_dxp "$noise_scale" \
+        --noise_scale "$noise_scale" \
         --exp_name "$exp_name" \
         --attacker_b2tr_sp "$attacker_sp" \
         --attacker_tr2t_sp "$attacker_sp" \
@@ -192,7 +192,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         --wba_epochs "$wba_epochs" \
         --wba_raw_enable "$wba_raw_enable" \
         --wba_raw_epochs "$wba_raw_epochs" \
-        --noise_scale_dxp "$noise_scale" \
+        --noise_scale "$noise_scale" \
         --alt_enable "$alt_enable" \
         --alt_steps "$alt_steps" \
         --alt_fwd_steps "$alt_fwd_steps" \

@@ -1,104 +1,23 @@
 import os
-from dataclasses import dataclass
 from typing import Any
 
 import torch
 from tokenizers import Tokenizer
 from torch import nn
-from torch.nn import Linear
 from tqdm import tqdm
-from transformers import PretrainedConfig, PreTrainedModel
-from transformers.activations import ACT2FN
 
-from sfl.config import DRA_train_label, mapper_path
+from sfl.config import DRA_train_label
 from sfl.model.attacker.base import Attacker
-from sfl.model.llm.glm.configuration_chatglm import ChatGLMConfig
+from sfl.model.attacker.eia.args import EIAArguments, MapperTrainingArguments
+from sfl.model.attacker.eia.mapper_models import LMMapper
+from sfl.model.attacker.eia.mapper_training import train_mapper
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
-from sfl.model.llm.glm.modeling_chatglm import MLP
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator, ParamRestored
+from sfl.utils.argparser import PrefixArgumentParser
 from sfl.utils.exp import required_quantization
 from sfl.utils.model import evaluate_attacker_rouge, FLConfigHolder, \
     get_embedding_matrix
-
-
-@dataclass
-class LMMapperConfig(PretrainedConfig):
-    n_embed: int = 0
-    n_layers: int = 1
-    structure: str = 'linear'
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-
-class TakeFirst(nn.Module):
-    def forward(self, x):
-        return x[0]
-
-
-class LMMapper(PreTrainedModel):
-    config_class = LMMapperConfig
-
-    def __init__(self, config: LMMapperConfig, target_config: PretrainedConfig = None, *args, **kwargs):
-        super().__init__(config, *args, **kwargs)
-        if target_config:
-            self.target_config = target_config
-            if hasattr(target_config, 'n_embd'):
-                self.config.n_embed = target_config.n_embd
-            elif hasattr(target_config, 'hidden_size'):
-                self.config.n_embed = target_config.hidden_size
-            elif hasattr(target_config, 'd_model'):
-                self.config.n_embed = target_config.d_model
-            name_or_path = target_config.name_or_path
-            # if it is a path, use the last dir name
-            if '/' in name_or_path:
-                if name_or_path.endswith('/'):
-                    name_or_path = name_or_path[:-1]
-                name_or_path = name_or_path.split('/')[-1]
-            self.config.target_model = name_or_path
-        # self.mapper = Linear(config.n_embed, self.config.n_embed)
-        self.mapper = torch.nn.Sequential()
-        hidden_size = config.n_embed
-        if config.structure == 'linear':
-            for i in range(config.n_layers):
-                if config.n_layers > 1 and i != config.n_layers - 1:
-                    self.mapper.add_module(f'linear_{i}', Linear(config.n_embed, hidden_size))
-                    self.mapper.add_module(f'activation_{i}', torch.nn.SiLU())
-                elif config.n_layers > 1 and i == config.n_layers - 1:
-                    self.mapper.add_module(f'linear_{i}', Linear(hidden_size, config.n_embed))
-                else:
-                    self.mapper.add_module(f'linear_{i}', Linear(config.n_embed, config.n_embed))
-        elif config.structure == 'glm':
-            self.mapper.add_module(f'mlp', MLP(ChatGLMConfig(hidden_size=config.n_embed, ffn_hidden_size=hidden_size//2)))
-        elif config.structure == 'gru':
-            self.mapper.add_module('gru', torch.nn.GRU(config.n_embed, 512, batch_first=True))
-            self.mapper.add_module('tf', TakeFirst())
-            self.mapper.add_module('relu', torch.nn.SiLU())
-            self.mapper.add_module('mlp', torch.nn.Linear(512, config.n_embed))
-
-    def forward(self, hidden_states):
-        if hidden_states.dtype == torch.float16:
-            hidden_states = hidden_states.float()
-        return self.mapper(hidden_states)
-
-
-@dataclass
-class EIAArguments:
-    enable: bool = False
-    at: str = 'b2tr'
-    mapper_target_model_name: str = None
-    mapper_target_model_load_bits: int = -1
-    mapper_train_frac: float = 1.0
-    mapper_path: str = mapper_path
-    mapper_dataset: str = ''
-    mapper_targets: str = None
-    mapped_to:int = -1
-    epochs: int = 72000
-    lr: float = 0.09
-    wd: float = 0.01
-    temp: float = 0.2
-    cross_model: str = None
 
 
 def get_eia_mapper(aarg: EIAArguments):
@@ -110,6 +29,8 @@ def get_eia_mapper(aarg: EIAArguments):
         model_name += f"-{aarg.mapper_target_model_load_bits}bits"
     mapper_path = aarg.mapper_path + f'{model_name}/{dataset}/'
     matches = []
+    if not os.path.exists(mapper_path):
+        return None
     for d in os.listdir(mapper_path):
         pattern = f'{DRA_train_label[dataset]}*{aarg.mapper_train_frac:.3f}'
         if ',' in aarg.mapper_dataset:
@@ -117,14 +38,18 @@ def get_eia_mapper(aarg: EIAArguments):
         if d.startswith(pattern):
             mapper_path = os.path.join(mapper_path, d) + '/'
             matches.append(mapper_path)
-    assert len(matches) > 0
+    if len(matches) == 0:
+        return None
     mapper_path_1 = None
     for attacker_path in matches:
         mapper_path_1 = attacker_path + f'{aarg.mapper_targets}/'
-        l = sorted(list(os.listdir(mapper_path_1)), key=lambda x: float(x.split('_')[-1]))[0]
-        mapper_path_1 = os.path.join(mapper_path_1, l)
         if not os.path.exists(mapper_path_1):
             mapper_path_1 = None
+        else:
+            l = sorted(list(os.listdir(mapper_path_1)), key=lambda x: float(x.split('_')[-1]))[0]
+            mapper_path_1 = os.path.join(mapper_path_1, l)
+            if not os.path.exists(mapper_path_1):
+                mapper_path_1 = None
     if mapper_path_1:
         return LMMapper.from_pretrained(mapper_path_1)
     return None
@@ -164,8 +89,20 @@ class EmbeddingInversionAttacker(Attacker):
         return res
 
     def load_attacker(self, args, aargs: EIAArguments, llm: SplitWrapperModel = None, tokenizer: Tokenizer = None):
-        if aargs.mapped_to >=0 and aargs.mapper_targets is not None and len(aargs.mapper_targets) > 0:
+        if aargs.mapped_to >= 0 and aargs.mapper_targets is not None and len(aargs.mapper_targets) > 0:
             self.mapper = get_eia_mapper(aargs)
+            if not self.mapper:
+                print(f'Mapper not found for {aargs.mapper_targets}, start training mapper')
+                parser = PrefixArgumentParser(prefix='eia_mapper_training', dataclass_types=[MapperTrainingArguments])
+                training_args = parser.parse_args_into_dataclasses(return_remaining_strings=True)[0]
+                with ParamRestored(llm, llm.param_keeper, ['bottom', 'trunk', 'top'], key='pretrained',
+                                   write_back=False, disable_inter_collection=False):
+                    with FLConfigHolder(llm):
+                        training = llm.training
+                        train_mapper(llm, tokenizer, aargs, training_args=training_args)
+                        llm.train(training)
+                self.mapper = get_eia_mapper(aargs)
+                assert self.mapper is not None
 
     def attack(self, args, aargs: EIAArguments, llm: SplitWrapperModel, tokenizer: Tokenizer,
                simulator: SFLSimulator, batch, b2tr_inter, tr2t_inter, all_inters, init=None) -> \
@@ -182,7 +119,7 @@ class EmbeddingInversionAttacker(Attacker):
         if self.pk:
             pk = self.pk
         with ParamRestored(llm=llm, param_keeper=pk, key='pretrained',
-                           parts=['bottom','trunk']):
+                           parts=['bottom', 'trunk']):
             with FLConfigHolder(llm) as ch:
                 if aargs.at in ['tr2t', 'b2tr']:
                     llm.fl_config.attack_mode = aargs.at
@@ -218,7 +155,7 @@ class EmbeddingInversionAttacker(Attacker):
                     dmy = gumbel_softmax_sample(dummy.float(), aargs.temp) @ embedding_matrix
                     if isinstance(llm, ChatGLMForConditionalGenerationSplit):
                         dmy = gumbel_softmax_sample(dummy, aargs.temp) @ embedding_matrix
-                        dmy = dmy.transpose(1,0).contiguous()
+                        dmy = dmy.transpose(1, 0).contiguous()
                         it = llm(inputs_embeds=dmy)
                         it = it.permute(1, 0, 2).float()
                     else:

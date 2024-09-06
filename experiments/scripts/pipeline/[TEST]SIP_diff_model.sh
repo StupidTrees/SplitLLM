@@ -26,8 +26,8 @@ attacker_samples=10
 max_global_step=610
 atk_train_frac=0.3
 noise_mode='dxp'
-noise_scale_dxps=(0.1)
-attacker_noise_scale_dxp=0.2
+noise_scales=(0.1)
+attacker_noise_scale=0.2
 attack_models=('gruattn')
 
 dlg_enable=False
@@ -39,9 +39,9 @@ sfl_datasets=("wikitext")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
-    for noise_scale_dxp in "${noise_scale_dxps[@]}"; do
+    for noise_scale in "${noise_scales[@]}"; do
       for attack_model in "${attack_models[@]}"; do
-        noise_scale="$noise_scale_dxp"
+        noise_scale="$noise_scale"
         # 先训练攻击模型
 
         file='train_inverter.py'
@@ -71,10 +71,10 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         fi
 
         for attacker_n_layer in "${attacker_n_layers[@]}"; do
-          attacker_prefix="${attacker_n_layer}layers-dxp${attacker_noise_scale_dxp}"
+          attacker_prefix="${attacker_n_layer}layers-dxp${attacker_noise_scale}"
 
 #          if [ "$attack_model" = "dec" ]; then
-#            attacker_prefix="${attacker_n_layer}layers-dxp${noise_scale_dxp}"
+#            attacker_prefix="${attacker_n_layer}layers-dxp${noise_scale}"
 #          fi
 
 
@@ -95,11 +95,11 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
             --require_prefix="$attacker_prefix" \
             --lr "$attacker_lr" \
             --opt "$attacker_opt" \
-            --noise_scale_dxp "$attacker_noise_scale_dxp" \
+            --noise_scale "$attacker_noise_scale" \
             --dataset_train_frac "$atk_train_frac" \
             --dataset_test_frac 0.1
 
-          case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale_dxp}<${attack_model}${attacker_n_layer}-${attacker_dataset}"
+          case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale}<${attack_model}${attacker_n_layer}-${attacker_dataset}"
 
           # 将其用于攻击
           echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -111,7 +111,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
             --global_round "$global_round" \
             --seed "$seed" \
             --dataset "$sfl_dataset" \
-            --noise_scale_dxp "$noise_scale" \
+            --noise_scale "$noise_scale" \
             --exp_name "$exp_name" \
             --attacker_b2tr_sp "$attacker_sp" \
             --attacker_tr2t_sp "$attacker_sp" \

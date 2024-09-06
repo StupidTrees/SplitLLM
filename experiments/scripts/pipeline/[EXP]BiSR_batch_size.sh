@@ -71,7 +71,7 @@ for batch_size in "${batch_sizes[@]}"; do
     --global_round "$global_round" \
     --seed "$seed" \
     --dataset "$sfl_dataset" \
-    --noise_scale_dxp "$noise_scale" \
+    --noise_scale "$noise_scale" \
     --exp_name "$exp_name" \
     --attacker_model "$attack_model" \
     --attacker_b2tr_sp 6 \

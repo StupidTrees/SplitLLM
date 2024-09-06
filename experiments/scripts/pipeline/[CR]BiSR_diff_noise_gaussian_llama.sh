@@ -24,7 +24,7 @@ attacker_samples=5
 max_global_step=605
 
 noise_mode='gaussian'
-noise_scale_gaussians=(6.5 7.0) #12.0 6.0 5.0 4.0
+noise_scales=(6.5 7.0) #12.0 6.0 5.0 4.0
 attack_models=('moe' 'gru')
 
 attacker_datasets=("sensireplaced")
@@ -44,7 +44,7 @@ sma_wd=0.02
 for seed in "${seeds[@]}"; do
   for attacker_dataset in "${attacker_datasets[@]}"; do
     for sfl_dataset in "${sfl_datasets[@]}"; do
-      for noise_scale_gaussian in "${noise_scale_gaussians[@]}"; do
+      for noise_scale in "${noise_scales[@]}"; do
         for attack_model in "${attack_models[@]}"; do
 
           evaluate_freq=900
@@ -69,7 +69,7 @@ for seed in "${seeds[@]}"; do
             --log_to_wandb False \
             --noise_mode "gaussian" \
             --epochs 20 \
-            --noise_scale_gaussian "$noise_scale_gaussian" \
+            --noise_scale "$noise_scale" \
             --dataset_train_frac 1.0 --dataset_test_frac 0.1
 
           attacker_prefix="normal"
@@ -77,7 +77,7 @@ for seed in "${seeds[@]}"; do
             attacker_prefix="gaussian"
           fi
 
-          case_name="[${seed}]=${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale_gaussian}<${attack_model}-${attacker_dataset}"
+          case_name="[${seed}]=${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale}<${attack_model}-${attacker_dataset}"
 
           # 将其用于攻击
           echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -89,7 +89,7 @@ for seed in "${seeds[@]}"; do
             --global_round "$global_round" \
             --seed "$seed" \
             --dataset "$sfl_dataset" \
-            --noise_scale_gaussian "$noise_scale_gaussian" \
+            --noise_scale "$noise_scale" \
             --exp_name "$exp_name" \
             --self_pt_enable "$self_pt_enable" \
             --client_num 1 \

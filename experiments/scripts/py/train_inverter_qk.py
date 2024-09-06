@@ -10,12 +10,12 @@ from torch.nn.functional import mse_loss
 from torch.optim import Adam, AdamW
 from tqdm import tqdm
 
+from sfl.model.attacker.sip.inversion_models import InverterForAttentionConfig, LSTMDRAttackerConfig, \
+    LSTMDRAttackerInterConfig, GRUInverterForAttention, GRUDRInverterWithAct, GRUDRInverter
+
 sys.path.append(os.path.abspath('../../..'))
 from experiments.scripts.py.eia_attack_qk import get_pi_size
 from sfl.config import FLConfig
-from sfl.model.attacker.sip_attacker import InverterForAttentionConfig, GRUDRInverter, \
-    LSTMDRAttackerConfig, GRUInverterForAttentionUni, GRUInverterForAttention, LSTMDRAttackerInterConfig, \
-    GRUDRInverterWithAct
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, required_quantization, \
     str2bool
 from sfl.utils.model import get_best_gpu, calc_unshift_loss, set_random_seed, \
@@ -275,8 +275,7 @@ def main(args):
                       split_point_2=int(args.sps.split('-')[1]),
                       attack_mode='b2tr',
                       noise_mode=args.noise_mode,
-                      noise_scale_dxp=args.noise_scale_dxp,
-                      noise_scale_gaussian=args.noise_scale_gaussian,
+                      noise_scale=args.noise_scale,
                       split_mode='attention'
                       )
 

@@ -62,7 +62,7 @@ class BaseSFLStrategy(FLStrategy):
                     b2tr, tr2t, all_inter = llm.get_all_inter(detach=False)
                     embed = all_inter['embedding']
                     dcor = dist_corr(embed.fx, b2tr.fx)
-                    loss += config.noise_scale_dc * dcor
+                    loss += config.noise_scale * dcor
                 if config.noise_mode in ['grad', 'both']:
                     loss.backward(retain_graph=True)
                     b2tr, tr2t, all_inter = llm.get_all_inter(detach=False)

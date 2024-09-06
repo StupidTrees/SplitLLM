@@ -73,7 +73,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         --seed "$seed" \
         --dataset "$sfl_dataset" \
         --dataset_max_seq_len "$max_length" \
-        --noise_scale_dxp "$noise_scale" \
+        --noise_scale "$noise_scale" \
         --exp_name "$exp_name" \
         --attacker_b2tr_sp "$attacker_sp" \
         --attacker_tr2t_sp "$attacker_sp" \

@@ -87,7 +87,7 @@ for completion_only in "${completions[@]}"; do
         --global_round "$global_round" \
         --seed "$seed" \
         --dataset "$sfl_dataset" \
-        --noise_scale_dxp "$noise_scale" \
+        --noise_scale "$noise_scale" \
         --exp_name "$exp_name" \
         --self_pt_enable "$self_pt_enable" \
         --client_num 1 \

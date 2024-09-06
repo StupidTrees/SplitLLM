@@ -42,11 +42,11 @@ for seed in "${seeds[@]}"; do
   for atk_dataset in "${datasets[@]}"; do
     for noise_mode in "${noise_modes[@]}"; do
       for attack_model in "${attack_models[@]}"; do
-        noise_scale_name='noise_scale_dxp'
+        noise_scale_name='noise_scale'
         sfl_noise_scales=("${sfl_noise_scales_dxp[@]}")
         attacker_noise_scales=("${attacker_noises_dxp[@]}")
         if [ "$noise_mode" = "gaussian" ]; then
-          noise_scale_name='noise_scale_gaussian'
+          noise_scale_name='noise_scale'
           sfl_noise_scales=("${sfl_noise_scales_gaussian[@]}")
           attacker_noise_scales=("${attacker_noises_gaussian[@]}")
         fi

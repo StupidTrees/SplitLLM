@@ -69,7 +69,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         --global_round "$global_round" \
         --seed "$seed" \
         --dataset "$sfl_dataset" \
-        --noise_scale_dxp "$noise_scale" \
+        --noise_scale "$noise_scale" \
         --exp_name "$exp_name" \
         --attacker_b2tr_sp "$sp1" \
         --attacker_tr2t_sp "$sp1" \

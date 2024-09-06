@@ -7,11 +7,11 @@ import wandb
 from tqdm import tqdm
 from transformers import AdamW
 
+from sfl.model.attacker.sip.inversion_models import ViTDRAttacker, ViTDRAttackerConfig
 
 sys.path.append(os.path.abspath('../../..'))
 from sfl.data.base import MixtureFedDataset
 from sfl.config import FLConfig
-from sfl.model.attacker.sip_attacker import ViTDRAttacker, ViTDRAttackerConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params
 from sfl.utils.model import get_best_gpu, set_random_seed, \
     evaluate_attacker_mse
@@ -32,7 +32,7 @@ def get_save_path(fl_config, save_dir, args):
                          f'/{args.attack_model}/layer{cut_layer}/')
     attacker_prefix = 'normal/'
     if fl_config.noise_mode == 'gaussian':
-        attacker_prefix = f'{fl_config.noise_mode}:{fl_config.noise_scale_gaussian}/'
+        attacker_prefix = f'{fl_config.noise_mode}:{fl_config.noise_scale}/'
     p += attacker_prefix
     return p
 
@@ -75,8 +75,7 @@ def train_attacker(args):
                       split_point_2=int(args.sps.split('-')[1]),
                       attack_mode=args.attack_mode,
                       noise_mode=args.noise_mode,
-                      noise_scale_dxp=args.noise_scale_dxp,
-                      noise_scale_gaussian=args.noise_scale_gaussian
+                      noise_scale=args.noise_scale,
                       )
 
     p = get_save_path(config, args.save_dir, args)
@@ -137,8 +136,8 @@ def train_attacker(args):
                 input_tensor = batch['input'].to(device)
                 if args.noise_mode == 'gaussian':
                     # add random noise to the input (image of size bs, 3, 224, 224)
-                    # the noise ranges from -args.noise_scale_gaussian to args.noise_scale_gaussian
-                    noise = torch.randn_like(input_tensor) * args.noise_scale_gaussian
+                    # the noise ranges from -args.noise_scale to args.noise_scale
+                    noise = torch.randn_like(input_tensor) * args.noise_scale
                     input_tensor = input_tensor + noise
 
                 inter = model(input_tensor)

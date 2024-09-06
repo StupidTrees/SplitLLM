@@ -40,7 +40,7 @@ for seed in "${seeds[@]}"; do
     # 先训练Mapper
 
     echo "Running train_mapper.py with seed=$seed, dataset=$attacker_dataset"
-    python ../py/train_mapper.py \
+    python ../py/mapper_training.py \
       --model_name "$eia_cross_model" \
       --seed "$seed" \
       --dataset "$attacker_dataset" \
@@ -64,7 +64,7 @@ for seed in "${seeds[@]}"; do
       --global_round "$global_round" \
       --seed "$seed" \
       --dataset "$sfl_dataset" \
-      --noise_scale_dxp "$noise_scale" \
+      --noise_scale "$noise_scale" \
       --exp_name "$exp_name" \
       --sip_b2tr_enable False \
       --sip_tr2t_enable False \

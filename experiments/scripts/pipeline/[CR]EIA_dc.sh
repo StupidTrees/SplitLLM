@@ -29,14 +29,14 @@ model_name='gpt2-large'
 sfl_dataset="piqa"
 
 noise_mode='dc'
-noise_scale_dcs=(10.0 130.0)
+noise_scales=(10.0 130.0)
 
 for seed in "${seeds[@]}"; do
-  for noise_scale_dc in "${noise_scale_dcs[@]}"; do
+  for noise_scale in "${noise_scales[@]}"; do
     # 先训练Mapper
 
     echo "Running train_mapper.py with seed=$seed, dataset=$attacker_dataset"
-    python ../py/train_mapper.py \
+    python ../py/mapper_training.py \
       --model_name "$model_name" \
       --seed "$seed" \
       --dataset "$attacker_dataset" \
@@ -62,7 +62,7 @@ for seed in "${seeds[@]}"; do
       eia_wd=0.01
     fi
 
-    case_name="EIA-pre@${model_name}-${sfl_dataset}-${noise_scale_dc}"
+    case_name="EIA-pre@${model_name}-${sfl_dataset}-${noise_scale}"
 
     # 将其用于攻击
     echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -71,7 +71,7 @@ for seed in "${seeds[@]}"; do
       --model_name "$model_name" \
       --split_points "$sps" \
       --noise_mode "$noise_mode" \
-      --noise_scale_dc "$noise_scale_dc" \
+      --noise_scale "$noise_scale" \
       --global_round "$global_round" \
       --seed "$seed" \
       --dataset "$sfl_dataset" \

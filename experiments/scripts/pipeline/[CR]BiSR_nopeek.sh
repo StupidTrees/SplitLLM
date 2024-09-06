@@ -24,7 +24,7 @@ attacker_samples=5
 max_global_step=2405
 
 noise_mode='dc'
-noise_scale_dcs=(10.0 30.0 50.0 70.0 90.0 110.0 130.0) #12.0 6.0 5.0 4.0
+noise_scales=(10.0 30.0 50.0 70.0 90.0 110.0 130.0) #12.0 6.0 5.0 4.0
 attack_models=('moe' 'gru')
 
 attacker_datasets=("sensireplaced")
@@ -45,7 +45,7 @@ sma_wd=0.02
 for seed in "${seeds[@]}"; do
   for attacker_dataset in "${attacker_datasets[@]}"; do
     for sfl_dataset in "${sfl_datasets[@]}"; do
-      for noise_scale_dc in "${noise_scale_dcs[@]}"; do
+      for noise_scale in "${noise_scales[@]}"; do
         for attack_model in "${attack_models[@]}"; do
 
           evaluate_freq=9000
@@ -77,7 +77,7 @@ for seed in "${seeds[@]}"; do
             --epochs 15 \
             --epochs_gating 10 \
             --epochs_ft 4 \
-            --noise_scale_dc "$noise_scale_dc" \
+            --noise_scale "$noise_scale" \
             --dataset_train_frac 1.0 \
             --dataset_test_frac 0.1
           #            --require_prefix "dc-bk"
@@ -87,7 +87,7 @@ for seed in "${seeds[@]}"; do
             attacker_prefix="dc"
           fi
 
-          case_name="[${seed}]=${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale_dc}<${attack_model}"
+          case_name="[${seed}]=${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale}<${attack_model}"
 
           # 将其用于攻击
           echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -99,7 +99,7 @@ for seed in "${seeds[@]}"; do
             --global_round "$global_round" \
             --seed "$seed" \
             --dataset "$sfl_dataset" \
-            --noise_scale_dc "$noise_scale_dc" \
+            --noise_scale "$noise_scale" \
             --exp_name "$exp_name" \
             --self_pt_enable "$self_pt_enable" \
             --client_num 1 \

@@ -22,7 +22,7 @@ attacker_freq=200
 attacker_samples=5
 max_global_step=605
 noise_mode='dxp'
-noise_scale_gaussians=(6.5 7.0) # (6.0 5.5 5.0 4.5 4.0 3.5 3.0)
+noise_scales=(6.5 7.0) # (6.0 5.5 5.0 4.5 4.0 3.5 3.0)
 sfl_datasets=("piqa")
 seeds=(42 7 56)
 
@@ -33,8 +33,8 @@ tag_epc=600
 for seed in "${seeds[@]}"; do
   for model_name in "${model_names[@]}"; do
     for sfl_dataset in "${sfl_datasets[@]}"; do
-      for noise_scale_gaussian in "${noise_scale_gaussians[@]}"; do
-        case_name="seed${seed}-TAG@${model_name}@${sfl_dataset}-${noise_scale_gaussian}"
+      for noise_scale in "${noise_scales[@]}"; do
+        case_name="seed${seed}-TAG@${model_name}@${sfl_dataset}-${noise_scale}"
 
         # 将其用于攻击
         echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -73,7 +73,7 @@ for seed in "${seeds[@]}"; do
           --tag_lr "$tag_lr" \
           --tag_epochs "$tag_epc" \
           --noise_mode "gaussian" \
-          --noise_scale_gaussian "$noise_scale_gaussian"
+          --noise_scale "$noise_scale"
       done
     done
   done

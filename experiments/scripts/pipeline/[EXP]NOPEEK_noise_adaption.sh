@@ -53,7 +53,7 @@ for seed in "${seeds[@]}"; do
           --log_to_wandb False \
           --noise_mode "dc" \
           --batch_size 6 --epochs 20 \
-          --noise_scale_dc "$atk_ns" \
+          --noise_scale "$atk_ns" \
           --dataset_train_frac "$attacker_train_frac"
 
         attacker_prefix="dc:${atk_ns}"
@@ -69,7 +69,7 @@ for seed in "${seeds[@]}"; do
           --seed "$seed" \
           --dataset "$sfl_dataset" \
           --noise_mode "dc" \
-          --noise_scale_dc "$ns" \
+          --noise_scale "$ns" \
           --exp_name "$exp_name" \
           --self_pt_enable "$self_pt_enable" \
           --client_num 1 \

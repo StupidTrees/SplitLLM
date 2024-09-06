@@ -73,7 +73,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         --global_round "$global_round" \
         --seed "$seed" \
         --dataset "$sfl_dataset" \
-        --noise_scale_dxp "$noise_scale" \
+        --noise_scale "$noise_scale" \
         --exp_name "$exp_name" \
         --attacker_b2tr_sp "$attacker_sp" \
         --attacker_tr2t_sp "$attacker_sp" \
@@ -95,7 +95,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         --attacker_freq "$attacker_freq" \
         --attacker_samples "$attacker_samples" \
         --max_global_step "$max_global_step" \
-        --noise_scale_dxp "$noise_scale"\
+        --noise_scale "$noise_scale"\
         --entangle_enable True
     done
   done

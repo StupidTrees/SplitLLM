@@ -27,16 +27,16 @@ noise_mode='dxp'
 sma_lr=0.005
 sma_epc=800
 sma_wd=0.02
-noise_scale_dxps=(0.1 0.15 0.2 0.25 0.3 0.35 0.4)
+noise_scales=(0.1 0.15 0.2 0.25 0.3 0.35 0.4)
 sip_models=('moe')
 seeds=(42 7 56)
 
 for seed in "${seeds[@]}"; do
   for sip_model in "${sip_models[@]}"; do
-    for noise_scale_dxp in "${noise_scale_dxps[@]}"; do
+    for noise_scale in "${noise_scales[@]}"; do
       for model_name in "${model_names[@]}"; do
         for sfl_dataset in "${sfl_datasets[@]}"; do
-          case_name="[${seed}]==BiSR(b+f)@${model_name}@${sfl_dataset}-${noise_scale_dxp}-${sip_model}"
+          case_name="[${seed}]==BiSR(b+f)@${model_name}@${sfl_dataset}-${noise_scale}-${sip_model}"
 
           if [ "$model_name" == "llama2" ]; then
             gma_lr=0.09
@@ -100,7 +100,7 @@ for seed in "${seeds[@]}"; do
             --seed "$seed" \
             --dataset "$sfl_dataset" \
             --noise_mode "dxp" \
-            --noise_scale_dxp "$noise_scale_dxp" \
+            --noise_scale "$noise_scale" \
             --exp_name "$exp_name" \
             --self_pt_enable "$self_pt_enable" \
             --client_num 1 \

@@ -24,16 +24,16 @@ sip_inverter_dataset='sensireplaced'
 model_names=('llama2')
 sfl_datasets=("piqa") #"piqa" "codealpaca" "dialogsum" "sensimarked"
 noise_mode='dc'
-noise_scale_dcs=(10.0 30.0 50.0 70.0 90.0 110.0 130.0)
+noise_scales=(10.0 30.0 50.0 70.0 90.0 110.0 130.0)
 sip_models=('gru')
 seeds=(42 7 56)
 
 for seed in "${seeds[@]}"; do
   for sip_model in "${sip_models[@]}"; do
-    for noise_scale_dc in "${noise_scale_dcs[@]}"; do
+    for noise_scale in "${noise_scales[@]}"; do
       for model_name in "${model_names[@]}"; do
         for sfl_dataset in "${sfl_datasets[@]}"; do
-          case_name="[${seed}]==BiSR(b+f)@${model_name}@${sfl_dataset}-${noise_scale_dc}-${sip_model}"
+          case_name="[${seed}]==BiSR(b+f)@${model_name}@${sfl_dataset}-${noise_scale}-${sip_model}"
 
           # 先训练攻击模型
           echo "Running train_inverter_no_pretrained.py"
@@ -60,7 +60,7 @@ for seed in "${seeds[@]}"; do
             --seed "$seed" \
             --dataset "$sfl_dataset" \
             --noise_mode "dc" \
-            --noise_scale_dc "$noise_scale_dc" \
+            --noise_scale "$noise_scale" \
             --exp_name "$exp_name" \
             --self_pt_enable "$self_pt_enable" \
             --client_num 1 \

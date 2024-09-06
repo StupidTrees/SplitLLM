@@ -39,7 +39,7 @@ wba_raw_epochs=1600
 wba_dir_enable=True
 
 noise_mode='gaussian'
-noise_scale_gaussians=(2.0 1.75 1.5 1.25 1.0 0.75 0.5)
+noise_scales=(2.0 1.75 1.5 1.25 1.0 0.75 0.5)
 attack_models=('moe')
 
 attacker_datasets=("piqa")
@@ -48,7 +48,7 @@ sfl_datasets=("piqa")
 
 for attacker_dataset in "${attacker_datasets[@]}"; do
   for sfl_dataset in "${sfl_datasets[@]}"; do
-    for noise_scale_gaussian in "${noise_scale_gaussians[@]}"; do
+    for noise_scale in "${noise_scales[@]}"; do
       raw_tested=False
 
       for attack_model in "${attack_models[@]}"; do
@@ -106,7 +106,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --log_to_wandb False \
           --noise_mode "${attacker_noise_mode}" \
           --epochs 20 \
-          --noise_scale_gaussian "$noise_scale_gaussian" \
+          --noise_scale "$noise_scale" \
           --dataset_train_frac 1.0\
           --checkpoint_freq "$atk_save_freq" \
           --save_threshold "$atk_save_threshold" \
@@ -121,7 +121,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
         wba_raw_enable=False
         dlg_raw_enable=False
 
-        case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale_gaussian}<${attack_model}-${attacker_dataset}"
+        case_name="${model_name}-${sfl_dataset}-${noise_mode}:${noise_scale}<${attack_model}-${attacker_dataset}"
 
         # 将其用于攻击
         echo "Running evaluate_tag_methods.py with sfl_ds=$sfl_dataset"
@@ -133,7 +133,7 @@ for attacker_dataset in "${attacker_datasets[@]}"; do
           --global_round "$global_round" \
           --seed "$seed" \
           --dataset "$sfl_dataset" \
-          --noise_scale_gaussian "$noise_scale_gaussian" \
+          --noise_scale "$noise_scale" \
           --exp_name "$exp_name" \
           --attacker_b2tr_sp "$attacker_sp" \
           --attacker_tr2t_sp "$attacker_sp" \

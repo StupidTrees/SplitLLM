@@ -35,7 +35,7 @@ for pre_ft_max_steps in "${pre_ft_steps[@]}"; do
   # 先训练Mapper
 
   echo "Running train_mapper.py with seed=$seed, dataset=$attacker_dataset"
-  python ../py/train_mapper.py \
+  python ../py/mapper_training.py \
     --model_name "$model_name" \
     --seed "$seed" \
     --dataset "$attacker_dataset" \

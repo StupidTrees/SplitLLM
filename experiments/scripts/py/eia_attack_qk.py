@@ -142,8 +142,8 @@ def train_attacker(args):
                       split_point_2=int(args.sps.split('-')[1]),
                       attack_mode='b2tr',
                       noise_mode=args.noise_mode,
-                      noise_scale_dxp=args.noise_scale_dxp,
-                      noise_scale_gaussian=args.noise_scale_gaussian,
+                      noise_scale=args.noise_scale,
+                      noise_scale=args.noise_scale,
                       split_mode='attention'
                       )
 
