@@ -3,7 +3,7 @@
 
 <img src="./doc/img/logo-git.png" width=120>
 
-<h1 style="margin-top: -60px;">SplitLLM: <br> Split Learning Simulation Framework for LLMs</h1>
+<h1 >SplitLLM: <br> Split Learning Simulation Framework for LLMs</h1>
 
 [![License](https://img.shields.io/github/license/StupidTrees/SplitLLM)](https://opensource.org/licenses/Apache-2.0)
 [![arXiv](https://img.shields.io/badge/arXiv-2409.00960-red.svg)](https://arxiv.org/abs/2409.00960)

@@ -120,6 +120,8 @@ def get_sip_inverter(dra_config: SIPAttackerArguments):
         model_name += f"-{dra_config.target_model_load_bits}bits"
     attacker_path = dra_config.path + f'{model_name}/{dataset}/'
     matches = []
+    if not os.path.exists(attacker_path):
+        return None, None
     for d in os.listdir(attacker_path):
         pattern = f'{DRA_train_label[dataset]}*{dra_config.train_frac:.3f}'
         if ',' in dra_config.dataset:
