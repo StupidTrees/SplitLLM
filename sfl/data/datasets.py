@@ -222,7 +222,8 @@ class MRPCFedDataset(FedDataset):
                         'labels': labels}
         return res_dict
 
-@register_dataset('cola')
+
+@register_dataset('cola', dra_train_label='test')
 class CoLAFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -295,7 +296,7 @@ class RTEFedDataset(FedDataset):
         return res_dict
 
 
-@register_dataset('gsm8k')
+@register_dataset('gsm8k', dra_train_label='test')
 class GSM8KFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -327,6 +328,7 @@ class GSM8KFedDataset(FedDataset):
                 'a_att_mask': input_a['attention_mask'],
                 'q_text': qs_,
                 'a_text': as_}
+
 
 @register_dataset('dialogsum')
 class DialogSumFedDataset(FedDataset):
@@ -362,7 +364,8 @@ class DialogSumFedDataset(FedDataset):
                 'q_text': qs_,
                 'a_text': as_}
 
-@register_dataset('codealpaca')
+
+@register_dataset('codealpaca', dra_train_label='test')
 class CodeAlpacaFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -395,7 +398,8 @@ class CodeAlpacaFedDataset(FedDataset):
                 'q_text': qs_,
                 'a_text': as_}
 
-@register_dataset('imdb')
+
+@register_dataset('imdb', dra_train_label='unsupervised')
 class IMDBFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 0.3, **kwargs):
@@ -470,6 +474,7 @@ class WikiTextFedDataset(FedDataset):
             else:
                 res[k] = ls
         return res
+
 
 @register_dataset('wikitext-103')
 class WikiText103FedDataset(WikiTextFedDataset):
@@ -555,7 +560,7 @@ class SensiMaskedFedDataset(SensiReplacedFedDataset):
         return {'input': example['sani_label']}
 
 
-@register_dataset('hc3cn')
+@register_dataset('hc3cn', dra_train_label='baike',dra_test_label='finance')
 class HC3CNFedDataset(FedDataset):
     def __init__(self, tokenizer, client_ids: list[str]):
         dataset = load_dataset('HC3-Chinese')
@@ -565,7 +570,7 @@ class HC3CNFedDataset(FedDataset):
         return {'input': example['question']}
 
 
-@register_dataset('imagewoof')
+@register_dataset('imagewoof',dra_test_label='validation')
 class ImageWoofFedDataset(FedDataset):
 
     def __init__(self, tokenizer, client_ids: list[str], shrink_frac: float = 1.0):

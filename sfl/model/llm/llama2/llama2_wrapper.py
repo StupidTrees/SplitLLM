@@ -13,7 +13,9 @@ from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.utils.exp import register_model
 
 
-@register_model(['llama', 'codegen', 'vicuna'], requiring_quantization=True)
+@register_model(['llama', 'codegen', 'vicuna'], requiring_quantization=True,
+                dir_names=['meta-llama/Llama-2-7b-chat-hf', 'Salesforce/codegen25-7b-instruct_P',
+                           'lmsys/vicuna-7b-v1.5'])
 class LLAMA2SplitLMHeadModel(LlamaForCausalLM, SplitWrapperModel):
     """
     Split Model for LM

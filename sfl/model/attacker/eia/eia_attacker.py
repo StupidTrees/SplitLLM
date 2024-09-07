@@ -3,10 +3,8 @@ from typing import Any
 
 import torch
 from tokenizers import Tokenizer
-from torch import nn
 from tqdm import tqdm
 
-from sfl.config import DRA_train_label
 from sfl.model.attacker.base import Attacker
 from sfl.model.attacker.eia.args import EIAArguments, MapperTrainingArguments
 from sfl.model.attacker.eia.mapper_models import LMMapper
@@ -15,7 +13,7 @@ from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator, ParamRestored
 from sfl.utils.argparser import PrefixArgumentParser
-from sfl.utils.exp import required_quantization
+from sfl.utils.exp import required_quantization, get_dra_train_label
 from sfl.utils.model import evaluate_attacker_rouge, FLConfigHolder, \
     get_embedding_matrix
 
@@ -32,7 +30,7 @@ def get_eia_mapper(aarg: EIAArguments):
     if not os.path.exists(mapper_path):
         return None
     for d in os.listdir(mapper_path):
-        pattern = f'{DRA_train_label[dataset]}*{aarg.mapper_train_frac:.3f}'
+        pattern = f'{get_dra_train_label(dataset)}*{aarg.mapper_train_frac:.3f}'
         if ',' in aarg.mapper_dataset:
             pattern = f'Tr{aarg.mapper_train_frac:.3f}'
         if d.startswith(pattern):
@@ -79,9 +77,9 @@ class EmbeddingInversionAttacker(Attacker):
         if res.mapper_dataset is None or len(res.mapper_dataset) == 0:
             res.mapper_dataset = args.dataset
         if ',' in res.mapper_dataset:
-            res.train_label = DRA_train_label[res.mapper_dataset.split(',')[0]]
+            res.train_label = get_dra_train_label(res.mapper_dataset.split(',')[0])
         else:
-            res.train_label = DRA_train_label[res.mapper_dataset]
+            res.train_label = get_dra_train_label(res.mapper_dataset)
         if res.mapper_target_model_load_bits < 0:
             res.mapper_target_model_load_bits = args.load_bits
         if res.mapper_target_model_name is None or len(res.mapper_target_model_name) == 0:
@@ -114,7 +112,7 @@ class EmbeddingInversionAttacker(Attacker):
         elif aargs.at == 'tr2t':
             inter = tr2t_inter
         else:
-            inter = all_inters[int(aargs.at)]
+            inter = all_inters[int(aargs.at) - 1]
         pk = simulator.parameter_keeper
         if self.pk:
             pk = self.pk

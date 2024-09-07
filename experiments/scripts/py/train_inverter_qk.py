@@ -1,7 +1,6 @@
 import argparse
 import os
 import sys
-from random import random
 
 import numpy as np
 import torch
@@ -16,19 +15,19 @@ from sfl.model.attacker.sip.inversion_models import InverterForAttentionConfig, 
 sys.path.append(os.path.abspath('../../..'))
 from experiments.scripts.py.eia_attack_qk import get_pi_size
 from sfl.config import FLConfig
-from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, required_quantization, \
+from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, required_quantization, \
     str2bool
 from sfl.utils.model import get_best_gpu, calc_unshift_loss, set_random_seed, \
-    evaluate_attacker_rouge, get_embed_size
+    evaluate_attacker_rouge
 
-from sfl.config import DRA_train_label, DRA_test_label
+from sfl.utils.exp import get_dra_train_label, get_dra_test_label
 
 
 def get_attacker_path(args, fl_config, save_dir):
     model_name = args.model_name
     cut_layer = fl_config.split_point_1 if fl_config.attack_mode == "b2tr" else fl_config.split_point_2
     p = os.path.join(save_dir,
-                     f'{model_name}/{args.train_dataset}/{DRA_train_label[args.train_dataset]}*{args.dataset_train_frac:.3f}-{DRA_test_label[args.train_dataset]}*{args.dataset_test_frac:.3f}'
+                     f'{model_name}/{args.train_dataset}/{get_dra_train_label(args.train_dataset)}*{args.dataset_train_frac:.3f}-{get_dra_test_label(args.train_dataset)}*{args.dataset_test_frac:.3f}'
                      f'/{args.attack_model}/layer{cut_layer}/')
     attacker_prefix = f'pi-{args.target}/'
     p += attacker_prefix
@@ -51,17 +50,17 @@ def train_attacker(model, tokenizer, args):
     model.train(False)
     dataset = get_dataset_class(args.train_dataset)(tokenizer, [], uni_length=args.uni_length)
     uni_length = args.uni_length
-    if DRA_train_label[args.train_dataset] == DRA_test_label[args.train_dataset]:  # self-testing
+    if get_dra_train_label(args.train_dataset) == get_dra_test_label(args.train_dataset):  # self-testing
         dataloader, dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size,
-                                                                      type=DRA_train_label[args.train_dataset],
+                                                                      type=get_dra_train_label(args.train_dataset),
                                                                       shrink_frac=args.dataset_train_frac,
                                                                       further_test_split=0.3)
     else:
         dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size,
-                                                     type=DRA_train_label[args.train_dataset],
+                                                     type=get_dra_train_label(args.train_dataset),
                                                      shrink_frac=args.dataset_train_frac)
         dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size,
-                                                          type=DRA_test_label[args.train_dataset],
+                                                          type=get_dra_test_label(args.train_dataset),
                                                           shrink_frac=args.dataset_test_frac)
 
     # # TODO-REMOVE

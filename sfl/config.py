@@ -9,36 +9,9 @@ attacker_path = f'{data_root}/sfl/models/attacker/'
 mapper_path = f'{data_root}/sfl/models/mapper/'
 reducer_path = f'{data_root}/sfl/models/reducer/'
 lora_path = f'{data_root}/sfl/models/lora/'
-fsha_path = f'{data_root}/sfl/models/attacker-fsha/'
-
-DRA_train_label = {
-    'codealpaca': 'test',
-    'dialogsum': 'validation',
-    'piqa': 'validation',
-    'qnli': 'validation',
-    'mrpc': 'validation',
-    'rte': 'validation',
-    'stsb': 'validation',
-    'cola': 'test',
-    'piqa-mini': 'validation',
-    'gsm8k': 'test',
-    'wikitext': 'validation',
-    'wikitext103': 'validation',
-    'sensireplaced': 'validation',
-    'sensimarked': 'validation',
-    'sensimasked': 'validation',
-    'imdb': 'unsupervised',
-    'hc3cn': 'baike',
-    'imagewoof': 'validation',
-}
-
-DRA_test_label = {nm: 'test' for nm in DRA_train_label.keys()}
-DRA_test_label['hc3cn'] = 'finance'
-DRA_test_label['imagewoof'] = 'validation'
 
 dxp_moe_range = {0.08, 0.21, 0.38}
 gaussian_moe_range = {3.0, 5.0, 8.0}
-# dc_moe_range = {6.0, 8.0, 10.0}
 dc_moe_range = {8.0, 32.0, 64.0}
 
 @dataclass

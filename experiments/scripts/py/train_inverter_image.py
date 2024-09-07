@@ -12,11 +12,11 @@ from sfl.model.attacker.sip.inversion_models import ViTDRAttacker, ViTDRAttacker
 sys.path.append(os.path.abspath('../../..'))
 from sfl.data.base import MixtureFedDataset
 from sfl.config import FLConfig
-from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params
+from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class
 from sfl.utils.model import get_best_gpu, set_random_seed, \
     evaluate_attacker_mse
 
-from sfl.config import DRA_train_label, DRA_test_label
+from sfl.utils.exp import get_dra_train_label, get_dra_test_label
 
 
 def get_save_path(fl_config, save_dir, args):
@@ -28,7 +28,7 @@ def get_save_path(fl_config, save_dir, args):
                          f'/{args.attack_model}/layer{cut_layer}/')
     else:
         p = os.path.join(save_dir,
-                         f'{model_name}/{args.dataset}/{DRA_train_label[args.dataset]}*{args.dataset_train_frac:.3f}-{DRA_test_label[args.dataset]}*{args.dataset_test_frac:.3f}'
+                         f'{model_name}/{args.dataset}/{get_dra_train_label(args.dataset)}*{args.dataset_train_frac:.3f}-{get_dra_test_label(args.dataset)}*{args.dataset_test_frac:.3f}'
                          f'/{args.attack_model}/layer{cut_layer}/')
     attacker_prefix = 'normal/'
     if fl_config.noise_mode == 'gaussian':
@@ -88,16 +88,16 @@ def train_attacker(args):
     if ',' not in args.dataset:
         dataset_cls = get_dataset_class(args.dataset)
         dataset = dataset_cls(processor, [])
-        if DRA_train_label[args.dataset] == DRA_test_label[args.dataset]:  # self-testing
+        if get_dra_train_label(args.dataset) == get_dra_test_label(args.dataset):  # self-testing
             dataloader, dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size,
-                                                                          type=DRA_train_label[args.dataset],
+                                                                          type=get_dra_train_label(args.dataset),
                                                                           shrink_frac=args.dataset_train_frac,
                                                                           further_test_split=0.3)
         else:
-            dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=DRA_train_label[args.dataset],
+            dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=get_dra_train_label(args.dataset),
                                                          shrink_frac=args.dataset_train_frac)
             dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size,
-                                                              type=DRA_test_label[args.dataset],
+                                                              type=get_dra_test_label(args.dataset),
                                                               shrink_frac=args.dataset_test_frac)
     else:
         dataset = MixtureFedDataset(processor, [], args.dataset_train_frac, args.dataset.split(','),

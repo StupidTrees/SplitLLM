@@ -8,14 +8,13 @@ from transformers import MistralForCausalLM
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from sfl.config import FLConfig
-from sfl.model.llm.dim_reduction import DimReduction
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.wizard.wizard_split import WizardSplitModel
 from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.utils.exp import register_model
 
 
-@register_model('wizard',requiring_quantization=True)
+@register_model('wizard', requiring_quantization=True, dir_names='lucyknada/microsoft_WizardLM-2-7B')
 class WizardForCausalLMSplit(MistralForCausalLM, SplitWrapperModel):
 
     def __init__(self, config):
@@ -27,10 +26,10 @@ class WizardForCausalLMSplit(MistralForCausalLM, SplitWrapperModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks: list = None,
-                   dim_reducer: DimReduction = None, *args, **kwargs):
-        super(WizardForCausalLMSplit, self).config_sfl(config, param_keeper, b2tr_hooks, dim_reducer, *args, **kwargs)
-        self.model.config_sfl(config, param_keeper, b2tr_hooks, dim_reducer, *args, **kwargs)
+    def config_sfl(self, config: FLConfig, param_keeper: ParameterKeeper | None = None, b2tr_hooks: list = None, *args,
+                   **kwargs):
+        super(WizardForCausalLMSplit, self).config_sfl(config, param_keeper, b2tr_hooks, *args, **kwargs)
+        self.model.config_sfl(config, param_keeper, b2tr_hooks, *args, **kwargs)
 
     @staticmethod
     def _get_block_num(param_name: str):

@@ -74,7 +74,7 @@ class SIPAttacker(Attacker):
         encoder_inter = None if encoder_inter is None else encoder_inter.fx.to(llm.device)
         with torch.no_grad():
             for type, atk in zip(['tr2t', 'b2tr'], [self.inverter_tr2t, self.inverter_b2tr]):
-                if atk is None:
+                if atk is None or not getattr(aargs, f'{type}_enable'):
                     continue
                 if aargs.attack_all_layers:
                     for idx, inter in all_inters.items():
@@ -89,14 +89,15 @@ class SIPAttacker(Attacker):
                 else:
                     if type == 'b2tr':
                         if aargs.b2tr_target_layer >= 0:
-                            inter = all_inters[aargs.b2tr_target_layer]
+                            inter = all_inters[aargs.b2tr_target_layer - 1]
                         else:
                             inter = b2tr_inter
                     else:
                         if aargs.tr2t_target_layer >= 0:
-                            inter = all_inters[aargs.tr2t_target_layer]
+                            inter = all_inters[aargs.tr2t_target_layer - 1]
                         else:
                             inter = tr2t_inter
+                    all_i = {k: (x.fx.shape, x.type) for k, x in all_inters.items()}
                     if llm.type == 'encoder-decoder':
                         attacked = atk(torch.concat([encoder_inter.fx.to(
                             simulator.device), inter.fx.to(atk.device)], dim=1))
@@ -121,17 +122,16 @@ def get_sip_inverter(dra_config: SIPAttackerArguments):
     attacker_path = dra_config.path + f'{model_name}/{dataset}/'
     matches = []
     for d in os.listdir(attacker_path):
-        pattern = f'{DRA_train_label[dataset]}*{dra_config.train_frac:.3f}'
+        pattern = f'{get_dra_train_label(dataset]}*{dra_config.train_frac:.3f}'
         if ',' in dra_config.dataset:
             pattern = f'Tr{dra_config.train_frac:.3f}'
         if d.startswith(pattern):
-            attacker_path = os.path.join(attacker_path, d) + '/'
-            matches.append(attacker_path)
+            matches.append(os.path.join(attacker_path, d) + '/')
     if len(matches) == 0:
         return None, None
     inverter_paths = [None, None]
-    for p in matches:
-        p += f'{dra_config.model}'
+    for matched_p in matches:
+        p = matched_p + f'{dra_config.model}'
         for idx, choice in enumerate(['b2tr', 'tr2t']):
             if getattr(dra_config, f'{choice}_enable', False):
                 sp = int(getattr(dra_config, f'{choice}_target_layer'))
@@ -150,6 +150,7 @@ def get_sip_inverter(dra_config: SIPAttackerArguments):
                 inverter_paths[idx] = p
 
     attacker, attacker2 = None, None
+    print(f'Loading inverter from {inverter_paths}')
     if inverter_paths[0]:
         attacker = get_inverter_class(dra_config.model).from_pretrained(inverter_paths[0])
     if inverter_paths[1]:

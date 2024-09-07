@@ -1,42 +1,51 @@
 import argparse
-import dataclasses
 import os
 from copy import deepcopy
 
 import torch
 from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor
 
-from sfl import config
-from sfl.config import FLConfig, model_download_dir, reducer_path
+from sfl.config import FLConfig, model_download_dir
 from sfl.data.base import MixtureFedDataset, FedDataset
-from sfl.model.llm.dim_reduction import DimReduction
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
-from sfl.utils.argparser import PrefixArgumentParser
 from sfl.utils.model import get_best_gpu
 
 _dataset_name_map = {}
+_dataset_dra_train_label_map = {}
+_dataset_dra_test_label_map = {}
 _model_name_map = {}
 _model_name_prefix_map = {}
+_model_dir_name_map = {}
+_model_dir_name_prefix_map = {}
 _model_requiring_quantization = set()
 
 
-def register_dataset(name):
+def register_dataset(name, dra_train_label='validation', dra_test_label='test'):
     def wrapper(cls):
         assert issubclass(
             cls, FedDataset
         ), "All dataset must inherit FedDataset"
         _dataset_name_map[name] = cls
+        _dataset_dra_train_label_map[name] = dra_train_label
+        _dataset_dra_test_label_map[name] = dra_test_label
         return cls
 
     return wrapper
 
 
-def register_model(names, register_for_prefix=True, requiring_quantization=False):
+def register_model(names, register_for_prefix=True, requiring_quantization=False, dir_names=None):
     dct = _model_name_map
+    dct_dir = _model_dir_name_map
     if register_for_prefix:
         dct = _model_name_prefix_map
+        dct_dir = _model_dir_name_prefix_map
+    dir = dir_names
+    if dir is None:
+        dir = names
+    if isinstance(str, (list, tuple, set)):
+        assert isinstance(dir, (list, tuple, set)) and len(dir) == len(names)
 
     def wrapper(cls):
         assert issubclass(
@@ -44,9 +53,11 @@ def register_model(names, register_for_prefix=True, requiring_quantization=False
         ), "All outer model must inherit SplitWrapperModel"
         if isinstance(names, str):
             dct[names] = cls
+            dct_dir[names] = dir
         elif isinstance(names, (list, tuple, set)):
-            for n in names:
+            for n, dn in zip(names, dir):
                 dct[n] = cls
+                dct_dir[n] = dn
         else:
             raise ValueError("names must be str or list|tuple|set")
 
@@ -56,6 +67,14 @@ def register_model(names, register_for_prefix=True, requiring_quantization=False
         return cls
 
     return wrapper
+
+
+def get_dra_train_label(name):
+    return _dataset_dra_train_label_map[name]
+
+
+def get_dra_test_label(name):
+    return _dataset_dra_train_label_map[name]
 
 
 def str2bool(v):
@@ -86,31 +105,6 @@ def merge_args(args1, args2):
         if not hasattr(args1, k):
             setattr(args1, k, v)
     return args1
-
-
-def add_train_reducer_params(parser):
-    parser.add_argument('--exp_name', type=str, default='attacker')
-    parser.add_argument('--model_download_dir', type=str, default='/root/autodl-tmp/sfl/models')
-    parser.add_argument('--model_name', type=str, default='gpt2')
-    parser.add_argument('--save_dir', type=str, default=config.reducer_path)
-    parser.add_argument('--dataset', type=str, default='piqa')
-    parser.add_argument('--dataset_train_label', type=str, default='train')
-    parser.add_argument('--dataset_train_frac', type=float, default=0.1)
-    parser.add_argument('--dataset_test_frac', type=float, default=1.0)
-    parser.add_argument('--attack_model', type=str, default='moe', help='lstm or ...')
-    parser.add_argument('--load_bits', type=int, default=8, help='load bits for large models')
-    parser.add_argument('--layer', type=int, default=6, help='target layer, 6 means output of #5 layer will be reduced')
-    parser.add_argument('--alpha', type=int, default=8)
-    parser.add_argument('--epochs', type=int, default=15)
-    parser.add_argument('--batch_size', type=int, default=6)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--opt', type=str, default='adam')
-    parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--save_checkpoint', type=str2bool, default=False)
-    parser.add_argument('--checkpoint_freq', type=int, default=2)
-    parser.add_argument('--save_threshold', type=float, default=20.0)
-    parser.add_argument('--log_to_wandb', type=str2bool, default=False)
-    parser.add_argument('--skip_exists', type=str2bool, default=True)
 
 
 def add_sfl_params(parser):
@@ -153,14 +147,6 @@ def add_sfl_params(parser):
     parser.add_argument('--attacker_freq', type=int, default=25, help='attack every * steps')
     parser.add_argument('--attacker_samples', type=int, default=10, help='attack how many batches each time')
     parser.add_argument('--reducer_enable', type=str2bool, default=False)
-    parser.add_argument('--reducer_train_frac', type=float, default=1.0)
-    parser.add_argument('--reducer_train_label', type=str, default='train')
-    parser.add_argument('--reducer_dataset', type=str,
-                        default='')
-    parser.add_argument('--reducer_layer', type=int,
-                        default=-1)
-    parser.add_argument('--reducer_alpha', type=int,
-                        default=512)
     parser.add_argument('--completion_only', type=str2bool, default=False)
 
 
@@ -183,98 +169,30 @@ def get_fl_config(args) -> FLConfig:
                       collect_all_layers=args.collect_all_layers,
                       dataset_type=args.dataset_label,
                       batch_size=args.batch_size,
+                      reducer_enable=args.reducer_enable,
                       lr=args.lr
                       )
     return config
 
 
 def get_model_path(model_name):
-    path = ''
-    if model_name.startswith('gpt2'):
-        path = os.path.join(model_download_dir, model_name)
-    elif model_name.startswith('bert'):
-        path = os.path.join(model_download_dir, f"google-bert/{model_name}-uncased/")
-    elif model_name.startswith('roberta'):
-        path = os.path.join(model_download_dir, f"FacebookAI/{model_name}/")
-    elif model_name.startswith('flan-t5'):
-        path = os.path.join(model_download_dir, f"google/{model_name}")
-    elif model_name.startswith('flan-ul2'):
-        path = os.path.join(model_download_dir, f"google/{model_name}")
-    elif model_name.startswith('llama2-raw'):
-        path = os.path.join(model_download_dir, f"meta-llama/Llama-2-7b")
-        # path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
-    elif model_name.startswith('llama2'):
-        path = os.path.join(model_download_dir, f"meta-llama/Llama-2-7b-chat-hf")
-        # path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
-    elif model_name.startswith('llama3'):
-        path = os.path.join(model_download_dir, f"meta-llama/Meta-Llama-3-8B")
-        # path = os.path.join(model_download_dir, f"daryl149/llama-2-7b-chat-hf")
-    elif model_name.startswith('vicuna'):
-        path = os.path.join(model_download_dir, f"lmsys/vicuna-7b-v1.5")
-    elif model_name.startswith('chatglm'):
-        path = os.path.join(model_download_dir, f"THUDM/chatglm3-6b")
-    elif model_name.startswith('wizard'):
-        path = os.path.join(model_download_dir, f"lucyknada/microsoft_WizardLM-2-7B")
-    elif model_name.startswith('gptj'):
-        path = os.path.join(model_download_dir, f"EleutherAI/gpt-j-6b")
-    elif model_name.startswith('falcon'):
-        path = os.path.join(model_download_dir, f"tiiuae/falcon-7b-instruct")
-    elif model_name.startswith('codegen'):
-        path = os.path.join(model_download_dir, f"Salesforce/codegen25-7b-instruct_P")
-    elif model_name.startswith('bloomz'):
-        path = os.path.join(model_download_dir, f"bigscience/bloomz-560m")
+    dn = None
+    if model_name in _model_dir_name_map:
+        dn = _model_dir_name_map[model_name]
+    else:
+        for prefix in _model_dir_name_prefix_map:
+            if model_name.startswith(prefix):
+                dn = _model_dir_name_prefix_map[prefix]
+                break
+        if dn is None:
+            raise AttributeError(f"Path for Model {model_name} not found")
+    dn = dn.replace('$model_name', model_name)
+    path = os.path.join(model_download_dir, dn)
     return path
 
 
 def get_tokenizer(model_name='gpt2'):
     return AutoTokenizer.from_pretrained(get_model_path(model_name), trust_remote_code=True)
-
-
-@dataclasses.dataclass
-class ReducerArgument:
-    enable: bool = False
-    dataset: str = None
-    target_model: str = None
-    train_label: str = 'train'
-    train_frac: float = 1.0
-    layer: int = 6
-    alpha: int = 128
-
-
-def get_reducer_args() -> ReducerArgument:
-    parser = PrefixArgumentParser(prefix='reducer', dataclass_types=[ReducerArgument])
-    return parser.parse_args_into_dataclasses(return_remaining_strings=True)[0]
-
-
-def get_dim_reducer(args, aargs: ReducerArgument):
-    dataset = aargs.dataset
-    if dataset is None:
-        dataset = args.dataset
-    model_name = aargs.target_model
-    if model_name is None:
-        model_name = args.model_name
-    if required_quantization(args.model_name):
-        model_name += f"-{args.load_bits}bits"
-    mapper_path = reducer_path + f'{model_name}/{dataset}/'
-    matches = []
-    for d in os.listdir(mapper_path):
-        pattern = f'{aargs.train_label}*{aargs.train_frac:.3f}'
-        if ',' in dataset:
-            pattern = f'Tr{aargs.train_frac:.3f}'
-        if d.startswith(pattern):
-            mapper_path = os.path.join(mapper_path, d) + '/'
-            matches.append(mapper_path)
-    assert len(matches) > 0
-    mapper_path_1 = None
-    for attacker_path in matches:
-        mapper_path_1 = attacker_path + f'layer{aargs.layer}/{aargs.alpha}'
-        l = sorted(list(os.listdir(mapper_path_1)), key=lambda x: float(x.split('_')[-1]))[0]
-        mapper_path_1 = os.path.join(mapper_path_1, l)
-        if not os.path.exists(mapper_path_1):
-            mapper_path_1 = None
-    if mapper_path_1:
-        return DimReduction.from_pretrained(mapper_path_1)
-    return None
 
 
 def required_quantization(model_name):

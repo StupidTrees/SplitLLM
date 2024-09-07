@@ -13,18 +13,18 @@ from tqdm import tqdm
 
 from sfl.model.attacker.sip.args import SIPAttackerArguments, InversionModelTrainingArgument
 from sfl.model.attacker.sip.inversion_models import get_inverter_with_config, MOEDRInverter, MOEDRAttackerConfig
+from sfl.model.reducer.dim_reducer import get_dim_reducer
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
+from sfl.utils.exp import required_quantization, get_dataset_class
 
 sys.path.append(os.path.abspath('../../..'))
 import sfl
 from sfl.data.base import MixtureFedDataset
 from sfl.config import FLConfig, dxp_moe_range, gaussian_moe_range, lora_path, dc_moe_range
-from sfl.utils.exp import get_dataset_class, get_dim_reducer, \
-    get_reducer_args, required_quantization
 from sfl.utils.model import get_t5_input, calc_unshift_loss, evaluate_attacker_rouge, random_choose_noise, \
     FLConfigHolder, dist_corr, ParamRestored
 
-from sfl.config import DRA_train_label, DRA_test_label
+from sfl.utils.exp import get_dra_train_label, get_dra_test_label
 
 
 def get_lora_path(sip_arg: SIPAttackerArguments, type):
@@ -47,7 +47,7 @@ def get_save_path(fl_config, save_dir, args):
                          f'/{args.attack_model}/layer{cut_layer}/')
     else:
         p = os.path.join(save_dir,
-                         f'{model_name}/{args.dataset}/{DRA_train_label[args.dataset]}*{args.dataset_train_frac:.3f}-{DRA_test_label[args.dataset]}*{args.dataset_test_frac:.3f}'
+                         f'{model_name}/{args.dataset}/{get_dra_train_label(args.dataset)}*{args.dataset_train_frac:.3f}-{get_dra_test_label(args.dataset)}*{args.dataset_test_frac:.3f}'
                          f'/{args.attack_model}/layer{cut_layer}/')
     attacker_prefix = 'normal/'
     if fl_config.noise_mode == 'dxp':
@@ -77,7 +77,7 @@ def get_inverter_path(sip_args: SIPAttackerArguments, training_args: InversionMo
                          f'/{sip_args.model}/layer{layer}/')
     else:
         p = os.path.join(sip_args.path,
-                         f'{model_name}/{sip_args.dataset}/{DRA_train_label[sip_args.dataset]}*{sip_args.train_frac:.3f}-{DRA_test_label[sip_args.dataset]}*{training_args.test_frac:.3f}'
+                         f'{model_name}/{sip_args.dataset}/{get_dra_train_label(sip_args.dataset)}*{sip_args.train_frac:.3f}-{get_dra_test_label(sip_args.dataset)}*{training_args.test_frac:.3f}'
                          f'/{sip_args.model}/layer{layer}/')
     p += sip_args.prefix + '/'
     return p
@@ -246,17 +246,17 @@ def _get_data_loaders(sip_args: SIPAttackerArguments, training_args: InversionMo
     if ',' not in sip_args.dataset:
         dataset_cls = get_dataset_class(sip_args.dataset)
         dataset = dataset_cls(tokenizer, [])
-        if DRA_train_label[sip_args.dataset] == DRA_test_label[sip_args.dataset]:  # self-testing
+        if get_dra_train_label(sip_args.dataset) == get_dra_test_label(sip_args.dataset):  # self-testing
             dataloader, dataloader_test = dataset.get_dataloader_unsliced(batch_size=training_args.batch_size,
-                                                                          type=DRA_train_label[sip_args.dataset],
+                                                                          type=get_dra_train_label(sip_args.dataset),
                                                                           shrink_frac=sip_args.train_frac,
                                                                           further_test_split=0.3)
         else:
             dataloader = dataset.get_dataloader_unsliced(batch_size=training_args.batch_size,
-                                                         type=DRA_train_label[sip_args.dataset],
+                                                         type=get_dra_train_label(sip_args.dataset),
                                                          shrink_frac=sip_args.train_frac)
             dataloader_test = dataset.get_dataloader_unsliced(batch_size=training_args.batch_size,
-                                                              type=DRA_test_label[sip_args.dataset],
+                                                              type=get_dra_test_label(sip_args.dataset),
                                                               shrink_frac=training_args.test_frac)
     else:
         dataset = MixtureFedDataset(tokenizer, [], sip_args.train_frac, sip_args.dataset.split(','),
@@ -294,7 +294,7 @@ def train_inversion_model(model, tokenizer, sip_args: SIPAttackerArguments, b2tr
                       )
 
     if sip_args.prefix == 'nop':
-        model.init_weights() # reset params
+        model.init_weights()  # reset params
     p = get_inverter_path(sip_args, training_args, b2tr)
     print(f'Checking Existing Model @ {p}')
     if os.path.exists(p):
@@ -305,12 +305,9 @@ def train_inversion_model(model, tokenizer, sip_args: SIPAttackerArguments, b2tr
     dataloader, dataloader_test = _get_data_loaders(sip_args, training_args, tokenizer)
     reducer = None
     if sip_args.prefix.startswith('red'):
-        reducer_arg = get_reducer_args()
-        reducer_arg.alpha = int(sip_args.prefix.split(':')[1])
-        reducer_arg.layer = layer
         tmp_args = {'model_name': sip_args.target_model_name, 'load_bits': sip_args.target_model_load_bits, 'dataset':
             sip_args.dataset}
-        reducer = get_dim_reducer(argparse.Namespace(**tmp_args), reducer_arg).to(model.device)
+        reducer = get_dim_reducer(argparse.Namespace(**tmp_args), model, tokenizer).to(model.device)
         config.reducer_enable = True
 
     model.config_sfl(config, dim_reducer=reducer)

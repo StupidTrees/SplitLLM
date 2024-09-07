@@ -9,11 +9,11 @@ from tqdm import tqdm
 
 sys.path.append(os.path.abspath('../../..'))
 from sfl.config import FLConfig
-from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, add_train_dra_params, required_quantization
+from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class,  required_quantization
 from sfl.utils.model import get_best_gpu, set_random_seed, \
     evaluate_attacker_rouge, get_embedding_layer, get_embed_size, get_embedding_matrix
 
-from sfl.config import DRA_train_label, DRA_test_label
+from sfl.utils.exp import get_dra_train_label, get_dra_test_label
 
 
 def merge_attention(args, outputs, pi=None):
@@ -143,7 +143,6 @@ def train_attacker(args):
                       attack_mode='b2tr',
                       noise_mode=args.noise_mode,
                       noise_scale=args.noise_scale,
-                      noise_scale=args.noise_scale,
                       split_mode='attention'
                       )
 
@@ -151,16 +150,16 @@ def train_attacker(args):
 
     dataset_cls = get_dataset_class(args.dataset)
     dataset = dataset_cls(tokenizer, [], uni_length=args.uni_length)
-    if DRA_train_label[args.dataset] == DRA_test_label[args.dataset]:  # self-testing
+    if get_dra_train_label(args.dataset) == get_dra_test_label(args.dataset):  # self-testing
         _, dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size,
-                                                             type=DRA_train_label[args.dataset],
+                                                             type=get_dra_train_label(args.dataset),
                                                              shrink_frac=args.dataset_train_frac,
                                                              further_test_split=0.3)
     else:
-        # dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=DRA_train_label[args.dataset],
+        # dataloader = dataset.get_dataloader_unsliced(batch_size=args.batch_size, type=get_dra_train_label(args.dataset],
         #                                              shrink_frac=args.dataset_train_frac)
         dataloader_test = dataset.get_dataloader_unsliced(batch_size=args.batch_size,
-                                                          type=DRA_test_label[args.dataset],
+                                                          type=get_dra_test_label(args.dataset),
                                                           shrink_frac=args.dataset_test_frac)
 
     model.config_sfl(config)
@@ -214,7 +213,6 @@ def train_attacker(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    add_train_dra_params(parser)
     parser.add_argument('--sample_num', type=int, default=20)
     parser.add_argument('--target', type=str, default='qk', help='target of attack')
     parser.add_argument('--method', type=str, default='bre', help='target of attack')

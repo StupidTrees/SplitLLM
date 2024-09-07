@@ -2,13 +2,8 @@ from torch import float16
 from torch.nn import Linear
 from transformers import PreTrainedModel, PretrainedConfig
 
+from sfl.model.reducer.args import DRConfig
 from sfl.utils.model import get_embed_size
-
-
-class DRConfig(PretrainedConfig):
-    n_embed: int = 0
-    alpha: int = 8
-    layer: int = 6  # layer=6 means the output of block #5 will be transformed
 
 
 class DimReduction(PreTrainedModel):
@@ -29,3 +24,5 @@ class DimReduction(PreTrainedModel):
         reduced = self.m1(x)
         recovered = self.m2(reduced)
         return reduced, recovered
+
+

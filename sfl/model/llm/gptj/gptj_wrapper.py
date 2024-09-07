@@ -12,7 +12,7 @@ from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.utils.exp import register_model
 
 
-@register_model('gptj',requiring_quantization=True)
+@register_model('gptj',requiring_quantization=True,dir_names='EleutherAI/gpt-j-6b')
 class GPTJForCausalLMSplit(GPTJForCausalLM, SplitWrapperModel):
 
     def config_sfl(self, config: FLConfig, *args, **kwargs):

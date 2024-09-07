@@ -4,17 +4,17 @@ import sys
 
 import wandb
 
-
 sys.path.append(os.path.abspath('../../..'))
-from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, get_reducer_args, get_dim_reducer, get_dataset, \
+from sfl.utils.exp import get_model_and_tokenizer, get_fl_config, get_dataset, \
     add_sfl_params, args_to_dict
 from sfl.model.attacker.eia.eia_attacker import EmbeddingInversionAttacker
 from sfl.model.attacker.sma_attacker import SmashedDataMatchingAttacker
 from sfl.strategies.sl_strategy_with_attacker import SLStrategyWithAttacker
 from sfl.utils.model import set_random_seed
-from sfl.simulator.simulator import SFLSimulator
+from sfl.simulator.simulator import SFLSimulator, config_dim_reducer
 from sfl.model.attacker.sip.sip_attacker import SIPAttacker
 from sfl.model.attacker.dlg_attacker import TAGAttacker, LAMPAttacker
+
 
 def sfl_with_attacker(args, unkown_args):
     model, tokenizer = get_model_and_tokenizer(args.model_name, load_bits=args.load_bits)
@@ -22,13 +22,9 @@ def sfl_with_attacker(args, unkown_args):
     # Config SL
     client_ids = [str(i) for i in range(args.client_num)]
     config = get_fl_config(args)
+    model.config_sfl(config)
     # Config DimReducer if needed
-    dim_reducer = None
-    reducer_args = get_reducer_args()
-    if reducer_args.enable:
-        config.reducer_enable = True
-        dim_reducer = get_dim_reducer(args, reducer_args)
-    model.config_sfl(config, dim_reducer=dim_reducer)
+    config_dim_reducer(args, model, tokenizer)
     model.train()
 
     # Load dataset

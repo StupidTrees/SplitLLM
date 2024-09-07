@@ -12,6 +12,7 @@ from transformers import AdamW
 from sfl.config import FLConfig
 from sfl.data.base import FedDataset
 from sfl.model.llm.split_model import SplitWrapperModel, SplitModel
+from sfl.model.reducer.dim_reducer import get_dim_reducer
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
 from sfl.utils.data import size_str, tensor_bytes
 from sfl.utils.model import get_best_gpu, Intermediate
@@ -484,3 +485,15 @@ class ParamRestored:
             if self.write_back and self.pk:
                 self.pk.store_other_params(self.key, part, updated_params)
         self.llm.config_sfl(self.cfg_bk, self.pk)
+
+
+def config_dim_reducer(system_args, llm, tokenizer):
+    assert isinstance(llm, SplitWrapperModel)
+    if llm.fl_config is None:
+        print('FLConfig not set, cannot configure dim reducer')
+        return
+    elif not llm.fl_config.reducer_enable:
+        print('Reducer not enabled, cannot configure dim reducer')
+        return
+    dim_reducer = get_dim_reducer(system_args, llm, tokenizer)
+    llm.config_sfl(llm.fl_config, dim_reducer=dim_reducer)

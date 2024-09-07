@@ -5,8 +5,8 @@ import torch
 from datasets import disable_progress_bar
 from torch.utils.data import DataLoader
 
-from sfl.config import DRA_train_label, DRA_test_label
 from sfl.utils.data import random_slicing
+from sfl.utils.exp import get_dra_train_label, get_dra_test_label
 
 
 class FedDataset(ABC):
@@ -98,13 +98,13 @@ class MixtureFedDataset(FedDataset):
         train_loaders = []
         test_loaders = []
         for nm, ds in zip(self.dataset_names, self.fed_datasets):
-            if DRA_train_label[nm] == DRA_test_label[nm]:
-                d1, d2 = ds.get_dataloader_unsliced(batch_size, DRA_train_label[nm], shrink_frac,
+            if get_dra_train_label(nm) == get_dra_test_label(nm):
+                d1, d2 = ds.get_dataloader_unsliced(batch_size,get_dra_train_label(nm), shrink_frac,
                                                     further_test_split=0.3, max_seq_len=max_seq_len,shuffle=shuffle)
             else:
-                d1 = ds.get_dataloader_unsliced(batch_size, DRA_train_label[nm], shrink_frac=shrink_frac,
+                d1 = ds.get_dataloader_unsliced(batch_size, get_dra_train_label(nm), shrink_frac=shrink_frac,
                                                 max_seq_len=max_seq_len,shuffle=shuffle)
-                d2 = ds.get_dataloader_unsliced(batch_size, DRA_test_label[nm], shrink_frac=shrink_frac,
+                d2 = ds.get_dataloader_unsliced(batch_size, get_dra_test_label(nm), shrink_frac=shrink_frac,
                                                 max_seq_len=max_seq_len,shuffle=shuffle)
             train_loaders.append(d1)
             test_loaders.append(d2)

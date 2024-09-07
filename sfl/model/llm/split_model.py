@@ -6,9 +6,9 @@ from peft import LoraConfig, get_peft_model
 from torch import nn, float16
 
 from sfl.config import FLConfig
-from sfl.model.llm.dim_reduction import DimReduction
 from sfl.model.noise.dxp import DxPrivacy
 from sfl.model.noise.fdp import GaussianPerturber
+from sfl.model.reducer.reducer_models import DimReduction
 from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.utils.model import Intermediate, get_embedding_layer
 
@@ -107,7 +107,6 @@ class SplitModel(nn.Module, ABC):
                 return to_save, hidden_states
             elif i == self.fl_config.split_point_2 and self.fl_config.attack_mode == 'tr2t':
                 return to_save, hidden_states
-
         if self.fl_config is not None and self.fl_config.trigger_hook and i == self.fl_config.split_point_1 - 1:  # bottom-trunk
             for hook in self.b2tr_hooks:
                 hook(to_save)

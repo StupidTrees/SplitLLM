@@ -15,7 +15,7 @@ lora_at_bottom=True
 lora_at_top=True
 collect_all_layers=True
 
-model_name='llama2'
+model_name='gpt2-large'
 
 batch_size=2
 
@@ -26,48 +26,14 @@ reducer_train_frac=1.0
 inverter_dataset="piqa"
 sfl_dataset="piqa"
 
-reducer_alphas=(3072)
+reducer_alphas=(64)
 split_point=6
 sps="$split_point-27"
-seeds=(7 56)
+seeds=(42)
 
 # 先训练Reducer
 for seed in "${seeds[@]}"; do
   for alpha in "${reducer_alphas[@]}"; do
-
-    echo "Running train_reducer.py with seed=$seed"
-    python ../py/train_reducer.py \
-      --model_name "$model_name" \
-      --seed "$seed" \
-      --dataset "$sfl_dataset" \
-      --attack_mode "b2tr" \
-      --layer "$split_point" \
-      --alpha "$alpha" \
-      --save_checkpoint True \
-      --log_to_wandb False \
-      --epochs 20 \
-      --dataset_train_frac "$reducer_train_frac" \
-      --dataset_train_label "train" \
-      --dataset_test_frac 0.05 --checkpoint_freq 1
-
-    # 再训练Inverter
-    echo "Running train_inverter.py"
-    python ../py/train_inverter.py \
-      --model_name "$model_name" \
-      --seed "$seed" \
-      --attack_model "gru" \
-      --dataset "$inverter_dataset" \
-      --attack_mode 'b2tr' \
-      --sps "$sps" \
-      --epochs 20 \
-      --dataset_test_frac 0.1 \
-      --save_checkpoint True \
-      --log_to_wandb False \
-      --require_prefix "red:${alpha}" \
-      --reducer_dataset "$sfl_dataset" \
-      --reducer_train_frac "$reducer_train_frac" \
-      --reducer_alpha "$alpha"
-
     case_name="DIM@${model_name}-inv${inverter_dataset}-red${alpha}${alpha}"
 
     # 将其用于攻击
