@@ -3,13 +3,12 @@ from typing import Optional, Union, Tuple
 import regex
 import torch
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
-from transformers import RobertaForSequenceClassification, Seq2SeqTrainer, AutoModelForCausalLM, XGLMForCausalLM
+from transformers import RobertaForSequenceClassification
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 from sfl.config import FLConfig
 from sfl.model.llm.roberta.roberta_split import RobertaSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
-from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.utils.exp import register_model
 
 
@@ -45,7 +44,8 @@ class RobertaSplitWrapper(SplitWrapperModel):
         super(RobertaSplitWrapper, self).config_sfl(config, *args, **kwargs)
         self.roberta.config_sfl(config, *args, **kwargs)
 
-@register_model('roberta',register_for_prefix=True)
+
+@register_model('roberta', register_for_prefix=True, dir_names='FacebookAI/$model_name/')
 class RobertaForSequenceClassificationSplitModel(RobertaForSequenceClassification, RobertaSplitWrapper):
     def __init__(self, config):
         super().__init__(config)

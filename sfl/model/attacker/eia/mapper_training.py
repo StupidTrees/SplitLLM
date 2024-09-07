@@ -13,7 +13,7 @@ from sfl.config import FLConfig
 from sfl.model.attacker.eia.mapper_models import LMMapperConfig
 from sfl.utils.exp import get_dataset_class, required_quantization
 from sfl.utils.model import get_best_gpu
-from sfl.config import DRA_train_label, DRA_test_label
+from sfl.utils.exp import get_dra_train_label, get_dra_test_label
 
 
 def get_save_path(eia_args: EIAArguments, training_args: MapperTrainingArguments):
@@ -21,7 +21,7 @@ def get_save_path(eia_args: EIAArguments, training_args: MapperTrainingArguments
     if required_quantization(eia_args.mapper_target_model_name):
         model_name += f'-{eia_args.mapper_target_model_load_bits}bits'
     p = os.path.join(eia_args.mapper_path,
-                     f'{model_name}/{eia_args.mapper_dataset}/{DRA_train_label[eia_args.mapper_dataset]}*{eia_args.mapper_train_frac:.3f}-{DRA_test_label[eia_args.mapper_dataset]}*{training_args.test_frac:.3f}'
+                     f'{model_name}/{eia_args.mapper_dataset}/{get_dra_train_label(eia_args.mapper_dataset)}*{eia_args.mapper_train_frac:.3f}-{get_dra_test_label(eia_args.mapper_dataset)}*{training_args.test_frac:.3f}'
                      f'/{eia_args.mapper_targets}/')
     return p
 
@@ -72,17 +72,17 @@ def train_mapper(model, tokenizer, eia_args: EIAArguments, training_args: Mapper
     if ',' not in eia_args.mapper_dataset:
         dataset_cls = get_dataset_class(eia_args.mapper_dataset)
         dataset = dataset_cls(tokenizer, [])
-        if DRA_train_label[eia_args.mapper_dataset] == DRA_test_label[eia_args.mapper_dataset]:  # self-testing
+        if get_dra_train_label(eia_args.mapper_dataset) == get_dra_test_label(eia_args.mapper_dataset):  # self-testing
             dataloader, dataloader_test = dataset.get_dataloader_unsliced(batch_size=training_args.batch_size,
-                                                                          type=DRA_train_label[eia_args.mapper_dataset],
+                                                                          type=get_dra_train_label(eia_args.mapper_dataset),
                                                                           shrink_frac=eia_args.mapper_train_frac,
                                                                           further_test_split=0.3)
         else:
             dataloader = dataset.get_dataloader_unsliced(batch_size=training_args.batch_size,
-                                                         type=DRA_train_label[eia_args.mapper_dataset],
+                                                         type=get_dra_train_label(eia_args.mapper_dataset),
                                                          shrink_frac=eia_args.mapper_train_frac)
             dataloader_test = dataset.get_dataloader_unsliced(batch_size=training_args.batch_size,
-                                                              type=DRA_test_label[eia_args.mapper_dataset],
+                                                              type=get_dra_test_label(eia_args.mapper_dataset),
                                                               shrink_frac=training_args.test_frac)
     else:
         dataset = MixtureFedDataset(tokenizer, [], eia_args.mapper_train_frac, eia_args.mapper_dataset.split(','),

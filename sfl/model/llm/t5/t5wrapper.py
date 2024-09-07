@@ -4,7 +4,6 @@ from typing import Optional, Tuple, Union
 
 import torch
 from regex import regex
-from torch import nn
 from torch.nn import CrossEntropyLoss
 from transformers import T5ForConditionalGeneration, T5Config
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
@@ -12,7 +11,6 @@ from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 from sfl.config import FLConfig
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5split import T5SplitStack
-from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.utils.exp import register_model
 
 
@@ -84,7 +82,8 @@ class T5SplitWrapper(SplitWrapperModel):
         self.encoder.change_noise(scale, mode)
         self.decoder.change_noise(scale, mode)
 
-@register_model(['t5','ul2'],register_for_prefix=True)
+
+@register_model(['t5', 'ul2'], register_for_prefix=True, dir_names=['google/$model_name', 'google/$model_name'])
 class T5ForConditionalGenerationSplitModel(T5ForConditionalGeneration, T5SplitWrapper):
 
     def __init__(self, config: T5Config):

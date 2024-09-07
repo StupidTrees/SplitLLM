@@ -13,7 +13,7 @@ from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.utils.exp import register_model
 
 
-@register_model('chatglm',requiring_quantization=True)
+@register_model('chatglm',requiring_quantization=True,dir_names='THUDM/chatglm3-6b')
 class ChatGLMForConditionalGenerationSplit(ChatGLMForConditionalGeneration, SplitWrapperModel):
 
     def config_sfl(self, config: FLConfig, *args, **kwargs):

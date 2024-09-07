@@ -9,7 +9,6 @@ from transformers.modeling_outputs import SequenceClassifierOutput
 from sfl.config import FLConfig
 from sfl.model.llm.bert.bert_split import BertSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
-from sfl.simulator.param_keeper import ParameterKeeper
 from sfl.utils.exp import register_model
 
 
@@ -46,7 +45,8 @@ class BertSplitWrapper(SplitWrapperModel):
     def change_noise(self, noise_scale, noise_mode=None):
         self.bert.change_noise(noise_scale, noise_mode)
 
-@register_model('bert',register_for_prefix=True)
+
+@register_model('bert', register_for_prefix=True, dir_names='google-bert/$model_name-uncased/')
 class BertForSequenceClassificationSplitModel(BertForSequenceClassification, BertSplitWrapper):
 
     def __init__(self, config):

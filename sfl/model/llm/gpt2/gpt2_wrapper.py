@@ -49,7 +49,8 @@ class GPT2SplitWrapper(SplitWrapperModel):
     def get_all_inter(self, detach=True):
         return self.transformer.get_all_inter(detach)
 
-@register_model('gpt2')
+
+@register_model('gpt2', dir_names='$model_name')
 class GPT2SplitLMHeadModel(GPT2LMHeadModel, GPT2SplitWrapper):
 
     def __init__(self, config):
