@@ -6,7 +6,6 @@ import torch
 from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor
 
 from sfl.config import FLConfig, model_download_dir
-from sfl.data.base import MixtureFedDataset, FedDataset
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
@@ -23,6 +22,7 @@ _model_requiring_quantization = set()
 
 
 def register_dataset(name, dra_train_label='validation', dra_test_label='test'):
+    from sfl.data.base import FedDataset
     def wrapper(cls):
         assert issubclass(
             cls, FedDataset
@@ -291,12 +291,13 @@ def get_model_and_tokenizer(model_name='gpt2', task='lm', num_labels=2, force_on
     return model, tokenizer
 
 
-def get_dataset(dataset_name, tokenizer, client_ids=None, shrink_frac=1.0, completion_only=False) -> FedDataset:
+def get_dataset(dataset_name, tokenizer, client_ids=None, shrink_frac=1.0, completion_only=False):
     if client_ids is None:
         client_ids = []
     if ',' in dataset_name:
         dataset_names = dataset_name.split(',')
         dataset_classes = [get_dataset_class(dn) for dn in dataset_names]
+        from sfl.data.base import MixtureFedDataset
         return MixtureFedDataset(tokenizer, client_ids, shrink_frac, dataset_names, dataset_classes)
     else:
         return get_dataset_class(dataset_name)(tokenizer=tokenizer, client_ids=client_ids, shrink_frac=shrink_frac,
