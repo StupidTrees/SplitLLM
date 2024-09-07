@@ -92,6 +92,9 @@ In SL, a model is divided into three parts:
 
 where Bottom-Layers and Top-Layers are input and output end of the model, and Trunk-Layers are the middle part of the model. 
 
+<img src="./doc/img/sfl-arch.png" width="70%">
+
+
 
 To simulate Split Federated Learning (SFL), we do not employ the approach of physically splitting the model in code implementation. Instead, we independently maintain different parts of the model's parameters. We simulate Client training in a serial manner, without actual Client parallelism.
 
