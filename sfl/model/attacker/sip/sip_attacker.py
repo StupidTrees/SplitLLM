@@ -1,10 +1,8 @@
-import dataclasses
 import os
 
 import torch
 from tokenizers import Tokenizer
 
-from sfl.config import attacker_path, DRA_train_label
 from sfl.model.attacker.base import Attacker
 from sfl.model.attacker.sip.args import SIPAttackerArguments, InversionModelTrainingArgument
 from sfl.model.attacker.sip.inversion_models import get_inverter_class
@@ -12,7 +10,7 @@ from sfl.model.attacker.sip.inversion_training import train_inversion_model, tra
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator, ParamRestored
 from sfl.utils.argparser import PrefixArgumentParser
-from sfl.utils.exp import required_quantization
+from sfl.utils.exp import required_quantization, get_dra_train_label
 from sfl.utils.model import FLConfigHolder
 
 
@@ -124,7 +122,7 @@ def get_sip_inverter(dra_config: SIPAttackerArguments):
     if not os.path.exists(attacker_path):
         return None, None
     for d in os.listdir(attacker_path):
-        pattern = f'{get_dra_train_label(dataset]}*{dra_config.train_frac:.3f}'
+        pattern = f'{get_dra_train_label(dataset)}*{dra_config.train_frac:.3f}'
         if ',' in dra_config.dataset:
             pattern = f'Tr{dra_config.train_frac:.3f}'
         if d.startswith(pattern):
