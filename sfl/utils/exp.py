@@ -5,10 +5,11 @@ from copy import deepcopy
 import torch
 from transformers import AutoTokenizer, BitsAndBytesConfig, ViTImageProcessor
 
-from sfl.config import FLConfig, model_download_dir
+from sfl.config import  model_download_dir
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.vit.vit_wrapper import ViTForImageClassificationSplit
 from sfl.simulator.param_keeper import InMemoryParameterKeeper
+from sfl.utils.args import FLConfig
 from sfl.utils.model import get_best_gpu
 
 _dataset_name_map = {}
