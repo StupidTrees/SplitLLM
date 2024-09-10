@@ -12,7 +12,7 @@ from sfl.model.attacker.eia.mapper_training import train_mapper
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator, ParamRestored
-from sfl.utils.argparser import PrefixArgumentParser
+from sfl.utils.args import PrefixArgumentParser
 from sfl.utils.exp import required_quantization, get_dra_train_label
 from sfl.utils.model import evaluate_attacker_rouge, FLConfigHolder, \
     get_embedding_matrix

@@ -8,7 +8,7 @@ from torch.nn import CrossEntropyLoss
 from transformers import T5ForConditionalGeneration, T5Config
 from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.t5.t5split import T5SplitStack
 from sfl.utils.exp import register_model

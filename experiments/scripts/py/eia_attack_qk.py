@@ -8,7 +8,7 @@ import wandb
 from tqdm import tqdm
 
 sys.path.append(os.path.abspath('../../..'))
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class,  required_quantization
 from sfl.utils.model import get_best_gpu, set_random_seed, \
     evaluate_attacker_rouge, get_embedding_layer, get_embed_size, get_embedding_matrix

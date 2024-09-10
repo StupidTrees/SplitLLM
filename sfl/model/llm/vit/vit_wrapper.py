@@ -7,7 +7,7 @@ from torch.nn import MSELoss, CrossEntropyLoss, BCEWithLogitsLoss
 from transformers import ViTForImageClassification, ViTConfig
 from transformers.modeling_outputs import ImageClassifierOutput
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.vit.vit_split import ViTSplit
 from sfl.simulator.param_keeper import ParameterKeeper

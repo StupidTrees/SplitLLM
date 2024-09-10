@@ -14,7 +14,7 @@ from sfl.model.attacker.sip.inversion_models import InverterForAttentionConfig, 
 
 sys.path.append(os.path.abspath('../../..'))
 from experiments.scripts.py.eia_attack_qk import get_pi_size
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class, required_quantization, \
     str2bool
 from sfl.utils.model import get_best_gpu, calc_unshift_loss, set_random_seed, \

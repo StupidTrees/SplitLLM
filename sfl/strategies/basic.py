@@ -6,7 +6,7 @@ from torch.optim import Adam
 from tqdm import tqdm
 from transformers import AdamW
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import FLStrategy
 from sfl.utils.model import Intermediate, evaluate_accuracy, evaluate_perplexity, get_t5_input, calculate_rouge, \

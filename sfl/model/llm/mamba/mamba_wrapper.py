@@ -6,7 +6,7 @@ from torch.nn import CrossEntropyLoss
 from transformers import MambaForCausalLM, MambaCache
 from transformers.models.mamba.modeling_mamba import MambaCausalLMOutput
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.mamba.mamba_split import MambaSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
 

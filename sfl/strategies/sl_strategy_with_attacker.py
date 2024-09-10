@@ -2,7 +2,7 @@ from typing import Any
 
 import wandb
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.strategies.basic import BaseSFLStrategy
 from sfl.utils.model import FLConfigHolder, Intermediate, evaluate_attacker_rouge
 

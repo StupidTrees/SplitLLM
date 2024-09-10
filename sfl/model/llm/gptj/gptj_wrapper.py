@@ -6,7 +6,7 @@ from torch.nn import CrossEntropyLoss
 from transformers import GPTJForCausalLM
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.gptj.gptj_split import GPTJSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.utils.exp import register_model

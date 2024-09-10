@@ -3,7 +3,7 @@ import os
 from sfl.model.reducer.args import ReducerArgument, ReductionTrainingArguments
 from sfl.model.reducer.reducer_models import DimReduction
 from sfl.model.reducer.reducer_training import train_reducer
-from sfl.utils.argparser import PrefixArgumentParser
+from sfl.utils.args import PrefixArgumentParser
 from sfl.utils.exp import required_quantization
 from sfl.utils.model import ParamRestored, FLConfigHolder
 

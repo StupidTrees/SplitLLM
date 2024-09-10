@@ -9,7 +9,7 @@ from tqdm import tqdm
 from sfl.model.attacker.eia.args import EIAArguments, MapperTrainingArguments
 from sfl.model.attacker.eia.eia_attacker import LMMapper
 from sfl.data.base import MixtureFedDataset
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.attacker.eia.mapper_models import LMMapperConfig
 from sfl.utils.exp import get_dataset_class, required_quantization
 from sfl.utils.model import get_best_gpu

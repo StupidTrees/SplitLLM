@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from tokenizers import Tokenizer
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.attacker.base import Attacker
 from sfl.model.attacker.dlg_attacker import TAGAttacker, TAGArguments
 from sfl.model.attacker.eia_attacker import EmbeddingInversionAttacker, EIAArguments

@@ -7,7 +7,7 @@ from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttenti
     BaseModelOutputWithPoolingAndCrossAttentions
 from transformers.models.roberta.modeling_roberta import RobertaEncoder, RobertaEmbeddings, RobertaPooler
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.split_model import SplitModel
 from sfl.model.noise.dxp import DxPrivacy
 from sfl.simulator.param_keeper import ParameterKeeper

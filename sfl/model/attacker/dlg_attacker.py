@@ -13,7 +13,7 @@ from torch.nn import ModuleList
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block
 from transformers.models.t5.modeling_t5 import T5Block, T5LayerNorm
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.attacker.base import Attacker
 from sfl.model.llm.falcon.falcon_wrapper import FalconForCausalLMSplit
 from sfl.model.llm.glm.glm_wrapper import ChatGLMForConditionalGenerationSplit

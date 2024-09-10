@@ -6,7 +6,7 @@ from transformers import ViTModel, ViTConfig
 from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
 from transformers.models.vit.modeling_vit import ViTEmbeddings, ViTPooler, ViTEncoder
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.split_model import SplitModel
 from sfl.simulator.param_keeper import ParameterKeeper
 

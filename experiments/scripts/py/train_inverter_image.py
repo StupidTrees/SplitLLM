@@ -11,7 +11,7 @@ from sfl.model.attacker.sip.inversion_models import ViTDRAttacker, ViTDRAttacker
 
 sys.path.append(os.path.abspath('../../..'))
 from sfl.data.base import MixtureFedDataset
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.utils.exp import get_model_and_tokenizer, get_dataset_class
 from sfl.utils.model import get_best_gpu, set_random_seed, \
     evaluate_attacker_mse
