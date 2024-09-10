@@ -4,7 +4,7 @@ import torch
 from torch.optim import Adam, AdamW
 from tqdm import tqdm
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.data.base import MixtureFedDataset
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.reducer.args import ReducerArgument, ReductionTrainingArguments, DRConfig

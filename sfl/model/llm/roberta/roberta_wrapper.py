@@ -6,7 +6,7 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 from transformers import RobertaForSequenceClassification
 from transformers.modeling_outputs import SequenceClassifierOutput
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.roberta.roberta_split import RobertaSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.utils.exp import register_model

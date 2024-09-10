@@ -9,7 +9,7 @@ import wandb
 from tqdm import tqdm
 from transformers import AdamW
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.data.base import FedDataset
 from sfl.model.llm.split_model import SplitWrapperModel, SplitModel
 from sfl.model.reducer.dim_reducer import get_dim_reducer

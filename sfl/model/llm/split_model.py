@@ -5,7 +5,7 @@ import torch
 from peft import LoraConfig, get_peft_model
 from torch import nn, float16
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.noise.dxp import DxPrivacy
 from sfl.model.noise.fdp import GaussianPerturber
 from sfl.model.reducer.reducer_models import DimReduction

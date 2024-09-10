@@ -5,7 +5,7 @@ from torch.utils.checkpoint import checkpoint
 from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
 from transformers.models.t5.modeling_t5 import T5Stack
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.split_model import SplitModel
 from sfl.utils.model import Intermediate
 

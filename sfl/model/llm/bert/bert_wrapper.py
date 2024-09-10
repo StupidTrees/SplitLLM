@@ -6,7 +6,7 @@ from torch.nn import MSELoss, CrossEntropyLoss, BCEWithLogitsLoss
 from transformers import BertForSequenceClassification
 from transformers.modeling_outputs import SequenceClassifierOutput
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.bert.bert_split import BertSplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.utils.exp import register_model

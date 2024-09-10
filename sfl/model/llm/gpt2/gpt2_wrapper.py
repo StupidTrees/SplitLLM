@@ -8,7 +8,7 @@ from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 from transformers import GPT2LMHeadModel, GPT2ForSequenceClassification
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions, SequenceClassifierOutputWithPast
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.gpt2.gpt2_split import GPT2SplitModel
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.param_keeper import ParameterKeeper

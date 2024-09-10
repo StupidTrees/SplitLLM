@@ -4,7 +4,7 @@ from tokenizers import Tokenizer
 
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator
-from sfl.utils.argparser import PrefixArgumentParser
+from sfl.utils.args import PrefixArgumentParser
 
 
 class Attacker(ABC):

@@ -7,7 +7,7 @@ from torch.nn import CrossEntropyLoss
 from transformers import MistralForCausalLM
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.model.llm.wizard.wizard_split import WizardSplitModel
 from sfl.simulator.param_keeper import ParameterKeeper

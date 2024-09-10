@@ -9,7 +9,7 @@ from sfl.model.attacker.sip.inversion_models import get_inverter_class
 from sfl.model.attacker.sip.inversion_training import train_inversion_model, train_inversion_model_moe
 from sfl.model.llm.split_model import SplitWrapperModel
 from sfl.simulator.simulator import SFLSimulator, ParamRestored
-from sfl.utils.argparser import PrefixArgumentParser
+from sfl.utils.args import PrefixArgumentParser
 from sfl.utils.exp import required_quantization, get_dra_train_label
 from sfl.utils.model import FLConfigHolder
 

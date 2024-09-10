@@ -20,7 +20,7 @@ from sfl.utils.exp import required_quantization, get_dataset_class
 sys.path.append(os.path.abspath('../../..'))
 import sfl
 from sfl.data.base import MixtureFedDataset
-from sfl.config import FLConfig, dxp_moe_range, gaussian_moe_range, lora_path, dc_moe_range
+from sfl.utils.args import FLConfig, dxp_moe_range, gaussian_moe_range, lora_path, dc_moe_range
 from sfl.utils.model import get_t5_input, calc_unshift_loss, evaluate_attacker_rouge, random_choose_noise, \
     FLConfigHolder, dist_corr, ParamRestored
 

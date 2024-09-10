@@ -5,7 +5,7 @@ from regex import regex
 from torch.nn import CrossEntropyLoss
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.glm.configuration_chatglm import ChatGLMConfig
 from sfl.model.llm.glm.glm_split import ChatGLMSplitModel
 from sfl.model.llm.glm.modeling_chatglm import ChatGLMForConditionalGeneration

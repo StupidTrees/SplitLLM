@@ -6,7 +6,7 @@ from torch import nn
 from torch.nn.utils import skip_init
 from transformers.modeling_outputs import BaseModelOutputWithPast
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.glm.configuration_chatglm import ChatGLMConfig
 from sfl.model.llm.glm.modeling_chatglm import ChatGLMModel, GLMTransformer, default_init, Embedding, RotaryEmbedding, \
     PrefixEncoder

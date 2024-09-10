@@ -11,7 +11,7 @@ from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttenti
 from transformers.models.bert.modeling_bert import BertEncoder, BertAttention, BertLayer, \
     BertSelfAttention
 
-from sfl.config import FLConfig
+from sfl.utils.args import FLConfig
 from sfl.model.llm.split_model import SplitModel
 from sfl.model.noise.dxp import DxPrivacy
 
